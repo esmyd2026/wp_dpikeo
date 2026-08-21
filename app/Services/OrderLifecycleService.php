@@ -1,0 +1,441 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\InventoryMovement;
+use App\Models\MessageTemplate;
+use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
+use App\Models\WhatsappPrice;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+
+/**
+ * Centraliza los cambios operativos de un pedido: estados e inventario.
+ * Evita que una pantalla marque un pedido como confirmado sin reservar stock.
+ */
+class OrderLifecycleService
+{
+    public const STATUSES = [
+        WhatsappCart::STATUS_PENDING,
+        WhatsappCart::STATUS_CONFIRMED,
+        WhatsappCart::STATUS_PREPARING,
+        WhatsappCart::STATUS_READY,
+        WhatsappCart::STATUS_PAYMENT_PENDING,
+        WhatsappCart::STATUS_PAID,
+        WhatsappCart::STATUS_COMPLETED,
+        WhatsappCart::STATUS_CANCELLED,
+    ];
+
+    /** @var array<string, array<int, string>> */
+    private const ALLOWED_TRANSITIONS = [
+        // 'active' es el estado del carrito mientras el cliente todavía está
+        // agregando productos (ver WhatsappService::addToCart). Al confirmar
+        // el pedido pasa directo a payment_pending/confirmed; si el cliente
+        // cancela antes de terminar, a cancelled.
+        'active' => ['payment_pending', 'confirmed', 'pending', 'cancelled'],
+        // Caja valida el pedido, cocina lo prepara y despacho lo entrega.
+        // No se permite saltar de un pedido nuevo a "listo" o "entregado".
+        'pending' => ['confirmed', 'payment_pending', 'paid', 'cancelled'],
+        'payment_pending' => ['confirmed', 'paid', 'cancelled'],
+        'confirmed' => ['payment_pending', 'paid', 'preparing', 'cancelled'],
+        'paid' => ['confirmed', 'preparing', 'cancelled'],
+        'preparing' => ['ready', 'cancelled'],
+        'ready' => ['completed', 'cancelled'],
+        'completed' => [],
+        'cancelled' => [],
+    ];
+
+    /** Texto que ve el cliente por WhatsApp cuando el estado cambia. */
+    private const STATUS_NOTIFICATION_LABELS = [
+        'pending' => 'Pendiente',
+        'confirmed' => 'Confirmado ✅',
+        'payment_pending' => 'Pago pendiente',
+        'paid' => 'Pagado ✅',
+        'preparing' => 'En preparación 👨‍🍳',
+        'ready' => 'Listo 🎉',
+        'completed' => 'Entregado ✅',
+        'cancelled' => 'Cancelado ❌',
+    ];
+
+    public function transition(WhatsappCart $order, string $nextStatus, ?int $userId = null, ?string $note = null): WhatsappCart
+    {
+        if (!in_array($nextStatus, self::STATUSES, true)) {
+            throw new InvalidArgumentException('El estado seleccionado no es válido.');
+        }
+
+        $previousStatus = (string) $order->status;
+
+        $order = DB::transaction(function () use ($order, $nextStatus, $userId, $note) {
+            $order = WhatsappCart::query()->with('items')->lockForUpdate()->findOrFail($order->id);
+            $current = (string) $order->status;
+
+            if ($current === $nextStatus) {
+                return $order;
+            }
+
+            if (!in_array($nextStatus, self::ALLOWED_TRANSITIONS[$current] ?? [], true)) {
+                throw new InvalidArgumentException("No se puede cambiar un pedido de {$current} a {$nextStatus}.");
+            }
+
+            if ($this->requiresReservation($nextStatus) && !$this->isReserved($order)) {
+                $this->reserveInventory($order, $userId);
+            }
+
+            if ($nextStatus === WhatsappCart::STATUS_CANCELLED && $this->isReserved($order)) {
+                $this->releaseInventory($order, $userId);
+            }
+
+            $metadata = $order->metadata ?? [];
+            $metadata['status_changed_at'] = now()->toIso8601String();
+            $metadata['status_changed_from'] = $current;
+            if ($userId) {
+                $metadata['status_changed_by'] = $userId;
+            }
+            if ($note) {
+                $metadata['status_change_note'] = $note;
+            }
+            $metadata['operational_timeline'] = is_array($metadata['operational_timeline'] ?? null)
+                ? $metadata['operational_timeline']
+                : [];
+            $metadata['operational_timeline'][] = [
+                'from' => $current,
+                'to' => $nextStatus,
+                'at' => now()->toIso8601String(),
+                'user_id' => $userId,
+            ];
+
+            $order->status = $nextStatus;
+            $order->metadata = $metadata;
+            $order->save();
+
+            return $order->fresh(['items', 'contact']);
+        });
+
+        // $userId solo viene poblado cuando el cambio lo hizo el staff desde
+        // el panel o la comanda; los cambios que dispara el propio cliente
+        // por WhatsApp (confirmar/cancelar) ya le responden en ese mismo
+        // flujo, así que evitamos duplicar el aviso.
+        if ($userId && $previousStatus !== $order->status) {
+            $this->notifyCustomerOfStatusChange($order->id, $order->status);
+        }
+
+        return $order;
+    }
+
+    /**
+     * Avisa al cliente por WhatsApp que el estado de su pedido cambió, solo
+     * si tiene un número real (no el sintético del punto de venta) y sigue
+     * dentro de la ventana de 24 h de conversación de WhatsApp.
+     */
+    private function notifyCustomerOfStatusChange(int $orderId, string $nextStatus): void
+    {
+        dispatch(function () use ($orderId, $nextStatus) {
+            try {
+                $order = WhatsappCart::with('contact')->find($orderId);
+                $contact = $order?->contact;
+
+                if (!$contact || !$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+                    return;
+                }
+
+                if (!$contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
+                    return;
+                }
+
+                $label = self::STATUS_NOTIFICATION_LABELS[$nextStatus] ?? $nextStatus;
+                $body = MessageTemplate::render('order_status_changed', [
+                    'order_number' => $order->getOrderNumber(),
+                    'status_label' => $label,
+                ], "📦 Tu pedido *{$order->getOrderNumber()}* cambió de estado:\n\n*{$label}*");
+
+                app(WhatsappService::class)->sendBotPayload($contact, [
+                    'type' => 'text',
+                    'text' => ['body' => $body],
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('[OrderLifecycleService] No se pudo notificar el cambio de estado', [
+                    'order_id' => $orderId,
+                    'status' => $nextStatus,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
+    }
+
+    /**
+     * Acción manual de caja: confirma/ajusta el costo de envío y/o el costo
+     * para llevar (tarrinas/empaque) de un pedido EN UN SOLO PASO, y le
+     * avisa al cliente por WhatsApp con un único mensaje que ya incluye el
+     * total final -- antes eran dos botones separados que mandaban dos
+     * mensajes con dos totales distintos, lo cual confundía al cliente
+     * (veía el total "saltar" varias veces). Pasa null en el costo que no
+     * aplique para este pedido (ver AdminController::sendFulfillmentCosts).
+     * Igual que notifyCustomerOfStatusChange(), no envía nada si el número
+     * es sintético (punto de venta) o si se cerró la ventana de 24h.
+     *
+     * @return array{order: WhatsappCart, sent: bool, reason: ?string}
+     */
+    public function sendFulfillmentCostsMessage(WhatsappCart $order, ?float $deliveryFee, ?float $pickupFee, ?int $userId = null): array
+    {
+        if (in_array($order->status, [WhatsappCart::STATUS_CANCELLED, WhatsappCart::STATUS_COMPLETED], true)) {
+            throw new InvalidArgumentException('No se puede modificar el costo de un pedido cancelado o ya entregado.');
+        }
+        if (($deliveryFee !== null && $deliveryFee < 0) || ($pickupFee !== null && $pickupFee < 0)) {
+            throw new InvalidArgumentException('El costo no puede ser negativo.');
+        }
+        if ($deliveryFee === null && $pickupFee === null) {
+            throw new InvalidArgumentException('No hay ningún costo para confirmar.');
+        }
+
+        $order = DB::transaction(function () use ($order, $deliveryFee, $pickupFee, $userId) {
+            $order = WhatsappCart::query()->with(['items', 'contact'])->lockForUpdate()->findOrFail($order->id);
+            $metadata = $order->metadata ?? [];
+            $delta = 0.0;
+
+            if ($deliveryFee !== null) {
+                // El envío no se suma al total hasta esta confirmación (ver
+                // WhatsappService::handleTextMessage, paso de nombre del
+                // receptor). 'delivery_fee_applied' guarda cuánto de ese
+                // costo ya quedó reflejado en el total, para poder
+                // corregirlo más adelante sin duplicar el cobro.
+                $delta += $deliveryFee - (float) ($metadata['delivery_fee_applied'] ?? 0);
+                $metadata['delivery_fee'] = $deliveryFee;
+                $metadata['delivery_fee_applied'] = $deliveryFee;
+                $metadata['delivery_fee_pending_review'] = false;
+                $metadata['delivery_fee_confirmed_by'] = $userId;
+                $metadata['delivery_fee_confirmed_at'] = now()->toIso8601String();
+            }
+
+            if ($pickupFee !== null) {
+                $delta += $pickupFee - (float) ($metadata['pickup_fee_applied'] ?? 0);
+                $metadata['pickup_fee'] = $pickupFee;
+                $metadata['pickup_fee_applied'] = $pickupFee;
+                $metadata['pickup_fee_confirmed_by'] = $userId;
+                $metadata['pickup_fee_confirmed_at'] = now()->toIso8601String();
+            }
+
+            $order->metadata = $metadata;
+            $order->total = max(0, (float) $order->total + $delta);
+            $order->save();
+
+            return $order->fresh(['items', 'contact']);
+        });
+
+        $contact = $order->contact;
+        $reason = null;
+
+        if (!$contact || !$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+            $reason = 'no_phone';
+        } elseif (!$contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
+            $reason = 'window_closed';
+        }
+
+        $sent = $reason === null;
+
+        if ($sent) {
+            $orderId = $order->id;
+            $includesDelivery = $deliveryFee !== null;
+            $includesPickup = $pickupFee !== null;
+
+            dispatch(function () use ($orderId, $includesDelivery, $includesPickup) {
+                try {
+                    $order = WhatsappCart::with('contact')->find($orderId);
+                    $contact = $order?->contact;
+
+                    if (!$contact) {
+                        return;
+                    }
+
+                    $body = $this->buildFulfillmentCostsMessageBody($order, $includesDelivery, $includesPickup);
+
+                    // El total ya es final para lo que se acaba de confirmar;
+                    // si el pedido necesitaba comprobante de pago y todavía
+                    // no se le pidió, se le pide junto con este mismo mensaje
+                    // (ver WhatsappService::maybeRequestPaymentProofAfterCosts).
+                    $whatsapp = app(WhatsappService::class);
+                    $proofText = $whatsapp->maybeRequestPaymentProofAfterCosts($order);
+                    if ($proofText) {
+                        $body .= "\n\n" . $proofText;
+                    }
+
+                    $whatsapp->sendBotPayload($contact, [
+                        'type' => 'text',
+                        'text' => ['body' => $body],
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('[OrderLifecycleService] No se pudo enviar el costo del pedido', [
+                        'order_id' => $orderId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            })->afterResponse();
+        }
+
+        return ['order' => $order, 'sent' => $sent, 'reason' => $reason];
+    }
+
+    private function buildFulfillmentCostsMessageBody(WhatsappCart $order, bool $includesDelivery, bool $includesPickup): string
+    {
+        $metadata = $order->metadata ?? [];
+        $address = $metadata['delivery_location']['manual_address'] ?? null;
+        $recipient = $metadata['delivery_recipient_name'] ?? null;
+        $deliveryFee = (float) ($metadata['delivery_fee'] ?? 0);
+        $pickupFee = (float) ($metadata['pickup_fee'] ?? 0);
+
+        $addressLine = ($includesDelivery && $address) ? "Dirección: {$address}\n" : '';
+        $recipientLine = ($includesDelivery && $recipient) ? "Recibe: {$recipient}\n" : '';
+        $deliveryLine = $includesDelivery ? "Costo de envío: $" . number_format($deliveryFee, 2) . "\n" : '';
+        $pickupLine = $includesPickup ? "Costo para llevar: $" . number_format($pickupFee, 2) . "\n" : '';
+
+        // Si el pedido se paga por transferencia/depósito, el cliente necesita
+        // saber a qué cuenta mandar el pago justo cuando se le confirma el
+        // monto final -- si no, este mensaje no le dice nada accionable.
+        $bankInstructions = $order->payment_method === 'transferencia'
+            ? (WhatsappChatbotConfig::first()?->bank_transfer_instructions)
+            : null;
+        $bankLine = $bankInstructions
+            ? "\n\n🏦 *Datos para tu transferencia o depósito*\n{$bankInstructions}"
+            : '';
+
+        $lines = "📦 Pedido *{$order->getOrderNumber()}*\n\n"
+            . $addressLine . $recipientLine . $deliveryLine . $pickupLine
+            . "Total a pagar: $" . number_format((float) $order->total, 2)
+            . $bankLine;
+
+        return MessageTemplate::render('fulfillment_costs_confirmed', [
+            'order_number' => $order->getOrderNumber(),
+            'address_line' => $addressLine,
+            'recipient_line' => $recipientLine,
+            'delivery_line' => $deliveryLine,
+            'pickup_line' => $pickupLine,
+            'total' => number_format((float) $order->total, 2),
+            'bank_line' => $bankLine,
+        ], $lines);
+    }
+
+    public function recordManualStockChange(WhatsappPrice $product, int $previousStock, ?int $userId = null): void
+    {
+        $current = max(0, (int) $product->stock);
+        if ($current === $previousStock) {
+            return;
+        }
+
+        InventoryMovement::create([
+            'whatsapp_price_id' => $product->id,
+            'user_id' => $userId,
+            'type' => InventoryMovement::TYPE_MANUAL_ADJUSTMENT,
+            'quantity' => $current - $previousStock,
+            'stock_before' => max(0, $previousStock),
+            'stock_after' => $current,
+            'note' => 'Ajuste manual desde el catálogo web.',
+        ]);
+    }
+
+    private function requiresReservation(string $status): bool
+    {
+        return in_array($status, [
+            WhatsappCart::STATUS_CONFIRMED,
+            WhatsappCart::STATUS_PAYMENT_PENDING,
+            WhatsappCart::STATUS_PAID,
+            WhatsappCart::STATUS_PREPARING,
+            WhatsappCart::STATUS_READY,
+            WhatsappCart::STATUS_COMPLETED,
+        ], true);
+    }
+
+    private function isReserved(WhatsappCart $order): bool
+    {
+        return !empty($order->metadata['inventory_reserved_at']);
+    }
+
+    private function reserveInventory(WhatsappCart $order, ?int $userId): void
+    {
+        $needed = $order->items
+            ->groupBy('whatsapp_price_id')
+            ->map(fn ($items) => (int) $items->sum('quantity'))
+            ->sortKeys();
+
+        $products = WhatsappPrice::query()
+            ->whereIn('id', $needed->keys())
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        foreach ($needed as $productId => $quantity) {
+            $product = $products->get($productId);
+            if (!$product || !$product->is_active || $product->stock < $quantity) {
+                $name = $product?->name ?? 'un producto';
+                throw new InvalidArgumentException("Stock insuficiente para {$name}.");
+            }
+        }
+
+        foreach ($needed as $productId => $quantity) {
+            /** @var WhatsappPrice $product */
+            $product = $products->get($productId);
+            $before = (int) $product->stock;
+            $after = $before - $quantity;
+            $product->update(['stock' => $after]);
+
+            InventoryMovement::create([
+                'whatsapp_price_id' => $product->id,
+                'whatsapp_cart_id' => $order->id,
+                'user_id' => $userId,
+                'type' => InventoryMovement::TYPE_SALE_RESERVATION,
+                'quantity' => -$quantity,
+                'stock_before' => $before,
+                'stock_after' => $after,
+                'note' => 'Reserva por pedido '.$order->getOrderNumber(),
+            ]);
+        }
+
+        $metadata = $order->metadata ?? [];
+        $metadata['inventory_reserved_at'] = now()->toIso8601String();
+        $order->metadata = $metadata;
+        $order->save();
+    }
+
+    private function releaseInventory(WhatsappCart $order, ?int $userId): void
+    {
+        $needed = $order->items
+            ->groupBy('whatsapp_price_id')
+            ->map(fn ($items) => (int) $items->sum('quantity'))
+            ->sortKeys();
+
+        $products = WhatsappPrice::query()
+            ->whereIn('id', $needed->keys())
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        foreach ($needed as $productId => $quantity) {
+            $product = $products->get($productId);
+            if (!$product) {
+                continue;
+            }
+            $before = (int) $product->stock;
+            $after = $before + $quantity;
+            $product->update(['stock' => $after]);
+
+            InventoryMovement::create([
+                'whatsapp_price_id' => $product->id,
+                'whatsapp_cart_id' => $order->id,
+                'user_id' => $userId,
+                'type' => InventoryMovement::TYPE_SALE_RELEASE,
+                'quantity' => $quantity,
+                'stock_before' => $before,
+                'stock_after' => $after,
+                'note' => 'Liberación por cancelación '.$order->getOrderNumber(),
+            ]);
+        }
+
+        $metadata = $order->metadata ?? [];
+        unset($metadata['inventory_reserved_at']);
+        $metadata['inventory_released_at'] = now()->toIso8601String();
+        $order->metadata = $metadata;
+        $order->save();
+    }
+}

@@ -1,0 +1,190 @@
+{
+  "version": "7.3",
+  "data_api_version": "3.0",
+  "routing_model": {
+    "ORDER": []
+  },
+  "screens": [
+    {
+      "id": "ORDER",
+      "title": "Tu pedido DPIKEOS",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "product_sku": {
+          "type": "string",
+          "__example__": "DP001"
+        },
+        "product_name": {
+          "type": "string",
+          "__example__": "Ultra Box"
+        },
+        "base_price": {
+          "type": "string",
+          "__example__": "5.99"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "Personaliza tu pedido"
+          },
+          {
+            "type": "TextBody",
+            "text": "Producto: ${data.product_name}\nPrecio desde: $${data.base_price}"
+          },
+          {
+            "type": "Form",
+            "name": "order_form",
+            "children": [
+              {
+                "type": "Dropdown",
+                "name": "variation",
+                "label": "¿Cómo lo quieres?",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "Con gaseosa",
+                    "title": "Con gaseosa"
+                  },
+                  {
+                    "id": "Sin gaseosa",
+                    "title": "Sin gaseosa"
+                  },
+                  {
+                    "id": "Completo",
+                    "title": "Completo"
+                  },
+                  {
+                    "id": "Solo presas",
+                    "title": "Solo presas"
+                  },
+                  {
+                    "id": "Sin variación",
+                    "title": "Sin cambios"
+                  }
+                ]
+              },
+              {
+                "type": "CheckboxGroup",
+                "name": "extras",
+                "label": "¿Deseas agregar algo?",
+                "data-source": [
+                  {
+                    "id": "Salsa Spice Chicken pequeña",
+                    "title": "Salsa Spice Chicken pequeña"
+                  },
+                  {
+                    "id": "Salsa Spice Chicken grande",
+                    "title": "Salsa Spice Chicken grande"
+                  },
+                  {
+                    "id": "Papas extra",
+                    "title": "Papas extra"
+                  },
+                  {
+                    "id": "Queso extra",
+                    "title": "Queso extra"
+                  },
+                  {
+                    "id": "Tocino extra",
+                    "title": "Tocino extra"
+                  },
+                  {
+                    "id": "Gaseosa adicional",
+                    "title": "Gaseosa adicional"
+                  }
+                ]
+              },
+              {
+                "type": "Dropdown",
+                "name": "quantity",
+                "label": "Cantidad",
+                "required": true,
+                "data-source": [
+                  { "id": "1", "title": "1 unidad" },
+                  { "id": "2", "title": "2 unidades" },
+                  { "id": "3", "title": "3 unidades" },
+                  { "id": "4", "title": "4 unidades" },
+                  { "id": "5", "title": "5 unidades" },
+                  { "id": "6", "title": "6 unidades" },
+                  { "id": "7", "title": "7 unidades" },
+                  { "id": "8", "title": "8 unidades" }
+                ]
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "fulfilment",
+                "label": "¿Cómo recibes tu pedido?",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "delivery",
+                    "title": "Delivery"
+                  },
+                  {
+                    "id": "pickup",
+                    "title": "Retiro en local"
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "name": "address",
+                "label": "Dirección (delivery)",
+                "helper-text": "Solo si elegiste delivery. Para retiro, déjalo vacío.",
+                "required": false
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "payment_method",
+                "label": "Método de pago",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "efectivo",
+                    "title": "Efectivo"
+                  },
+                  {
+                    "id": "transferencia",
+                    "title": "Transferencia"
+                  },
+                  {
+                    "id": "tarjeta",
+                    "title": "Tarjeta"
+                  }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "name": "customer_note",
+                "label": "Indicaciones",
+                "helper-text": "Ej.: sin cebolla, timbre azul, llamar al llegar.",
+                "required": false
+              },
+              {
+                "type": "Footer",
+                "label": "Confirmar pedido",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "product_sku": "${data.product_sku}",
+                    "quantity": "${form.quantity}",
+                    "variation": "${form.variation}",
+                    "extras": "${form.extras}",
+                    "fulfilment": "${form.fulfilment}",
+                    "address": "${form.address}",
+                    "payment_method": "${form.payment_method}",
+                    "customer_note": "${form.customer_note}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,101 @@
+
+  GET|HEAD  / ............................................................. login › Auth\LoginController@showLoginForm
+  POST      / ............................................................................. Auth\LoginController@login
+  GET|HEAD  admin .................................................. admin.dashboard › Admin\DashboardController@index
+  GET|HEAD  admin/agent-requests/poll .................. admin.agent-requests.poll › AdminController@pollAgentRequests
+  GET|HEAD  admin/chatbot/config ............................... admin.chatbot.config › Admin\ChatbotController@config
+  PUT       admin/chatbot/config .................. admin.chatbot.config.update › Admin\ChatbotController@updateConfig
+  GET|HEAD  admin/chats .......................................................... admin.chats › AdminController@chats
+  GET|HEAD  admin/chats/list/update ..................... admin.chat.contacts.update › AdminController@getContactsList
+  POST      admin/chats/send ........................................... admin.chat.send › AdminController@sendMessage
+  POST      admin/chats/typing ................................... admin.chat.typing › AdminController@typingIndicator
+  GET|HEAD  admin/chats/{contact} .................................................. admin.chat › AdminController@chat
+  GET|HEAD  admin/chats/{contact}/messages ................................ admin.chat.messages › AdminController@chat
+  GET|HEAD  admin/chats/{contact}/new-messages .............. admin.chat.new-messages › AdminController@getNewMessages
+  GET|HEAD  admin/clients ......................................... admin.clients.index › Admin\ClientController@index
+  GET|HEAD  admin/clients/{client} .................................. admin.clients.show › Admin\ClientController@show
+  PUT       admin/clients/{client} .............................. admin.clients.update › Admin\ClientController@update
+  POST      admin/clients/{client}/notes ................ admin.clients.notes.store › Admin\ClientController@storeNote
+  POST      admin/contacts/{contact}/dismiss-agent . admin.contact.dismiss-agent › AdminController@dismissAgentRequest
+  POST      admin/contacts/{contact}/toggle-bot ................. admin.contact.toggle-bot › AdminController@toggleBot
+  GET|HEAD  admin/contacts/{id} .............................................. admin. › AdminController@contactDetails
+  POST      admin/demo/reset ...................................... admin.demo.reset › Admin\DemoResetController@store
+  GET|HEAD  admin/marketing-flow ...................... admin.marketing-flow.edit › Admin\MarketingFlowController@edit
+  PUT       admin/marketing-flow .................. admin.marketing-flow.update › Admin\MarketingFlowController@update
+  POST      admin/menu-items .......................... admin.menu-items.store › Admin\ChatbotController@storeMenuItem
+  POST      admin/menu-items/bulk-status admin.menu-items.bulk-status › Admin\ChatbotController@bulkUpdateMenuItemsSt…
+  GET|HEAD  admin/menu-items/{item} ..................... admin.menu-items.show › Admin\ChatbotController@showMenuItem
+  PUT       admin/menu-items/{item} ................. admin.menu-items.update › Admin\ChatbotController@updateMenuItem
+  DELETE    admin/menu-items/{item} ................. admin.menu-items.delete › Admin\ChatbotController@deleteMenuItem
+  GET|HEAD  admin/menus ............................................ admin.menus.index › Admin\ChatbotController@menus
+  POST      admin/menus ........................................ admin.menus.store › Admin\ChatbotController@storeMenu
+  GET|HEAD  admin/menus/{menu} ................................... admin.menus.show › Admin\ChatbotController@showMenu
+  PUT       admin/menus/{menu} ............................... admin.menus.update › Admin\ChatbotController@updateMenu
+  DELETE    admin/menus/{menu} ............................... admin.menus.delete › Admin\ChatbotController@deleteMenu
+  GET|HEAD  admin/messages ................................................. admin.messages › AdminController@messages
+  GET|HEAD  admin/messages/{message}/image ............................ admin.message.image › AdminController@getImage
+  GET|HEAD  admin/orders ....................................................... admin.orders › AdminController@orders
+  GET|HEAD  admin/orders/bulk ....................... admin.orders.bulk.create › Admin\AdminBulkOrderController@create
+  POST      admin/orders/bulk ....................... admin.orders.bulk.submit › Admin\AdminBulkOrderController@submit
+  GET|HEAD  admin/orders/bulk/catalogo ............ admin.orders.bulk.catalog › Admin\AdminBulkOrderController@catalog
+  GET|HEAD  admin/orders/bulk/contacts .... admin.orders.bulk.contacts › Admin\AdminBulkOrderController@searchContacts
+  GET|HEAD  admin/orders/export ................................... admin.orders.export › AdminController@exportOrders
+  PUT       admin/orders/{id} ...................................... admin.orders.update › AdminController@updateOrder
+  GET|HEAD  admin/orders/{id}/details ............................ admin.orders.details › AdminController@orderDetails
+  POST      admin/orders/{id}/notes ........................ admin.orders.notes.store › AdminController@storeOrderNote
+  GET|HEAD  admin/orders/{id}/payment-proof ........... admin.orders.payment-proof › AdminController@orderPaymentProof
+  GET|HEAD  admin/orders/{id}/pdf ................................ admin.orders.pdf › OrderPdfController@downloadAdmin
+  POST      admin/orders/{id}/send-confirmation admin.orders.send-confirmation › AdminController@sendOrderConfirmation
+  POST      admin/orders/{id}/status ............................................... AdminController@updateOrderStatus
+  POST      admin/platform-receipts/{receipt}/review admin.platform-receipts.review › Admin\PricingSettingsController…
+  GET|HEAD  admin/pricing-settings ................ admin.pricing-settings.edit › Admin\PricingSettingsController@edit
+  PUT       admin/pricing-settings ............ admin.pricing-settings.update › Admin\PricingSettingsController@update
+  PUT       admin/pricing-settings/billing admin.pricing-settings.billing.update › Admin\PricingSettingsController@up…
+  GET|HEAD  admin/products ...................................... admin.products.index › Admin\ProductController@index
+  POST      admin/products ...................................... admin.products.store › Admin\ProductController@store
+  POST      admin/products/bulk-status ......... admin.products.bulk-status › Admin\ProductController@bulkUpdateStatus
+  GET|HEAD  admin/products/create ............................. admin.products.create › Admin\ProductController@create
+  GET|HEAD  admin/products/export ...................... admin.products.export › Admin\ProductController@exportCatalog
+  POST      admin/products/import ...................... admin.products.import › Admin\ProductController@importCatalog
+  GET|HEAD  admin/products/import/template admin.products.import.template › Admin\ProductController@downloadImportTem…
+  GET|HEAD  admin/products/{product} .............................. admin.products.show › Admin\ProductController@show
+  PUT       admin/products/{product} .......................... admin.products.update › Admin\ProductController@update
+  DELETE    admin/products/{product} ........................ admin.products.destroy › Admin\ProductController@destroy
+  GET|HEAD  admin/products/{product}/edit ......................... admin.products.edit › Admin\ProductController@edit
+  GET|HEAD  admin/profile ...................................... admin.profile.show › Admin\UserProfileController@show
+  PUT       admin/profile .................................. admin.profile.update › Admin\UserProfileController@update
+  PUT       admin/profile/password ........ admin.profile.password.update › Admin\UserProfileController@updatePassword
+  GET|HEAD  admin/reports/orders .......................... admin.reports.orders › Admin\OrdersReportsController@index
+  GET|HEAD  admin/reports/whatsapp .................... admin.reports.whatsapp › Admin\WhatsappReportsController@index
+  GET|HEAD  admin/roles ............................................... admin.roles.index › Admin\RoleController@index
+  POST      admin/roles ............................................... admin.roles.store › Admin\RoleController@store
+  DELETE    admin/roles/{role} .................................... admin.roles.destroy › Admin\RoleController@destroy
+  PUT       admin/roles/{role}/permissions ... admin.roles.permissions.update › Admin\RoleController@updatePermissions
+  GET|HEAD  admin/users .......................................... admin.users.index › Admin\UserAdminController@index
+  POST      admin/users .......................................... admin.users.store › Admin\UserAdminController@store
+  GET|HEAD  admin/users/create ................................. admin.users.create › Admin\UserAdminController@create
+  PUT       admin/users/{user} ................................. admin.users.update › Admin\UserAdminController@update
+  GET|HEAD  admin/users/{user}/edit ................................ admin.users.edit › Admin\UserAdminController@edit
+  PUT       admin/users/{user}/role ................... admin.users.role.update › Admin\UserAdminController@updateRole
+  PATCH     admin/users/{user}/toggle-active ...... admin.users.toggle-active › Admin\UserAdminController@toggleActive
+  GET|HEAD  admin/wallet ........................................... admin.wallet.index › Admin\WalletController@index
+  POST      admin/wallet/receipts ......................... admin.wallet.receipts.store › Admin\WalletController@store
+  POST      api/herbalife/marketing ................................ HerbalifeMarketingController@sendMarketingMessage
+  POST      api/herbalife/verify-template ....................... HerbalifeMarketingController@verifyAndSubmitTemplate
+  GET|HEAD  api/user ............................................................................... routes/api.php:20
+  GET|HEAD  api/whatsapp/templates/approved .......................... WhatsappTemplateController@getApprovedTemplates
+  GET|HEAD  api/whatsapp/webhook .................................................... WhatsappWebhookController@verify
+  POST      api/whatsapp/webhook ................................................... WhatsappWebhookController@webhook
+  GET|HEAD  login .................................................................................. routes/web.php:12
+  POST      login ......................................................................... Auth\LoginController@login
+  POST      logout .............................................................. logout › Auth\LoginController@logout
+  GET|HEAD  orden/{order}/pdf ................................... order.pdf.signed › OrderPdfController@downloadSigned
+  GET|HEAD  pedido/{token} ................................................ bulk-order.show › BulkOrderController@show
+  POST      pedido/{token} ............................................ bulk-order.submit › BulkOrderController@submit
+  GET|HEAD  pedido/{token}/catalogo ................................. bulk-order.catalog › BulkOrderController@catalog
+  GET|HEAD  planes ........................................................... pricing.index › PricingController@index
+  GET|HEAD  planes/contratar/{plan} .................................... pricing.checkout › PricingController@checkout
+  GET|HEAD  resumen ............................................................... public.resumen › routes/web.php:18
+
+                                                                                                   Showing [97] routes
+

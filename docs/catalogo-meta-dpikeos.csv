@@ -1,0 +1,20 @@
+retailer_id;title;description;price_usd;sale_price_usd;availability;condition;brand;website_link;image_required;variants
+DP001;Ultra Box;2 presas, papas y gaseosa.;5.99;;in stock;new;DPIKEOS;;Foto real del Ultra Box;Con gaseosa: 5.99 | Sin gaseosa: 5.40
+DP002;Box Tender;Presas, papas y gaseosa.;4.50;;in stock;new;DPIKEOS;;Foto real del Box Tender;Con gaseosa: 4.50 | Sin gaseosa: 3.75
+DP003;Deditos de Pollo;Pechuga, papas y gaseosa.;4.50;;in stock;new;DPIKEOS;;Foto real de los deditos;Con gaseosa: 4.50 | Sin gaseosa: 3.75
+DP004;Combo Familiar;5 presas, 2 porciones de papas y gaseosa de 1 L.;10.99;;in stock;new;DPIKEOS;;Foto real del combo familiar;Completo: 10.99 | Solo presas: 7.50
+DP005;Mega Familiar;10 presas, 3 porciones de papas y gaseosa de 1 L.;17.99;;in stock;new;DPIKEOS;;Foto real del mega familiar;Completo: 17.99 | Solo presas: 14.99
+DP006;Mega D-Box;Hamburguesa con queso holandés, presa de pollo, 300 g de papas rizadas, salsa Spice Chicken y gaseosa 300 ml.;7.99;;in stock;new;DPIKEOS;;Foto real del Mega D-Box;
+DP007;Rice and Broaster;Arroz con menestra, 1 presa y gaseosa.;4.60;;in stock;new;DPIKEOS;;Foto real del plato;Con gaseosa: 4.60 | Sin gaseosa: 3.99
+DP008;Combo 1;Arroz con menestra, 2 presas y gaseosa.;5.60;;in stock;new;DPIKEOS;;Foto real del plato;Con gaseosa: 5.60 | Sin gaseosa: 4.99
+DP009;Mega Po;Pechuga, huevo y queso cheddar.;4.99;;in stock;new;DPIKEOS;;Foto real de la hamburguesa;Completa: 4.99 | Sin gaseosa: 3.50
+DP010;Total Chicken;Pechuga, huevo, queso y tocino.;5.15;;in stock;new;DPIKEOS;;Foto real de la hamburguesa;Completa: 5.15 | Sin gaseosa: 4.50
+DP011;Tocino Chicken;Pechuga, queso y tocino.;4.50;;in stock;new;DPIKEOS;;Foto real de la hamburguesa;Completa: 4.50 | Sin gaseosa: 3.99
+DP012;Imperdible de Pollo;Dos strips de pollo, queso cheddar, papas y gaseosa.;4.50;;in stock;new;DPIKEOS;;Foto real del combo;
+DP013;Bacon Cheese;Papas con cheddar y tocino.;3.75;;in stock;new;DPIKEOS;;Foto real de las papas;
+DP014;Salchi Papas;Papas y salchichas.;2.75;;in stock;new;DPIKEOS;;Foto real de la salchipapa;
+DP015;Salchi Pollo;Salchipapa y 1 presa de pollo.;4.25;;in stock;new;DPIKEOS;;Foto real de la salchipapa;
+DP016;Mega Remix;3 pechugas, papas, queso cheddar y salchichas.;4.80;;in stock;new;DPIKEOS;;Foto real del Mega Remix;
+DP017;Chili Cheese Res + Irresistible;Papas, carne, cheddar y gaseosa 300 ml.;4.50;;in stock;new;DPIKEOS;;Foto real del producto;Con gaseosa: 4.50 | Sin gaseosa: 3.75
+DP018;Deditos Cheese;Deditos de pechuga, 400 g de papas rizadas, queso mozzarella, salsas y gaseosa 300 ml.;6.50;;in stock;new;DPIKEOS;;Foto real del producto;
+DP019;Salsa Spice Chicken;Salsa Spice Chicken.;0.50;;in stock;new;DPIKEOS;;Foto real de la salsa;Vaso pequeño: 0.50 | Vaso grande: 2.99
