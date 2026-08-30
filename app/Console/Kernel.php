@@ -17,7 +17,6 @@ class Kernel extends ConsoleKernel
         Commands\TestChatGPTConnection::class,
         Commands\GenerateWhatsappFlowKeys::class,
         Commands\RegisterWhatsappFlowPublicKey::class,
-        Commands\SeedDemoKitchenOrders::class,
     ];
 
     /**

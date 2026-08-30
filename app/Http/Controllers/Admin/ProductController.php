@@ -7,7 +7,6 @@ use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use App\Models\Franchise;
 use App\Services\DemoClienteService;
-use App\Services\PlanLimitsService;
 use App\Services\ProductImageService;
 use App\Services\ProductImportExportService;
 use Illuminate\Http\Request;
@@ -17,7 +16,6 @@ use Illuminate\Validation\Rule;
 class ProductController extends Controller
 {
     public function __construct(
-        private readonly PlanLimitsService $planLimits,
         private readonly DemoClienteService $demoCliente,
         private readonly ProductImportExportService $productImportExport,
         private readonly ProductImageService $productImages,
@@ -38,9 +36,8 @@ class ProductController extends Controller
             ->get();
 
         $stats = WhatsappPrice::summaryStats();
-        $planLimits = $this->planLimits->snapshot();
 
-        return view('admin.products.index', compact('products', 'categories', 'stats', 'planLimits') + [
+        return view('admin.products.index', compact('products', 'categories', 'stats') + [
             'demoClienteOptions' => $this->demoCliente->options(),
             'activeDemoCliente' => $this->demoCliente->activeKey(),
             'franchises' => Franchise::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
@@ -56,12 +53,6 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        if (!$this->planLimits->canCreateProduct()) {
-            return response()->json([
-                'message' => $this->planLimits->productLimitMessage(),
-            ], 422);
-        }
-
         $data = $this->validateAndPrepare($request);
 
         if ($data instanceof \Illuminate\Http\JsonResponse) {
@@ -162,11 +153,6 @@ class ProductController extends Controller
 
             if ((int) $franchise->id === (int) $product->franchise_id) {
                 $results[] = ['franchise' => $franchise->name, 'status' => 'skipped', 'message' => 'Es la misma franquicia del producto original.'];
-                continue;
-            }
-
-            if (!$this->planLimits->canCreateProduct()) {
-                $results[] = ['franchise' => $franchise->name, 'status' => 'error', 'message' => $this->planLimits->productLimitMessage()];
                 continue;
             }
 

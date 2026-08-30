@@ -279,7 +279,6 @@
         <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
         <div class="nav-links" id="navLinks">
             <a href="#como-funciona" class="nav-link">Cómo funciona</a>
-            <a href="{{ route('pricing.index') }}" class="nav-link">Planes</a>
             <a href="{{ route('legal.privacy') }}" class="nav-link">Privacidad</a>
             <a href="{{ route('login') }}" class="nav-login"><i class="fas fa-arrow-right-to-bracket"></i> Iniciar sesión</a>
         </div>
@@ -379,7 +378,6 @@
             <div class="footer-copy">&copy; {{ date('Y') }} {{ $businessName }} · Todos los derechos reservados</div>
             <div class="footer-links">
                 <a href="{{ route('legal.privacy') }}">Privacidad</a>
-                <a href="{{ route('pricing.index') }}">Planes</a>
                 <a href="{{ route('login') }}">Iniciar sesión</a>
             </div>
         </div>

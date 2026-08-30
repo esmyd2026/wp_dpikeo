@@ -62,7 +62,6 @@ class ProductImportExportService
     ];
 
     public function __construct(
-        private readonly PlanLimitsService $planLimits,
         private readonly DemoClienteService $demoCliente,
     ) {}
 
@@ -159,9 +158,6 @@ class ProductImportExportService
             fn ($id, $sku) => [strtoupper((string) $sku) => $id]
         )->all();
 
-        $snapshot = $this->planLimits->snapshot();
-        $remainingSlots = max(0, $snapshot['max_products'] - $snapshot['usage']['products']);
-
         $result = [
             'created' => 0,
             'updated' => 0,
@@ -201,17 +197,6 @@ class ProductImportExportService
                 continue;
             }
 
-            if (!$existingId && $remainingSlots <= 0) {
-                $result['skipped']++;
-                $result['errors'][] = [
-                    'row' => $row,
-                    'sku' => $sku,
-                    'message' => $this->planLimits->productLimitMessage(),
-                ];
-
-                continue;
-            }
-
             try {
                 $payload = $this->buildProductPayload($rowData, $categories, $row);
             } catch (\InvalidArgumentException $e) {
@@ -225,14 +210,13 @@ class ProductImportExportService
                 continue;
             }
 
-            DB::transaction(function () use ($existingId, $payload, &$result, &$existingSkus, &$remainingSlots, $sku) {
+            DB::transaction(function () use ($existingId, $payload, &$result, &$existingSkus, $sku) {
                 if ($existingId) {
                     WhatsappPrice::whereKey($existingId)->update($payload);
                     $result['updated']++;
                 } else {
                     WhatsappPrice::create($payload);
                     $existingSkus[$sku] = true;
-                    $remainingSlots--;
                     $result['created']++;
                 }
             });

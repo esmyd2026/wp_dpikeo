@@ -54,9 +54,9 @@ class LandingController extends Controller
             }
         }
 
-        $demoNumber = preg_replace('/[^0-9]/', '', config('pricing.demo.whatsapp_number', config('whatsapp.demo_whatsapp_number', '')));
+        $orderNumber = preg_replace('/[^0-9]/', '', config('whatsapp.demo_whatsapp_number', ''));
         $orderMessage = rawurlencode('¡Hola! Quiero hacer un pedido 🍗');
-        $orderWhatsappUrl = $demoNumber ? "https://wa.me/{$demoNumber}?text={$orderMessage}" : null;
+        $orderWhatsappUrl = $orderNumber ? "https://wa.me/{$orderNumber}?text={$orderMessage}" : null;
 
         return view('landing', [
             'businessName' => $businessName,

@@ -86,21 +86,6 @@
     .home-report-card.orders .icon { background: #e0f2fe; color: #0369a1; }
     .home-report-card.products .icon { background: #f3e8ff; color: #7c3aed; }
     .home-report-card.whatsapp .icon { background: #ecfdf5; color: #128c7e; }
-    .demo-reset-panel {
-        border: 1px solid #fde68a;
-        background: #fffbeb;
-        border-radius: 12px;
-        padding: 1rem 1.25rem;
-        margin-bottom: 1rem;
-    }
-    .demo-reset-panel h3 { font-size: .95rem; font-weight: 700; color: #92400e; margin: 0 0 .35rem; }
-    .demo-reset-panel p { margin: 0; font-size: .84rem; color: #a16207; line-height: 1.45; max-width: 640px; }
-    .demo-reset-panel .demo-reset-actions { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
-    .demo-reset-btn {
-        background: #d97706; color: #fff; border: none; border-radius: 8px;
-        padding: .5rem 1rem; font-size: .85rem; font-weight: 600; cursor: pointer;
-    }
-    .demo-reset-check { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #92400e; }
 </style>
 <script>document.body.classList.add('dashboard-page');</script>
 
@@ -127,14 +112,12 @@
 
     <div class="home-reports">
         @perm('orders.view')
-        @if(!($platformFeatureAccess['orders_blocked'] ?? false))
         <a href="{{ route('admin.reports.orders') }}" class="home-report-card orders">
             <div class="icon"><i class="fas fa-shopping-bag"></i></div>
             <h2>Reportes de pedidos</h2>
             <p>Ingresos, ticket promedio, estados y exportación Excel de ventas.</p>
             <span class="link">Ver reportes de pedidos →</span>
         </a>
-        @endif
         @endperm
 
         @perm('products.view')
@@ -156,26 +139,5 @@
         @endperm
     </div>
 
-    @perm('demo.reset')
-    <section class="demo-reset-panel" aria-label="Reiniciar demo">
-        <div class="demo-reset-actions">
-            <div style="flex:1; min-width:220px;">
-                <h3><i class="fas fa-rotate-left me-1"></i> Reiniciar demo</h3>
-                <p>Elimina chats y pedidos para volver a mostrar la demo. No borra productos ni configuración del bot.</p>
-            </div>
-            <form method="post" action="{{ route('admin.demo.reset') }}"
-                onsubmit="return confirm('¿Reiniciar la demo? Se borrarán todos los mensajes y pedidos.');">
-                @csrf
-                <label class="demo-reset-check mb-2">
-                    <input type="checkbox" name="confirm" value="1" required>
-                    Entiendo que se borrarán los datos
-                </label>
-                <button type="submit" class="demo-reset-btn">
-                    <i class="fas fa-trash-restore me-1"></i> Reiniciar demo
-                </button>
-            </form>
-        </div>
-    </section>
-    @endperm
 </div>
 @endsection

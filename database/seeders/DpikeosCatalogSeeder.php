@@ -12,51 +12,34 @@ use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use App\Models\Franchise;
-use App\Services\DemoClienteService;
-use App\Services\PlanLimitsService;
 use Illuminate\Database\Seeder;
 
-/** Configura DPIKEOS como una demo separada y totalmente guiada, sin IA. */
-class DpikeosDemoSeeder extends Seeder
+/** Carga el catálogo real de DPIKEOS (pollo, combos, hamburguesas) y su configuración de bot/flujo. */
+class DpikeosCatalogSeeder extends Seeder
 {
-    private const DEMO_KEY = 'dpikeos';
+    private const CATALOG_KEY = 'dpikeos';
 
     public function run(): void
     {
         $profile = WhatsappBusinessProfile::first();
         if (!$profile) {
-            $this->command?->warn('DpikeosDemoSeeder: sin perfil de negocio.');
+            $this->command?->warn('DpikeosCatalogSeeder: sin perfil de negocio.');
             return;
         }
 
-        $this->deactivateOtherDemos();
         $this->seedCatalog($profile);
         $this->configureBusiness($profile);
         $this->configureChatbot($profile);
         $this->configureFlow($profile);
         $this->configureResponses();
-        $this->activateDemo();
 
-        $this->command?->info('Demo DPIKEOS lista. Catálogo activo: ' . self::DEMO_KEY);
-    }
-
-    private function deactivateOtherDemos(): void
-    {
-        WhatsappMenuItem::query()
-            ->whereNotNull('demo_cliente')
-            ->where('demo_cliente', '!=', self::DEMO_KEY)
-            ->update(['is_active' => false]);
-
-        WhatsappPrice::query()
-            ->whereNotNull('demo_cliente')
-            ->where('demo_cliente', '!=', self::DEMO_KEY)
-            ->update(['is_active' => false]);
+        $this->command?->info('Catálogo DPIKEOS cargado.');
     }
 
     private function seedCatalog(WhatsappBusinessProfile $profile): void
     {
         $franchise = Franchise::query()->firstOrCreate(
-            ['slug' => self::DEMO_KEY],
+            ['slug' => self::CATALOG_KEY],
             ['name' => 'DPIKEOS · Club Dpikeolovers', 'description' => 'Franquicia principal de pollo, combos y hamburguesas.', 'is_default' => true, 'is_active' => true]
         );
 
@@ -85,7 +68,7 @@ class DpikeosDemoSeeder extends Seeder
                     'icon' => $category['icon'],
                     'order' => $order + 1,
                     'is_active' => true,
-                    'demo_cliente' => self::DEMO_KEY,
+                    'demo_cliente' => self::CATALOG_KEY,
                 ]
             );
 
@@ -117,7 +100,7 @@ class DpikeosDemoSeeder extends Seeder
                         'is_promo' => false,
                         'currency' => 'USD',
                         'is_active' => true,
-                        'demo_cliente' => self::DEMO_KEY,
+                        'demo_cliente' => self::CATALOG_KEY,
                         'stock' => 999,
                         'allow_quantity_selection' => true,
                         'min_quantity' => 1,
@@ -216,18 +199,5 @@ class DpikeosDemoSeeder extends Seeder
                 ['response' => $response, 'type' => 'text', 'show_menu' => false, 'is_active' => true]
             );
         }
-    }
-
-    private function activateDemo(): void
-    {
-        app(PlanLimitsService::class)->savePlatformLimits([
-            'active_demo_cliente' => self::DEMO_KEY,
-            'subscription_plan' => 'pro',
-            'max_products_limit' => 500,
-            'max_categories_limit' => 60,
-            'bulk_web_order_enabled' => true,
-        ]);
-
-        app(DemoClienteService::class)->saveActiveKey(self::DEMO_KEY);
     }
 }

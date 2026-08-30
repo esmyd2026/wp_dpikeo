@@ -1087,26 +1087,6 @@
                 @php
                     $ordersMenuOpen = request()->routeIs('admin.orders*') || request()->routeIs('admin.reports.orders') || request()->routeIs('admin.kitchen.*') || request()->routeIs('admin.delivery.*');
                 @endphp
-                @if($platformFeatureAccess['orders_blocked'] ?? false)
-                    <div class="nav-group {{ $ordersMenuOpen ? 'is-open' : '' }}" data-nav-group="orders">
-                        <div class="nav-group-row">
-                            <span class="nav-link nav-link-disabled flex-grow-1" title="Módulo de pedidos suspendido">
-                                <i class="fas fa-shopping-cart"></i>
-                                <span class="sidebar-text">Pedidos</span>
-                                <span class="sidebar-nav-badge" style="background:#fecaca;color:#991b1b;">Off</span>
-                            </span>
-                            <button type="button" class="nav-group-toggle" aria-label="Mostrar u ocultar submenú de pedidos" aria-expanded="{{ $ordersMenuOpen ? 'true' : 'false' }}">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                        </div>
-                        <div class="nav-group-sub">
-                            <span class="nav-link nav-link-disabled nav-link-sub" title="Módulo de pedidos suspendido">
-                                <i class="fas fa-chart-bar"></i>
-                                <span class="sidebar-text">Reportes pedidos</span>
-                            </span>
-                        </div>
-                    </div>
-                @else
                     <div class="nav-group {{ $ordersMenuOpen ? 'is-open' : '' }}" data-nav-group="orders">
                         <div class="nav-group-row">
                             <a href="{{ route('admin.orders') }}" class="nav-link {{ request()->routeIs('admin.orders') || request()->routeIs('admin.orders.details') || request()->routeIs('admin.orders.bulk.*') ? 'active' : '' }}">
@@ -1138,7 +1118,6 @@
                             @endperm
                         </div>
                     </div>
-                @endif
                 @endperm
                 @perm('clients.menu')
                 <a href="{{ route('admin.clients.index') }}" class="nav-link {{ request()->routeIs('admin.clients*') ? 'active' : '' }}">
@@ -1153,25 +1132,16 @@
                 <div class="sidebar-section sidebar-text">WhatsApp</div>
                 @php
                     $whatsappMenuOpen = request()->routeIs('admin.chat*')
-                        || request()->routeIs('admin.reports.whatsapp')
-                        || request()->routeIs('admin.wallet*');
+                        || request()->routeIs('admin.reports.whatsapp');
                 @endphp
                 <div class="nav-group {{ $whatsappMenuOpen ? 'is-open' : '' }}" data-nav-group="whatsapp">
                     <div class="nav-group-row">
                         @perm('chats.menu')
-                        @if($platformFeatureAccess['chat_blocked'] ?? false)
-                            <span class="nav-link nav-link-disabled flex-grow-1" title="Interfaz de chat suspendida">
-                                <i class="fab fa-whatsapp"></i>
-                                <span class="sidebar-text">WhatsApp</span>
-                                <span class="sidebar-nav-badge" style="background:#fecaca;color:#991b1b;">Off</span>
-                            </span>
-                        @else
                             <a href="{{ route('admin.chats') }}" class="nav-link {{ request()->routeIs('admin.chat*') ? 'active' : '' }}">
                                 <i class="fab fa-whatsapp"></i>
                                 <span class="sidebar-text">WhatsApp</span>
                                 <span id="sidebar-chats-agent-count" class="sidebar-nav-badge hidden"></span>
                             </a>
-                        @endif
                         @else
                             <span class="nav-link nav-link-disabled flex-grow-1">
                                 <i class="fab fa-whatsapp"></i>
@@ -1187,12 +1157,6 @@
                         <a href="{{ route('admin.reports.whatsapp') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.whatsapp') ? 'active' : '' }}">
                             <i class="fas fa-chart-line"></i>
                             <span class="sidebar-text">Reportes</span>
-                        </a>
-                        @endperm
-                        @perm('wallet.menu')
-                        <a href="{{ route('admin.wallet.index') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.wallet*') ? 'active' : '' }}">
-                            <i class="fas fa-wallet"></i>
-                            <span class="sidebar-text">Billetera</span>
                         </a>
                         @endperm
                     </div>
@@ -1454,23 +1418,6 @@
                 </div>
             @endif
 
-            @if(($platformFeatureAccess['chat_blocked'] ?? false) || ($platformFeatureAccess['orders_blocked'] ?? false) || ($platformFeatureAccess['bot_blocked'] ?? false))
-                <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
-                    <i class="fas fa-ban me-2"></i>
-                    <strong>Servicio suspendido:</strong>
-                    @if($platformFeatureAccess['bot_blocked'] ?? false) bot @endif
-                    @if($platformFeatureAccess['chat_blocked'] ?? false) · chat @endif
-                    @if($platformFeatureAccess['orders_blocked'] ?? false) · pedidos @endif
-                    — desactiva las suspensiones manuales en
-                    @perm('pricing_settings.view')
-                        <a href="{{ route('admin.pricing-settings.edit') }}#billing" class="alert-link">Parámetros → Facturación</a>
-                    @else
-                        Parámetros de plataforma
-                    @endperm
-                    o regulariza el pago en Billetera.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            @endif
 
             @yield('content')
         </div>

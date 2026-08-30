@@ -409,19 +409,13 @@
             <a href="{{ route('admin.products.export') }}" class="btn btn-outline-light btn-sm px-3">
                 <i class="fas fa-download me-1"></i> Exportar catálogo
             </a>
-            <button type="button" class="btn btn-light btn-sm px-3" onclick="openCreateModal()" @if($planLimits['products_at_limit'] ?? false) disabled title="Límite de productos alcanzado" @endif>
+            <button type="button" class="btn btn-light btn-sm px-3" onclick="openCreateModal()">
                 <i class="fas fa-plus me-1"></i> Nuevo producto
             </button>
         </div>
     </div>
 
-    @include('admin.partials.plan-limits-widget', ['planLimits' => $planLimits])
-
     <div class="products-stats">
-        <div class="products-stat-card">
-            <div class="label">Cuota productos</div>
-            <div class="value" style="color:{{ ($planLimits['products_at_limit'] ?? false) ? '#dc2626' : '#128c7e' }}">{{ $planLimits['usage']['products'] }}/{{ $planLimits['max_products'] }}</div>
-        </div>
         <div class="products-stat-card">
             <div class="label">Total</div>
             <div class="value">{{ $stats['total'] }}</div>
@@ -834,14 +828,7 @@ document.addEventListener('DOMContentLoaded', function() {
     filterTable();
 });
 
-const productsAtLimit = @json($planLimits['products_at_limit'] ?? false);
-const productLimitMessage = @json($planLimits['products_at_limit'] ? ($planLimits['usage']['products'] . '/' . $planLimits['max_products'] . ' productos — límite alcanzado') : '');
-
 function openCreateModal() {
-    if (productsAtLimit) {
-        showToast(productLimitMessage || 'Has alcanzado el límite de productos.', 'danger');
-        return;
-    }
     currentProductId = null;
     document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Nuevo producto';
     document.getElementById('productForm').reset();

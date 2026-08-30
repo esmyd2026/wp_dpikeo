@@ -41,15 +41,6 @@ return [
                 'orders.update' => ['label' => 'Cambiar estado de pedidos', 'type' => 'action'],
             ],
         ],
-        'wallet' => [
-            'label' => 'Billetera',
-            'icon' => 'fa-wallet',
-            'permissions' => [
-                'wallet.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
-                'wallet.view' => ['label' => 'Ver billetera y pagos', 'type' => 'action'],
-                'wallet.submit' => ['label' => 'Enviar comprobantes de pago', 'type' => 'action'],
-            ],
-        ],
         'marketing_flow' => [
             'label' => 'Flujo del bot',
             'icon' => 'fa-project-diagram',
@@ -125,13 +116,6 @@ return [
                 'roles.update' => ['label' => 'Configurar permisos', 'type' => 'action'],
             ],
         ],
-        'demo' => [
-            'label' => 'Demo',
-            'icon' => 'fa-rotate-left',
-            'permissions' => [
-                'demo.reset' => ['label' => 'Reiniciar datos de demo', 'type' => 'action'],
-            ],
-        ],
         'bulk_orders' => [
             'label' => 'Pedido masivo web',
             'icon' => 'fa-list-check',
@@ -168,7 +152,6 @@ return [
                 'clients.menu', 'clients.view', 'clients.detail', 'clients.update', 'clients.notes',
                 'orders.menu', 'orders.view', 'orders.update',
                 'bulk_orders.create', 'bulk_orders.manage',
-                'wallet.menu', 'wallet.view', 'wallet.submit',
                 'marketing_flow.menu', 'marketing_flow.view', 'marketing_flow.update',
                 'campaigns.menu', 'campaigns.view', 'campaigns.manage', 'campaigns.send',
                 'menus.menu', 'menus.view', 'menus.update',
@@ -176,7 +159,6 @@ return [
                 'chatbot.menu', 'chatbot.view', 'chatbot.update',
                 'users.menu', 'users.view', 'users.create', 'users.update',
                 'message_failures.menu', 'message_failures.view', 'message_failures.manage',
-                'demo.reset',
             ],
         ],
         'agent' => [
@@ -188,7 +170,6 @@ return [
                 'chats.menu', 'chats.view', 'chats.open', 'chats.send', 'chats.toggle_bot',
                 'clients.menu', 'clients.view', 'clients.detail', 'clients.update', 'clients.notes',
                 'orders.menu', 'orders.view', 'orders.update',
-                'wallet.menu', 'wallet.view', 'wallet.submit',
             ],
         ],
         'viewer' => [
@@ -200,7 +181,6 @@ return [
                 'chats.menu', 'chats.view', 'chats.open',
                 'clients.menu', 'clients.view', 'clients.detail',
                 'orders.menu', 'orders.view',
-                'wallet.menu', 'wallet.view',
             ],
         ],
     ],

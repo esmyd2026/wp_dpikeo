@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             WhatsappBusinessProfileSeeder::class,
-            DpikeosDemoSeeder::class,
+            DpikeosCatalogSeeder::class,
             AdminUserSeeder::class,
             WhatsappProductButtonSeeder::class,
             ChatGPTConfigSeeder::class,

@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Services\PermissionService;
-use App\Services\PlatformBillingService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\URL;
@@ -47,13 +46,6 @@ class AppServiceProvider extends ServiceProvider
             });
 
             if ($user) {
-                $billing = app(PlatformBillingService::class);
-                $view->with('platformFeatureAccess', [
-                    'chat_blocked' => $billing->isChatSuspended($user),
-                    'orders_blocked' => $billing->isOrdersSuspended($user),
-                    'bot_blocked' => $billing->isBotSuspended(null),
-                ]);
-
                 if (app(PermissionService::class)->userCan($user, 'message_failures.menu')) {
                     $view->with(
                         'unresolvedFailuresCount',

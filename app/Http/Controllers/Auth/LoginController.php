@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
@@ -19,6 +21,9 @@ class LoginController extends Controller
     {
         return view('auth.login');
     }
+
+    protected const MAX_LOGIN_ATTEMPTS = 5;
+    protected const LOGIN_LOCKOUT_SECONDS = 60;
 
     public function login(Request $request)
     {
@@ -36,14 +41,25 @@ class LoginController extends Controller
             'username.regex' => 'El usuario solo puede contener letras, números, puntos, guiones y guiones bajos.',
         ]);
 
+        $throttleKey = $this->throttleKey($request, $credentials['username']);
+
+        if (RateLimiter::tooManyAttempts($throttleKey, self::MAX_LOGIN_ATTEMPTS)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'username' => "Demasiados intentos fallidos. Intenta de nuevo en {$seconds} segundos.",
+            ]);
+        }
+
         if (Auth::attempt([
             'username' => $credentials['username'],
             'password' => $credentials['password'],
-        ])) {
+        ], $request->boolean('remember'))) {
             $user = Auth::user();
 
             if (!$user->is_admin) {
                 Auth::logout();
+                RateLimiter::hit($throttleKey, self::LOGIN_LOCKOUT_SECONDS);
                 return back()->withErrors([
                     'username' => 'Usuario o contraseña incorrectos.',
                 ])->onlyInput('username');
@@ -56,14 +72,22 @@ class LoginController extends Controller
                 ])->onlyInput('username');
             }
 
+            RateLimiter::clear($throttleKey);
             $request->session()->regenerate();
 
             return redirect()->intended(route('admin.dashboard'));
         }
 
+        RateLimiter::hit($throttleKey, self::LOGIN_LOCKOUT_SECONDS);
+
         return back()->withErrors([
             'username' => 'Usuario o contraseña incorrectos.',
         ])->onlyInput('username');
+    }
+
+    protected function throttleKey(Request $request, string $username): string
+    {
+        return Str::lower($username).'|'.$request->ip();
     }
 
     protected function isBotSubmission(Request $request): bool

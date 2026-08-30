@@ -8,17 +8,12 @@ use App\Http\Controllers\Admin\MessageFailuresController;
 use App\Http\Controllers\Admin\OrdersReportsController;
 use App\Http\Controllers\Admin\WhatsappReportsController;
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\PricingController;
 use App\Http\Controllers\WhatsappTemplateController;
 
 Route::get('/', [App\Http\Controllers\LandingController::class, 'index'])->name('home');
 Route::get('/pedir', [App\Http\Controllers\LandingController::class, 'startOrder'])->name('landing.start-order');
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:login');
-
-Route::get('/planes', [PricingController::class, 'index'])->name('pricing.index');
-Route::get('/planes/contratar/{plan}', [PricingController::class, 'checkout'])->name('pricing.checkout');
-Route::get('/resumen', fn () => redirect()->route('pricing.index'))->name('public.resumen');
 
 Route::get('/privacidad', [App\Http\Controllers\LegalController::class, 'privacy'])->name('legal.privacy');
 
@@ -383,19 +378,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/pricing-settings', [App\Http\Controllers\Admin\PricingSettingsController::class, 'update'])
         ->middleware('permission:pricing_settings.update')
         ->name('pricing-settings.update');
-    Route::put('/pricing-settings/billing', [App\Http\Controllers\Admin\PricingSettingsController::class, 'updateBilling'])
-        ->middleware('permission:pricing_settings.update')
-        ->name('pricing-settings.billing.update');
-    Route::post('/platform-receipts/{receipt}/review', [App\Http\Controllers\Admin\PricingSettingsController::class, 'reviewReceipt'])
-        ->middleware('permission:pricing_settings.update')
-        ->name('platform-receipts.review');
 
-    Route::get('/wallet', [App\Http\Controllers\Admin\WalletController::class, 'index'])
-        ->middleware('permission:wallet.view,wallet.menu')
-        ->name('wallet.index');
-    Route::post('/wallet/receipts', [App\Http\Controllers\Admin\WalletController::class, 'store'])
-        ->middleware('permission:wallet.submit')
-        ->name('wallet.receipts.store');
 
     Route::get('/roles', [App\Http\Controllers\Admin\RoleController::class, 'index'])
         ->middleware('permission:roles.view,roles.menu')
@@ -431,10 +414,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/users/{user}/role', [App\Http\Controllers\Admin\UserAdminController::class, 'updateRole'])
         ->middleware('permission:users.update,roles.update')
         ->name('users.role.update');
-
-    Route::post('/demo/reset', [App\Http\Controllers\Admin\DemoResetController::class, 'store'])
-        ->middleware('permission:demo.reset')
-        ->name('demo.reset');
 
     Route::prefix('fallos-envio')->name('message-failures.')->group(function () {
         Route::get('/', [MessageFailuresController::class, 'index'])

@@ -284,18 +284,12 @@
             <h2><i class="fas fa-folder-open"></i> Categorías del catálogo</h2>
             <p>Organiza los productos que muestra el bot en WhatsApp</p>
         </div>
-        <button type="button" class="btn btn-light btn-sm px-3" onclick="openCreateModal()" @if($planLimits['categories_at_limit'] ?? false) disabled title="Límite de categorías alcanzado" @endif>
+        <button type="button" class="btn btn-light btn-sm px-3" onclick="openCreateModal()">
             <i class="fas fa-plus me-1"></i> Nueva categoría
         </button>
     </div>
 
-    @include('admin.partials.plan-limits-widget', ['planLimits' => $planLimits])
-
     <div class="categories-stats">
-        <div class="categories-stat-card">
-            <div class="label">Cuota categorías</div>
-            <div class="value" style="color:{{ ($planLimits['categories_at_limit'] ?? false) ? '#dc2626' : '#128c7e' }}">{{ $planLimits['usage']['categories'] }}/{{ $planLimits['max_categories'] }}</div>
-        </div>
         <div class="categories-stat-card">
             <div class="label">Total</div>
             <div class="value">{{ $stats['total'] }}</div>
@@ -546,8 +540,6 @@ document.addEventListener('DOMContentLoaded', function() {
     filterTable();
 });
 
-const categoriesAtLimit = @json($planLimits['categories_at_limit'] ?? false);
-
 function resetCategoryImagePreview() {
     const wrap = document.getElementById('categoryImagePreviewWrap');
     const preview = document.getElementById('categoryImagePreview');
@@ -580,10 +572,6 @@ document.getElementById('category_image')?.addEventListener('change', function (
 });
 
 function openCreateModal() {
-    if (categoriesAtLimit) {
-        showToast('Has alcanzado el límite de categorías permitidas.', 'danger');
-        return;
-    }
     currentCategoryId = null;
     document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Nueva categoría';
     document.getElementById('categoryForm').reset();

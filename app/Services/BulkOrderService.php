@@ -15,13 +15,12 @@ use InvalidArgumentException;
 class BulkOrderService
 {
     public function __construct(
-        private PlanFeatureService $planFeatures,
         private DemoClienteService $demoCliente,
     ) {}
 
     public function isAvailable(): bool
     {
-        return $this->planFeatures->isBulkWebOrderAvailable();
+        return true;
     }
 
     public function minCartLines(): int

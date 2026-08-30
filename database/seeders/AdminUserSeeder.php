@@ -29,7 +29,7 @@ class AdminUserSeeder extends Seeder
         User::updateOrCreate(
             ['username' => 'gosorio'],
             [
-                'name' => 'Demo Panel',
+                'name' => 'Administrador',
                 'email' => 'gosorio@siglotecnologico.com',
                 'password' => Hash::make('go123'),
                 'is_admin' => true,

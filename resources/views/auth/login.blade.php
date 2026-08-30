@@ -1,11 +1,3 @@
-@php
-    $demoNumber = preg_replace('/[^0-9]/', '', config('pricing.demo.whatsapp_number', config('whatsapp.demo_whatsapp_number', '')));
-    $demoMessage = rawurlencode(config('pricing.demo.whatsapp_message', '¡Hola! Quiero probar el demo del bot de WhatsApp 🤖'));
-    $demoWhatsappUrl = $demoNumber ? "https://wa.me/{$demoNumber}?text={$demoMessage}" : null;
-    $demoPanelUser = config('pricing.demo.panel_user', 'gosorio');
-    $demoPanelPassword = config('pricing.demo.panel_password', 'go123');
-    $isDemoLogin = request()->boolean('demo');
-@endphp
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -102,85 +94,6 @@
             color: rgba(233,237,239,.85);
         }
         .brand-feature i { color: #25d366; width: 18px; text-align: center; }
-        .brand-pricing-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: .6rem;
-            margin-top: 2rem;
-            padding: .85rem 1.4rem;
-            border-radius: 12px;
-            background: rgba(255,255,255,.1);
-            border: 1px solid rgba(255,255,255,.28);
-            color: #fff;
-            font-size: .92rem;
-            font-weight: 600;
-            text-decoration: none;
-            backdrop-filter: blur(6px);
-            transition: background .15s, border-color .15s, transform .12s, box-shadow .15s;
-            box-shadow: 0 4px 20px rgba(0,0,0,.15);
-        }
-        .brand-pricing-btn:hover {
-            background: rgba(255,255,255,.18);
-            border-color: #25d366;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 28px rgba(0,0,0,.22);
-        }
-        .brand-pricing-btn i { color: #25d366; font-size: 1rem; }
-        .brand-actions {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: .65rem;
-            margin-top: 2rem;
-        }
-        .brand-actions .brand-pricing-btn { margin-top: 0; }
-        .brand-resumen-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: .55rem;
-            padding: .75rem 1.25rem;
-            border-radius: 12px;
-            background: transparent;
-            border: 1px dashed rgba(255,255,255,.35);
-            color: rgba(233,237,239,.92);
-            font-size: .86rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background .15s, border-color .15s, color .15s, transform .12s;
-        }
-        .brand-resumen-btn:hover {
-            background: rgba(37, 211, 102, .1);
-            border-color: #25d366;
-            color: #fff;
-            transform: translateY(-1px);
-        }
-        .brand-resumen-btn i { color: #53bdeb; font-size: .95rem; }
-        .login-resumen-link {
-            display: none;
-            margin-top: 1rem;
-            text-align: center;
-        }
-        .login-resumen-link a {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: .45rem;
-            font-size: .84rem;
-            font-weight: 600;
-            color: #128c7e;
-            text-decoration: none;
-            padding: .55rem .85rem;
-            border-radius: 8px;
-            border: 1px solid #d1fae5;
-            background: #f0fdf4;
-            transition: background .15s, border-color .15s;
-        }
-        .login-resumen-link a:hover {
-            background: #dcfce7;
-            border-color: #86efac;
-        }
         .brand-footer {
             position: relative;
             z-index: 1;
@@ -312,117 +225,20 @@
             opacity: .65;
             cursor: not-allowed;
         }
-        .btn-demo {
+        .form-remember {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: .5rem;
-            width: 100%;
-            margin-top: .85rem;
-            padding: .8rem 1rem;
-            border-radius: 10px;
-            border: 2px solid #25d366;
-            background: #fff;
-            color: #075e54;
-            font-size: .92rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background .15s, color .15s, transform .12s;
+            margin-bottom: 1.15rem;
+            font-size: .86rem;
+            color: #3b4a54;
+            user-select: none;
         }
-        .btn-demo:hover {
-            background: #25d366;
-            color: #fff;
-            transform: translateY(-1px);
-        }
-        .btn-demo i { font-size: 1.1rem; }
-        .btn-demo-panel {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .5rem;
-            width: 100%;
-            margin-top: .65rem;
-            padding: .8rem 1rem;
-            border-radius: 10px;
-            border: 2px solid #128c7e;
-            background: #fff;
-            color: #075e54;
-            font-size: .92rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background .15s, color .15s, transform .12s;
-        }
-        .btn-demo-panel:hover {
-            background: #128c7e;
-            color: #fff;
-            transform: translateY(-1px);
-        }
-        .btn-pricing {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: .5rem;
-            width: 100%;
-            margin-top: 1rem;
-            padding: .8rem 1rem;
-            border-radius: 10px;
-            border: 2px solid #111b21;
-            background: #111b21;
-            color: #fff;
-            font-size: .92rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: background .15s, color .15s, transform .12s, box-shadow .15s;
-            box-shadow: 0 4px 14px rgba(17, 27, 33, .18);
-        }
-        .btn-pricing:hover {
-            background: #075e54;
-            border-color: #075e54;
-            color: #fff;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(7, 94, 84, .28);
-        }
-        .btn-pricing i { font-size: .95rem; opacity: .9; }
-        .demo-panel-box {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: 10px;
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            font-size: .85rem;
-            color: #166534;
-        }
-        .demo-panel-box strong {
-            font-family: ui-monospace, monospace;
-            color: #14532d;
-        }
-        .demo-panel-box .demo-title {
-            font-weight: 700;
-            margin-bottom: .5rem;
-            display: flex;
-            align-items: center;
-            gap: .4rem;
-        }
-        .demo-actions-login {
-            display: grid;
-            gap: .65rem;
-        }
-        .login-divider {
-            display: flex;
-            align-items: center;
-            gap: .75rem;
-            margin: 1.25rem 0 .25rem;
-            color: #8696a0;
-            font-size: .78rem;
-            text-transform: uppercase;
-            letter-spacing: .06em;
-        }
-        .login-divider::before,
-        .login-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #e8ecf1;
+        .form-remember input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #128c7e;
+            cursor: pointer;
         }
         .login-footer-note {
             margin-top: 1.25rem;
@@ -447,7 +263,6 @@
         @media (max-width: 900px) {
             .mobile-brand { display: block; }
             .mobile-brand .brand-logo { justify-content: center; margin-bottom: 0; }
-            .login-resumen-link { display: block; }
         }
     </style>
 </head>
@@ -483,7 +298,7 @@
                 <div class="login-card">
                     <div class="login-card-header">
                         <h1>Iniciar sesión</h1>
-                        <p>Accede al panel de administración de tu agencia de ventas.</p>
+                        <p>Accede al panel de administración de DPIKEOS.</p>
                     </div>
                     <div class="login-card-body">
                         <form id="login-form" action="{{ route('login') }}" method="POST" autocomplete="off" novalidate>
@@ -568,6 +383,11 @@
                                 @enderror
                             </div>
 
+                            <label class="form-remember">
+                                <input type="checkbox" name="remember" id="remember" value="1">
+                                Recordarme en este dispositivo
+                            </label>
+
                             <button type="submit" class="btn-login" id="submit-btn">
                                 <i class="fas fa-arrow-right-to-bracket"></i> Acceder al panel
                             </button>
@@ -575,43 +395,6 @@
                         <p class="login-footer-note">
                             <i class="fas fa-lock"></i> Conexión cifrada · Protección anti-bots activa
                         </p>
-<br>
-                        <div class="login-divider">Prueba la demo</div>
-
-                        <div class="demo-actions-login">
-                            @if ($demoWhatsappUrl)
-                                <a
-                                    href="{{ $demoWhatsappUrl }}"
-                                    class="btn-demo"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <i class="fab fa-whatsapp"></i>
-                                    Probar bot en WhatsApp
-                                </a>
-                            @endif
-
-                            @if ($isDemoLogin)
-                                <div class="demo-panel-box">
-                                    <div class="demo-title"><i class="fas fa-desktop"></i> Credenciales demo del panel</div>
-                                    <div>Usuario: <strong>{{ $demoPanelUser }}</strong></div>
-                                    <div>Contraseña: <strong>{{ $demoPanelPassword }}</strong></div>
-                                    <div style="margin-top:.5rem;font-size:.8rem;opacity:.85">Los campos ya están completados — pulsa «Acceder al panel».</div>
-                                </div>
-                            @else
-                                <a href="{{ route('login', ['demo' => 1]) }}" class="btn-demo-panel">
-                                    <i class="fas fa-desktop"></i>
-                                    Demo del panel ({{ $demoPanelUser }})
-                                </a>
-                            @endif
-                        </div>
-
-                        <div class="login-resumen-link">
-                            <a href="{{ route('public.resumen') }}" target="_blank" rel="noopener noreferrer">
-                                <i class="fas fa-layer-group"></i>
-                                Ver resumen de la plataforma
-                            </a>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -626,17 +409,6 @@
             const form = document.getElementById('login-form');
             const submitBtn = document.getElementById('submit-btn');
             const loadedAtField = document.getElementById('_form_loaded_at');
-            const usernameInput = document.getElementById('username');
-            const isDemoLogin = @json($isDemoLogin);
-            const demoUser = @json($demoPanelUser);
-            const demoPass = @json($demoPanelPassword);
-
-            if (isDemoLogin && usernameInput) {
-                usernameInput.value = demoUser;
-                if (passwordInput) {
-                    passwordInput.value = demoPass;
-                }
-            }
 
             if (loadedAtField && !loadedAtField.value) {
                 loadedAtField.value = Math.floor(Date.now() / 1000);

@@ -3,11 +3,6 @@
 @section('header', 'Parámetros de plataforma')
 
 @section('content')
-@php
-    $limits = $planLimitsSnapshot;
-    $raw = $platformLimits;
-    $effective = $limits;
-@endphp
 
 <style>
     .platform-params { max-width: 960px; }
@@ -36,52 +31,6 @@
         color: #6b7280;
     }
     .platform-section-body { padding: 1.25rem; }
-    .usage-box {
-        background: #ecfdf5;
-        border: 1px solid #a7f3d0;
-        border-radius: 10px;
-        padding: .85rem 1rem;
-        font-size: .85rem;
-        color: #374151;
-    }
-    .usage-box strong { color: #065f46; }
-    .usage-over { color: #dc2626; font-weight: 700; }
-    .usage-meter { margin-bottom: .65rem; }
-    .usage-meter:last-child { margin-bottom: 0; }
-    .usage-meter-head {
-        display: flex;
-        justify-content: space-between;
-        font-size: .78rem;
-        margin-bottom: .25rem;
-        color: #4b5563;
-    }
-    .usage-meter-bar {
-        height: 7px;
-        background: #d1fae5;
-        border-radius: 999px;
-        overflow: hidden;
-    }
-    .usage-meter-bar > span {
-        display: block;
-        height: 100%;
-        background: linear-gradient(90deg, #059669, #10b981);
-        border-radius: 999px;
-    }
-    .usage-meter.is-warning .usage-meter-bar > span { background: linear-gradient(90deg, #d97706, #f59e0b); }
-    .usage-meter.is-danger .usage-meter-bar > span { background: linear-gradient(90deg, #dc2626, #ef4444); }
-    .usage-breakdown {
-        margin-top: .75rem;
-        padding-top: .65rem;
-        border-top: 1px dashed #a7f3d0;
-        font-size: .75rem;
-        color: #4b5563;
-    }
-    .usage-breakdown div {
-        display: flex;
-        justify-content: space-between;
-        gap: .5rem;
-        padding: .15rem 0;
-    }
     .platform-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -143,127 +92,10 @@
 
     <div class="mb-4">
         <p class="text-sm text-gray-600 mb-0">
-            Panel interno de super administrador: define el <strong>plan contratado</strong>, los <strong>límites de capacidad</strong>,
-            el <strong><a href="#demo-cliente" class="text-emerald-700">demo de catálogo</a></strong>,
-            el <strong><a href="#order-pdf" class="text-emerald-700">PDF de orden</a></strong> y los <strong>costos Meta WhatsApp</strong> que se reflejan en <a href="{{ route('admin.reports.whatsapp') }}" class="text-emerald-700">Reportes WhatsApp</a>.
+            Panel interno de super administrador: define el <strong><a href="#order-pdf" class="text-emerald-700">PDF de orden</a></strong>
+            y los <strong>costos Meta WhatsApp</strong> que se reflejan en <a href="{{ route('admin.reports.whatsapp') }}" class="text-emerald-700">Reportes WhatsApp</a>.
         </p>
     </div>
-
-    <form action="{{ route('admin.pricing-settings.update') }}" method="POST" id="form-capacidades">
-        @csrf
-        @method('PUT')
-        <input type="hidden" name="_section" value="capacidades">
-
-        {{-- SECCIÓN 1: Plan y capacidades --}}
-        <section class="platform-section" id="capacidades">
-            <div class="platform-section-head">
-                <h2>📦 Plan contratado y límites de capacidad</h2>
-                <p>Controla cuántos productos, categorías y espacio en disco puede usar este cliente.</p>
-            </div>
-            <div class="platform-section-body">
-                <div class="platform-grid mb-4">
-                    <div class="platform-field">
-                        <label for="subscription_plan">Plan contratado</label>
-                        <select id="subscription_plan" name="subscription_plan" required>
-                            @foreach($plans as $planKey => $planData)
-                                <option value="{{ $planKey }}"
-                                    @selected(old('subscription_plan', $raw['subscription_plan'] ?? $effective['plan_key'] ?? 'starter') === $planKey)>
-                                    {{ $planData['label'] ?? $planData['name'] }} — {{ $planData['price_label'] ?? '' }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <p class="hint">Al cambiar el plan se sugieren los límites por defecto (puedes ajustarlos antes de guardar).</p>
-                    </div>
-
-                    <div class="usage-box">
-                        <div class="font-semibold text-gray-800 mb-2">Uso actual del cliente</div>
-
-                        <div class="usage-meter {{ ($limits['products_percent'] ?? 0) >= 100 ? 'is-danger' : (($limits['products_percent'] ?? 0) >= 80 ? 'is-warning' : '') }}">
-                            <div class="usage-meter-head">
-                                <span>Productos</span>
-                                <strong class="{{ $limits['products_at_limit'] ? 'usage-over' : '' }}">{{ $limits['usage']['products'] }} / {{ $limits['max_products'] }}</strong>
-                            </div>
-                            <div class="usage-meter-bar"><span style="width: {{ $limits['products_percent'] ?? 0 }}%"></span></div>
-                        </div>
-
-                        <div class="usage-meter {{ ($limits['categories_percent'] ?? 0) >= 100 ? 'is-danger' : (($limits['categories_percent'] ?? 0) >= 80 ? 'is-warning' : '') }}">
-                            <div class="usage-meter-head">
-                                <span>Categorías</span>
-                                <strong class="{{ $limits['categories_at_limit'] ? 'usage-over' : '' }}">{{ $limits['usage']['categories'] }} / {{ $limits['max_categories'] }}</strong>
-                            </div>
-                            <div class="usage-meter-bar"><span style="width: {{ $limits['categories_percent'] ?? 0 }}%"></span></div>
-                        </div>
-
-                        <div class="usage-meter {{ ($limits['storage_percent'] ?? 0) >= 100 ? 'is-danger' : (($limits['storage_percent'] ?? 0) >= 80 ? 'is-warning' : '') }}">
-                            <div class="usage-meter-head">
-                                <span>Espacio en servidor</span>
-                                <strong class="{{ $limits['storage_at_limit'] ? 'usage-over' : '' }}">
-                                    {{ $limits['usage']['storage_human'] ?? '0 B' }}
-                                    / {{ number_format($limits['storage_gb'], 0) }} GB
-                                </strong>
-                            </div>
-                            <div class="usage-meter-bar"><span style="width: {{ max(1, $limits['storage_percent'] ?? 0) }}%"></span></div>
-                            <div class="text-xs text-gray-500 mt-1">
-                                Valor registrado manualmente · {{ number_format($limits['usage']['storage_gb'] ?? 0, 3) }} GB
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="platform-field">
-                        <label for="max_products_limit">Máximo de productos</label>
-                        <input type="number" id="max_products_limit" name="max_products_limit" min="0" max="100000" required
-                            value="{{ old('max_products_limit', $raw['max_products_limit'] ?? $effective['max_products']) }}">
-                        <p class="hint">Bloquea la creación de productos al alcanzar este número.</p>
-                        @error('max_products_limit')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    <div class="platform-field">
-                        <label for="max_categories_limit">Máximo de categorías</label>
-                        <input type="number" id="max_categories_limit" name="max_categories_limit" min="0" max="10000" required
-                            value="{{ old('max_categories_limit', $raw['max_categories_limit'] ?? $effective['max_categories']) }}">
-                        @error('max_categories_limit')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    <div class="platform-field">
-                        <label for="storage_gb_used">Espacio usado en servidor (GB)</label>
-                        <input type="number" id="storage_gb_used" name="storage_gb_used" min="0" max="10000" step="0.001" required
-                            value="{{ old('storage_gb_used', $raw['storage_gb_used'] ?? $limits['usage']['storage_gb'] ?? 0) }}">
-                        <p class="hint">Indica cuánto espacio ocupa este cliente hoy. Actualízalo cuando subas archivos o crezca el uso.</p>
-                        @error('storage_gb_used')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    <div class="platform-field">
-                        <label for="storage_gb_limit">Espacio máximo contratado (GB)</label>
-                        <input type="number" id="storage_gb_limit" name="storage_gb_limit" min="0" max="10000" step="0.5" required
-                            value="{{ old('storage_gb_limit', $raw['storage_gb_limit'] ?? $effective['storage_gb']) }}">
-                        <p class="hint">Límite del plan. Se muestra en el dashboard del cliente junto al espacio usado.</p>
-                        @error('storage_gb_limit')<p class="text-red-600 text-xs mt-1">{{ $message }}</p>@enderror
-                    </div>
-
-                    @if($canManageBulkOrder ?? false)
-                    <div class="platform-field" style="grid-column: 1 / -1;">
-                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
-                            <input type="hidden" name="bulk_web_order_enabled" value="0">
-                            <input type="checkbox" name="bulk_web_order_enabled" value="1"
-                                @checked(old('bulk_web_order_enabled', $bulkWebOrderEnabled ?? false))>
-                            <span><strong>Pedido masivo por formulario web</strong> (enlace desde WhatsApp)</span>
-                        </label>
-                        <p class="hint mb-0">
-                            Si está activo, el bot muestra «Armar lista» al agregar productos y en el carrito.
-                            El formulario del panel se controla con el permiso «Crear pedidos desde el panel» en Roles.
-                        </p>
-                    </div>
-                    @endif
-                </div>
-            </div>
-            <div class="platform-save-bar" style="border-top: 1px solid #f1f5f9; border-radius: 0; margin: 0;">
-                <p class="text-xs text-gray-500 mb-0">Plan, productos, categorías y espacio en disco.</p>
-                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg border-0">
-                    <i class="fas fa-save"></i> Guardar plan y límites
-                </button>
-            </div>
-        </section>
-    </form>
 
     <section class="platform-section" id="catalogo-dpikeos">
         <div class="platform-section-head">
@@ -379,9 +211,6 @@
         </section>
     </form>
 
-    {{-- SECCIÓN 2: Facturación (formulario independiente) --}}
-    @include('admin.partials.platform-billing-admin')
-
     <form action="{{ route('admin.pricing-settings.update') }}" method="POST" id="form-meta">
         @csrf
         @method('PUT')
@@ -390,12 +219,12 @@
         <section class="platform-section" id="costos-meta">
             <div class="platform-section-head">
                 <h2>💬 Costos Meta WhatsApp</h2>
-                <p>Tarifas internas y tipos de conversación visibles en <a href="{{ route('admin.reports.whatsapp') }}">Reportes WhatsApp</a> y la página de planes.</p>
+                <p>Tarifas internas y tipos de conversación visibles en <a href="{{ route('admin.reports.whatsapp') }}">Reportes WhatsApp</a>.</p>
             </div>
             <div class="platform-section-body">
                 <div class="mb-5 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
                     <h3 class="font-semibold text-gray-900 mb-2 text-sm">Tipos de conversación activos</h3>
-                    <p class="text-sm text-gray-600 mb-3">Los desactivados no aparecen en Reportes WhatsApp ni en /planes.</p>
+                    <p class="text-sm text-gray-600 mb-3">Los desactivados no aparecen en Reportes WhatsApp.</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         @php
                             $categoryLabels = [
@@ -477,16 +306,15 @@
                     @endforeach
                 </div>
             </div>
-        </section>
 
-        <div class="platform-save-bar">
-            <p class="text-xs text-gray-500 mb-0 max-w-lg">
-                Tarifas Meta y tipos de conversación visibles en Reportes WhatsApp.
-            </p>
-            <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg border-0">
-                <i class="fas fa-save"></i> Guardar costos Meta
-            </button>
-        </div>
+            <div class="platform-save-bar" style="border-top: 1px solid #f1f5f9; border-radius: 0; margin: 0;">
+                <p class="text-xs text-gray-500 mb-0 max-w-lg">
+                    Tarifas Meta y tipos de conversación visibles en Reportes WhatsApp.
+                </p>
+                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg border-0">
+                    <i class="fas fa-save"></i> Guardar costos Meta
+                </button>
+            </div>
         </section>
     </form>
 </div>
@@ -494,23 +322,6 @@
 
 @push('scripts')
 <script>
-const planDefaultsByKey = @json(collect($plans)->mapWithKeys(fn ($plan, $key) => [$key => $plan['limits'] ?? []]));
-
-document.getElementById('subscription_plan')?.addEventListener('change', function () {
-    const limits = planDefaultsByKey[this.value] || {};
-    const map = {
-        max_products: 'max_products_limit',
-        max_categories: 'max_categories_limit',
-        storage_gb: 'storage_gb_limit',
-    };
-    Object.entries(map).forEach(([from, to]) => {
-        const el = document.getElementById(to);
-        if (el && limits[from] != null) {
-            el.value = limits[from];
-        }
-    });
-});
-
 if (window.location.hash) {
     const target = document.querySelector(window.location.hash);
     if (target) {
