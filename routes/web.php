@@ -288,6 +288,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/chatbot/mensajes/{messageTemplate}', [App\Http\Controllers\Admin\ChatbotController::class, 'updateMessageTemplate'])
         ->middleware('permission:chatbot.update')
         ->name('chatbot.message-templates.update');
+    Route::put('/chatbot/whatsapp', [App\Http\Controllers\Admin\ChatbotController::class, 'updateWhatsappCredentials'])
+        ->middleware('permission:chatbot.update')
+        ->name('chatbot.whatsapp.update');
 
     Route::get('/marketing-flow', [App\Http\Controllers\Admin\MarketingFlowController::class, 'edit'])
         ->middleware('permission:marketing_flow.view,marketing_flow.menu')

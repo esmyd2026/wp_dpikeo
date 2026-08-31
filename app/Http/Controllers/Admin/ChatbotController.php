@@ -84,8 +84,9 @@ class ChatbotController extends Controller
     {
         $config = WhatsappChatbotConfig::first();
         $messageTemplates = MessageTemplate::orderBy('name')->get();
+        $businessProfile = \App\Models\WhatsappBusinessProfile::first();
 
-        return view('admin.chatbot.config', compact('config', 'messageTemplates'));
+        return view('admin.chatbot.config', compact('config', 'messageTemplates', 'businessProfile'));
     }
 
     /**
@@ -234,6 +235,50 @@ class ChatbotController extends Controller
         $config->save();
 
         return redirect()->back()->with('success', 'Configuración actualizada correctamente');
+    }
+
+    /**
+     * Guarda las credenciales de WhatsApp Cloud API (Meta) que usa el bot
+     * para enviar y recibir mensajes reales. Estos datos viven en la tabla
+     * whatsapp_business_profiles, no en el .env — por eso necesitan este
+     * formulario en vez de solo variables de entorno.
+     */
+    public function updateWhatsappCredentials(Request $request)
+    {
+        $validated = $request->validate([
+            'phone_number' => 'required|string|max:30',
+            'phone_number_id' => 'required|string|max:60',
+            'whatsapp_business_id' => 'nullable|string|max:60',
+            'access_token' => 'nullable|string|max:1000',
+        ], [
+            'phone_number.required' => 'El número de WhatsApp es obligatorio.',
+            'phone_number_id.required' => 'El Phone Number ID es obligatorio.',
+        ]);
+
+        $profile = \App\Models\WhatsappBusinessProfile::first();
+        if (!$profile) {
+            $profile = new \App\Models\WhatsappBusinessProfile([
+                'business_name' => 'DPIKEOS',
+                'display_name' => 'DPIKEOS',
+                'status' => 'active',
+            ]);
+        }
+
+        $profile->phone_number = $validated['phone_number'];
+        $profile->phone_number_id = $validated['phone_number_id'];
+        $profile->whatsapp_business_id = $validated['whatsapp_business_id'] ?: null;
+
+        // El token no se muestra en el formulario por seguridad. Si el campo
+        // llega vacío, se asume que el usuario no quiso cambiarlo y se deja
+        // el que ya estaba guardado.
+        if (!empty($validated['access_token'])) {
+            $profile->access_token = $validated['access_token'];
+        }
+
+        $profile->save();
+
+        return redirect()->route('admin.chatbot.config')
+            ->with('success', 'Credenciales de WhatsApp guardadas correctamente.');
     }
 
     protected function deleteBotAvatarFile(?string $path): void
