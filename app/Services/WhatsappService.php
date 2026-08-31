@@ -83,7 +83,6 @@ class WhatsappService
             'reason' => $billing->botBlockReason($contact),
             'contact_id' => $contact->id ?? null,
             'bot_enabled' => $contact->bot_enabled ?? null,
-            'suspensions' => $billing->suspensionSettings(),
         ], $extra));
     }
 
