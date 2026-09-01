@@ -87,6 +87,36 @@
                     </div>
 
                     <div class="sm:col-span-2">
+                        <label for="card_payment_url" class="block text-sm font-medium text-gray-700">
+                            Link de pago con tarjeta (página externa)
+                        </label>
+                        <input type="url" id="card_payment_url" name="card_payment_url" maxlength="500"
+                            placeholder="https://tu-pagina-de-pago.com"
+                            value="{{ old('card_payment_url', $config->metadata['card_payment_url'] ?? '') }}"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        <p class="mt-1 text-xs text-gray-500">
+                            URL del sitio externo donde el cliente paga con tarjeta por su cuenta (no procesamos
+                            pagos con tarjeta aquí). Debe empezar con <code>https://</code> — WhatsApp no permite
+                            enlaces sin cifrar. Si la dejas vacía, la opción "Pago con tarjeta" no aparecerá en el
+                            chat.
+                        </p>
+                        @error('card_payment_url')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label for="card_payment_message" class="block text-sm font-medium text-gray-700">
+                            Mensaje al mandar el link de pago con tarjeta
+                        </label>
+                        <textarea id="card_payment_message" name="card_payment_message" rows="3" maxlength="1000"
+                            placeholder="💳 Puedes pagar con tarjeta directamente aquí:"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">{{ old('card_payment_message', $config->metadata['card_payment_message'] ?? '') }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Texto que acompaña el botón con el link de arriba. Se manda apenas el cliente elige
+                            "Pago con tarjeta" — el bot no le pregunta nada más después de esto.
+                        </p>
+                    </div>
+
+                    <div class="sm:col-span-2">
                         <label class="block text-sm font-medium text-gray-700">
                             Consulta de datos de delivery por WhatsApp
                         </label>

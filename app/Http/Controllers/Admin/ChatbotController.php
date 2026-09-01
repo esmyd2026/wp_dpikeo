@@ -119,6 +119,8 @@ class ChatbotController extends Controller
             'iva_enabled' => 'nullable|boolean',
             'iva_percentage' => 'nullable|numeric|min:0|max:100',
             'bank_transfer_instructions' => 'nullable|string|max:1500',
+            'card_payment_message' => 'nullable|string|max:1000',
+            'card_payment_url' => 'nullable|url|starts_with:https://|max:500',
             'delivery_dispatch_keyword' => 'nullable|string|max:30',
             'delivery_dispatch_numbers' => 'nullable|string|max:500',
             'privacy_notice_enabled' => 'nullable|boolean',
@@ -175,6 +177,8 @@ class ChatbotController extends Controller
         $metadata['iva_enabled'] = $request->boolean('iva_enabled');
         $metadata['iva_percentage'] = $validated['iva_percentage'] ?? 0;
         $metadata['bank_transfer_instructions'] = trim((string) ($validated['bank_transfer_instructions'] ?? '')) ?: null;
+        $metadata['card_payment_message'] = trim((string) ($validated['card_payment_message'] ?? '')) ?: null;
+        $metadata['card_payment_url'] = trim((string) ($validated['card_payment_url'] ?? '')) ?: null;
         $metadata['delivery_dispatch_keyword'] = trim((string) ($validated['delivery_dispatch_keyword'] ?? '')) ?: '2501';
         $metadata['delivery_dispatch_numbers'] = trim((string) ($validated['delivery_dispatch_numbers'] ?? '')) ?: null;
         $metadata['privacy_notice_enabled'] = $request->boolean('privacy_notice_enabled');

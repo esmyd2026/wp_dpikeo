@@ -50,20 +50,33 @@ Paso 2 — ¿Para servir o para llevar?
    └─ "Para llevar"
          │
          ▼
-      Paso 3 — ¿Retiro en local o delivery?
+      Paso 2.5 — Método de pago (transferencia / efectivo / tarjeta)
          │
-         ├─ "Retiro en local" ─────────────► ver Flujo 3
+         ├─ "Tarjeta" ──────────────────────► link externo, el bot no pregunta nada más
+         │                                    (ver Flujo 7)
          │
-         └─ "Delivery"
+         └─ "Transferencia" o "Efectivo"
                │
                ▼
-            Paso 4 — Dirección + nombre de quien recibe ──► ver Flujo 4
+            Paso 3 — ¿Retiro en local o delivery?
+               │
+               ├─ "Retiro en local" ─────────► ver Flujo 3
+               │
+               └─ "Delivery"
+                     │
+                     ▼
+                  Paso 4 — Dirección + nombre de quien recibe ──► ver Flujo 4
 ```
 
-Después de esos pasos, siempre sigue:
+El método de pago se pregunta apenas se sabe que el pedido es "para llevar"
+(antes de retiro/delivery, dirección y nota) porque la respuesta determina
+el resto del flujo: si es tarjeta, el bot manda un link externo y no sigue
+preguntando nada más para ese pedido; si es transferencia o efectivo, sigue
+exactamente el flujo normal.
+
+Después de retiro/delivery (y dirección, si aplica), siempre sigue:
 
 - **Nota opcional** del pedido.
-- **Método de pago** (excepto "para servir", que se paga en caja).
 - **Resumen final** con botones "✅ Confirmar pedido" / "❌ Cancelar pedido".
 
 ### Paso 1 — Sucursal
@@ -150,9 +163,12 @@ en caja.
 
 ## 3. Flujo: Para Llevar — Retiro en local
 
+Aplica solo si el método de pago elegido fue transferencia o efectivo — con
+tarjeta el pedido termina antes, en el link externo (ver [sección 7](#7-sub-flujo-de-pago-tarjeta)).
+
 ```
-Sucursal → "Para llevar" → "Retiro en local" → Nota → Método de pago
-  → Resumen → Confirmar → (según método) comprobante o confirmación directa
+Sucursal → "Para llevar" → Método de pago (transf./efectivo) → "Retiro en local"
+  → Nota → Resumen → Confirmar → (según método) comprobante o confirmación directa
 ```
 
 No pide dirección ni nombre de quien recibe (el mismo cliente retira). El
@@ -170,17 +186,22 @@ desglose como **pendiente** hasta que un vendedor lo confirme desde el panel
 > 💰 *Total productos:* $XX.XX
 > Costo para llevar: por confirmar
 
-Continúa con el [sub-flujo del método de pago elegido](#5-sub-flujo-de-pago-efectivo).
+Sigue con la [nota y el resumen](#1-pasos-comunes-a-todo-pedido) según el
+método de pago ya elegido — [efectivo](#5-sub-flujo-de-pago-efectivo) o
+[transferencia](#6-sub-flujo-de-pago-transferencia--depósito).
 
 ---
 
 ## 4. Flujo: Para Llevar — Delivery a domicilio
 
+Aplica solo si el método de pago elegido fue transferencia o efectivo — con
+tarjeta el pedido termina antes, en el link externo (ver [sección 7](#7-sub-flujo-de-pago-tarjeta)).
+
 ```
-Sucursal → "Para llevar" → "Delivery"
+Sucursal → "Para llevar" → Método de pago (transf./efectivo) → "Delivery"
   → Dirección (texto libre)
   → ¿A nombre de quién recibimos? (botón con tu nombre / "Otro nombre")
-  → Nota → Método de pago → Resumen → Confirmar
+  → Nota → Resumen → Confirmar
   → Costo de envío pendiente de confirmación por un vendedor
   → (según método) comprobante o confirmación directa
 ```
@@ -219,8 +240,8 @@ Pedidos, según la dirección real.
 > 💰 *Total productos:* $XX.XX
 > Envío: por confirmar
 
-Continúa con el [sub-flujo del método de pago elegido](#5-sub-flujo-de-pago-efectivo).
-Una vez el vendedor confirma el costo de envío, el bot le manda al cliente
+Sigue con la [nota y el resumen](#1-pasos-comunes-a-todo-pedido) según el
+método de pago ya elegido. Una vez el vendedor confirma el costo de envío, el bot le manda al cliente
 el mensaje de [costo adicional confirmado](#8-confirmación-de-costo-adicional-envío--para-llevar)
 con el total final (y, si paga por transferencia, los datos bancarios).
 
@@ -325,20 +346,34 @@ bot → Datos para transferencias o depósitos**).
 
 ## 7. Sub-flujo de pago: Tarjeta
 
-Mismo comportamiento que Transferencia (también exige comprobante — por
-ejemplo, captura del pago o del voucher), solo cambia la etiqueta:
+A diferencia de transferencia y efectivo, el pago con tarjeta **no se
+procesa en este chat** — el negocio tiene su propia página web externa con
+su propio sistema de cobro. El bot solo manda un link; no pide comprobante,
+no arma resumen, no pide sucursal-retiro/delivery ni dirección ni nota.
 
-> 💳 *Pago*
-> Pago con tarjeta
+1. El cliente elige **💳 Pago con tarjeta** de la lista de métodos de pago
+   (que aparece justo después de "Para llevar", antes de cualquier otra
+   pregunta).
+2. El bot responde de inmediato con un botón que lleva a la página externa:
 
-Todo lo demás (resumen, confirmación, petición de comprobante, verificación)
-es idéntico al flujo de Transferencia. La diferencia es que este método no
-dispara el bloque de datos bancarios en el mensaje de costo confirmado (ese
-bloque solo aplica a transferencia).
+   > {mensaje configurado en el panel, ej. "💳 Puedes pagar con tarjeta
+   > directamente aquí:"}
+   >
+   > `[Pagar en línea]` → abre el link configurado
 
-> Qué métodos aparecen en la lista, y cuáles piden comprobante, se configura
-> desde el panel (**Flujo del bot → Pasos del checkout**): por defecto,
-> transferencia y tarjeta piden comprobante; efectivo no.
+3. Ahí termina la conversación de este pedido en el bot. Si el cliente
+   escribe algo más después, el bot solo le recuerda el link — no vuelve a
+   preguntar nada del pedido.
+
+> El mensaje y el link se configuran desde **Configuración del bot →
+> Credenciales de WhatsApp / Link de pago con tarjeta**. Si no se configura
+> ningún link, la opción "Pago con tarjeta" no aparece en la lista de
+> métodos de pago.
+
+> Como este proyecto no maneja el pago, no se genera comprobante ni se
+> actualiza el estado del pedido más allá de dejar guardado que el cliente
+> eligió "tarjeta" — el seguimiento del pago real ocurre en la página
+> externa.
 
 ---
 

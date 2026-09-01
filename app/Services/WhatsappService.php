@@ -3519,6 +3519,20 @@ class WhatsappService
                 ];
             }
 
+            // Si ya se le mandó el link de pago con tarjeta, no seguir
+            // preguntando nada más — el resto del pedido se resuelve en la
+            // página externa, no en este chat.
+            if (!empty($cart->metadata['card_payment_link_sent'] ?? false)) {
+                $cardPaymentUrl = trim((string) (WhatsappChatbotConfig::first()?->metadata['card_payment_url'] ?? ''));
+
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => $cardPaymentUrl !== ''
+                        ? "Ya te enviamos el link para pagar tu pedido con tarjeta:\n{$cardPaymentUrl}"
+                        : 'Tu pedido con pago por tarjeta ya fue procesado. Si necesitas ayuda, escríbenos.'],
+                ];
+            }
+
             // Paso 1: confirmar la sucursal del pedido (una sola vez por carrito)
             if (empty($cart->metadata['branch_confirmed'] ?? false)) {
                 return $this->buildSucursalStep($contact, $cart);
@@ -3542,6 +3556,63 @@ class WhatsappService
                 } else {
                     return $this->buildServiceTypeStep($cart);
                 }
+            }
+
+            // Paso 2.5: método de pago. Se pregunta apenas se sabe que es
+            // "para llevar" (para servir se paga en caja, ver más abajo),
+            // ANTES de retiro/delivery/dirección/nota — porque la respuesta
+            // determina el resto del flujo: si es tarjeta, el bot manda un
+            // link externo y no sigue preguntando nada más.
+            if (($cart->metadata['service_type'] ?? null) === 'llevar' && empty($cart->payment_method)) {
+                $metadata = $cart->metadata ?? [];
+                $metadata['pending_payment_method'] = true;
+                $cart->metadata = $metadata;
+                $cart->save();
+
+                Log::info('[finalizarCompra] 💳 Solicitando método de pago', [
+                    'cart_id' => $cart->id,
+                    'contact_id' => $contact->id
+                ]);
+
+                $cardPaymentUrl = trim((string) (WhatsappChatbotConfig::first()?->metadata['card_payment_url'] ?? ''));
+
+                return [
+                    'type' => 'interactive',
+                    'interactive' => [
+                        'type' => 'list',
+                        'body' => [
+                            'text' => $this->getCheckoutStepMessage(
+                                'payment_method',
+                                "💳 *Selecciona el método de pago*\n\nPor favor, elige cómo deseas realizar el pago:"
+                            ),
+                        ],
+                        'action' => [
+                            'button' => 'Seleccionar método de pago',
+                            'sections' => [
+                                [
+                                    'title' => 'Métodos de pago disponibles',
+                                    'rows' => array_values(array_filter([
+                                        $this->isPaymentMethodEnabled('transferencia') ? [
+                                            'id' => 'pago_transferencia_' . $cart->id,
+                                            'title' => '🏦 Transferencia',
+                                            'description' => 'Transferencia o depósito · envías el comprobante'
+                                        ] : null,
+                                        $this->isPaymentMethodEnabled('efectivo') ? [
+                                            'id' => 'pago_efectivo_' . $cart->id,
+                                            'title' => '💵 Pago en efectivo',
+                                            'description' => 'Pago en efectivo al recibir el pedido'
+                                        ] : null,
+                                        ($this->isPaymentMethodEnabled('tarjeta') && $cardPaymentUrl !== '') ? [
+                                            'id' => 'pago_tarjeta_' . $cart->id,
+                                            'title' => '💳 Pago con tarjeta',
+                                            'description' => 'Te mandamos un link para pagar en línea'
+                                        ] : null,
+                                    ])),
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
             }
 
             // Paso 3: retiro en local o delivery (solo aplica si es para
@@ -3604,57 +3675,6 @@ class WhatsappService
             // con el número de pedido, igual que en el punto de venta.
             if (($cart->metadata['service_type'] ?? null) === 'servir') {
                 return $this->finalizePayAtRegisterOrder($cart);
-            }
-
-            // Si el carrito no tiene método de pago, mostrar opciones de pago
-            if (empty($cart->payment_method)) {
-            $metadata = $cart->metadata ?? [];
-                $metadata['pending_payment_method'] = true;
-            $cart->metadata = $metadata;
-            $cart->save();
-
-                Log::info('[finalizarCompra] 💳 Solicitando método de pago', [
-                    'cart_id' => $cart->id,
-                    'contact_id' => $contact->id
-                ]);
-
-                return [
-                    'type' => 'interactive',
-                    'interactive' => [
-                        'type' => 'list',
-                        'body' => [
-                            'text' => $this->getCheckoutStepMessage(
-                                'payment_method',
-                                "💳 *Selecciona el método de pago*\n\nPor favor, elige cómo deseas realizar el pago:"
-                            ),
-                        ],
-                        'action' => [
-                            'button' => 'Seleccionar método de pago',
-                            'sections' => [
-                                [
-                                    'title' => 'Métodos de pago disponibles',
-                                    'rows' => array_values(array_filter([
-                                        $this->isPaymentMethodEnabled('transferencia') ? [
-                                        'id' => 'pago_transferencia_' . $cart->id,
-                                            'title' => '🏦 Transferencia',
-                                            'description' => 'Transferencia o depósito · envías el comprobante'
-                                ] : null,
-                                $this->isPaymentMethodEnabled('efectivo') ? [
-                                        'id' => 'pago_efectivo_' . $cart->id,
-                                            'title' => '💵 Pago en efectivo',
-                                            'description' => 'Pago en efectivo al recibir el pedido'
-                                        ] : null,
-                                        $this->isPaymentMethodEnabled('tarjeta') ? [
-                                            'id' => 'pago_tarjeta_' . $cart->id,
-                                            'title' => '💳 Pago con tarjeta',
-                                            'description' => 'Tarjeta de crédito/débito · envías el comprobante'
-                                        ] : null,
-                                    ])),
-                                ],
-                            ],
-                        ],
-                    ],
-                ];
             }
 
             // Preparar los detalles del pedido para guardar en metadata
@@ -6936,85 +6956,50 @@ class WhatsappService
                 ];
             }
 
-            // Actualizar el método de pago y estado
+            // El pago con tarjeta se resuelve fuera del chat, en la página web
+            // externa del negocio (no manejamos pasarela de pago aquí). El bot
+            // manda el link y no vuelve a preguntar nada más para este carrito
+            // (ver guard de card_payment_link_sent en finalizarCompra()).
             $cart->payment_method = 'tarjeta';
             $cart->payment_status = 'pending';
-            $cart->save();
 
-            // Preparar los detalles del pedido para guardar en metadata
-            $orderDetails = [
-                'order_number' => 'ORD-' . str_pad($cart->id, 6, '0', STR_PAD_LEFT),
-                'items' => [],
-                'total' => $cart->total,
-                'note' => $cart->note,
-                'created_at' => $cart->created_at->format('Y-m-d H:i:s'),
-                'status' => $cart->status,
-                'payment_method' => $cart->payment_method,
-                'payment_status' => $cart->payment_status,
-                'branch' => $cart->branch?->name,
-                'service_type' => $cart->metadata['service_type'] ?? null,
-                'pickup_mode' => $cart->metadata['pickup_mode'] ?? null,
-                'delivery_location' => $cart->metadata['delivery_location'] ?? null,
-                'delivery_distance_km' => $cart->metadata['delivery_distance_km'] ?? null,
-                'delivery_fee' => $cart->metadata['delivery_fee'] ?? null,
-                'delivery_recipient_name' => $cart->metadata['delivery_recipient_name'] ?? null,
-                'delivery_fee_pending_review' => $cart->metadata['delivery_fee_pending_review'] ?? false,
-            ];
-
-            foreach ($cart->items as $item) {
-                $orderDetails['items'][] = [
-                    'name' => $item->name,
-                    'quantity' => $item->quantity,
-                    'price' => $item->price,
-                    'subtotal' => $item->price * $item->quantity
-                ];
-            }
-
-            // Guardar los detalles del pedido en metadata
             $metadata = $cart->metadata ?? [];
-            $metadata['order_details'] = $orderDetails;
+            $metadata['card_payment_link_sent'] = true;
+            unset($metadata['pending_payment_method']);
             $cart->metadata = $metadata;
             $cart->save();
 
-            // Preparar resumen del pedido
-            $message = $this->buildOrderSummaryHeader('📋 *Resumen de tu pedido*', $orderDetails['order_number']);
-            $message .= $this->buildOrderItemsText($cart);
-            $message .= $this->buildFulfillmentSummaryText($cart);
-            $message .= $this->buildPaymentMethodBlock('Pago con tarjeta');
-            $message .= $this->buildCostBreakdownText($cart, false);
-
-            if ($cart->note && $cart->note !== 'sin nota') {
-                $message .= "📝 *Nota:* {$cart->note}\n\n";
+            $chatbotConfig = WhatsappChatbotConfig::first();
+            $cardPaymentUrl = trim((string) ($chatbotConfig?->metadata['card_payment_url'] ?? ''));
+            $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
+            if ($cardPaymentMessage === '') {
+                $cardPaymentMessage = '💳 Puedes pagar con tarjeta directamente aquí:';
             }
 
-            $message .= "¿Confirmas tu pedido?";
+            if ($cardPaymentUrl === '') {
+                Log::warning('[procesarPagoTarjeta] Se seleccionó tarjeta pero no hay card_payment_url configurada', [
+                    'cart_id' => $cart->id,
+                ]);
+
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => 'El pago con tarjeta no está disponible por ahora. Por favor elige otro método de pago o escríbenos.']
+                ];
+            }
 
             return [
                 'type' => 'interactive',
                 'interactive' => [
-                    'type' => 'button',
-                    'body' => [
-                        'text' => $message
-                    ],
+                    'type' => 'cta_url',
+                    'body' => ['text' => $cardPaymentMessage],
                     'action' => [
-                        'buttons' => [
-                            [
-                                'type' => 'reply',
-                                'reply' => [
-                                    'id' => 'confirmar_pedido_' . $cart->id,
-                                    'title' => '✅ Confirmar pedido'
-                                ]
-                            ],
-                            [
-                                'type' => 'reply',
-                                'reply' => [
-                                    'id' => 'cancelar_pedido_' . $cart->id,
-                                    'title' => '❌ Cancelar pedido'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                        'name' => 'cta_url',
+                        'parameters' => [
+                            'display_text' => 'Pagar en línea',
+                            'url' => $cardPaymentUrl,
+                        ],
+                    ],
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('Error al procesar pago con tarjeta', [
