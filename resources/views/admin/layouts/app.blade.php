@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Administrativo - DPIKEOS</title>
+    <title>Panel Administrativo</title>
 
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ asset('favicon.svg') }}">
@@ -179,17 +179,21 @@
         }
 
         .sidebar-nav-main {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             padding-top: 0.75rem;
         }
 
         .sidebar-nav-config {
             flex-shrink: 0;
-            margin-top: auto;
+            margin-top: 0;
             padding-top: 0.5rem;
             padding-bottom: 0.75rem;
-            background: var(--sidebar-config-bg);
+            background: transparent;
             border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .sidebar-nav + .sidebar-nav {
+            border-top: 1px solid rgba(255, 255, 255, 0.055);
         }
 
         .sidebar .nav-link {
@@ -288,6 +292,9 @@
 
         .nav-group.is-open .nav-group-sub {
             display: block;
+            margin: 0.15rem 0.55rem 0.35rem 1.25rem;
+            padding-left: 0.35rem;
+            border-left: 1px solid rgba(37, 211, 102, 0.2);
         }
 
         .nav-group-sub .nav-link {
@@ -1066,7 +1073,7 @@
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-header-content">
-                <i class="fab fa-whatsapp"></i>
+                <i class="fas fa-layer-group"></i>
                 <span class="sidebar-text"><span class="brand-accent">WhatsApp</span> Admin</span>
             </div>
             <button class="sidebar-toggle-btn d-none d-lg-block" id="sidebarToggle" title="Minimizar/Maximizar">
@@ -1074,195 +1081,27 @@
             </button>
         </div>
 
+        @if(($authorizedCompanies ?? collect())->count() > 1)
+            <div class="px-3 py-2 border-bottom">
+                <form action="{{ route('admin.active-company.store') }}" method="POST">
+                    @csrf
+                    <label class="sidebar-text d-block text-muted small mb-1">Empresa activa</label>
+                    <select name="company" class="form-select form-select-sm" onchange="this.form.submit()">
+                        @foreach($authorizedCompanies as $companyOption)
+                            <option value="{{ $companyOption->slug }}" @selected($activeCompany?->id === $companyOption->id)>
+                                {{ $companyOption->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </form>
+            </div>
+        @endif
+
         <div class="sidebar-inner-scroll">
-            <nav class="sidebar-nav sidebar-nav-main">
-                <div class="sidebar-section sidebar-text">Principal</div>
-                @perm('dashboard.menu')
-                <a href="{{ route('admin.dashboard') }}" class="nav-link {{ request()->routeIs('admin.dashboard') ? 'active' : '' }}">
-                    <i class="fas fa-home"></i>
-                    <span class="sidebar-text">Inicio</span>
-                </a>
-                @endperm
-                @perm('orders.menu')
-                @php
-                    $ordersMenuOpen = request()->routeIs('admin.orders*') || request()->routeIs('admin.reports.orders') || request()->routeIs('admin.kitchen.*') || request()->routeIs('admin.delivery.*');
-                @endphp
-                    <div class="nav-group {{ $ordersMenuOpen ? 'is-open' : '' }}" data-nav-group="orders">
-                        <div class="nav-group-row">
-                            <a href="{{ route('admin.orders') }}" class="nav-link {{ request()->routeIs('admin.orders') || request()->routeIs('admin.orders.details') || request()->routeIs('admin.orders.bulk.*') ? 'active' : '' }}">
-                                <i class="fas fa-shopping-cart"></i>
-                                <span class="sidebar-text">Pedidos</span>
-                            </a>
-                            <button type="button" class="nav-group-toggle" aria-label="Mostrar u ocultar submenú de pedidos" aria-expanded="{{ $ordersMenuOpen ? 'true' : 'false' }}">
-                                <i class="fas fa-chevron-down"></i>
-                            </button>
-                        </div>
-                        <div class="nav-group-sub">
-                            @perm('orders.view')
-                            <a href="{{ route('admin.kitchen.index') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.kitchen.index') ? 'active' : '' }}">
-                                <i class="fas fa-utensils"></i>
-                                <span class="sidebar-text">Comandas</span>
-                            </a>
-                            @endperm
-                            @perm('orders.view')
-                            <a href="{{ route('admin.reports.orders') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.orders') ? 'active' : '' }}">
-                                <i class="fas fa-chart-bar"></i>
-                                <span class="sidebar-text">Reportes pedidos</span>
-                            </a>
-                            @endperm
-                            @perm('orders.view')
-                            <a href="{{ route('admin.delivery.index') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.delivery.index') ? 'active' : '' }}">
-                                <i class="fas fa-motorcycle"></i>
-                                <span class="sidebar-text">Delivery</span>
-                            </a>
-                            @endperm
-                        </div>
-                    </div>
-                @endperm
-                @perm('clients.menu')
-                <a href="{{ route('admin.clients.index') }}" class="nav-link {{ request()->routeIs('admin.clients*') ? 'active' : '' }}">
-                    <i class="fas fa-users"></i>
-                    <span class="sidebar-text">Clientes</span>
-                </a>
-                @endperm
-
-            </nav>
-
-            <nav class="sidebar-nav sidebar-nav-main">
-                <div class="sidebar-section sidebar-text">WhatsApp</div>
-                @php
-                    $whatsappMenuOpen = request()->routeIs('admin.chat*')
-                        || request()->routeIs('admin.reports.whatsapp');
-                @endphp
-                <div class="nav-group {{ $whatsappMenuOpen ? 'is-open' : '' }}" data-nav-group="whatsapp">
-                    <div class="nav-group-row">
-                        @perm('chats.menu')
-                            <a href="{{ route('admin.chats') }}" class="nav-link {{ request()->routeIs('admin.chat*') ? 'active' : '' }}">
-                                <i class="fab fa-whatsapp"></i>
-                                <span class="sidebar-text">WhatsApp</span>
-                                <span id="sidebar-chats-agent-count" class="sidebar-nav-badge hidden"></span>
-                            </a>
-                        @else
-                            <span class="nav-link nav-link-disabled flex-grow-1">
-                                <i class="fab fa-whatsapp"></i>
-                                <span class="sidebar-text">WhatsApp</span>
-                            </span>
-                        @endperm
-                        <button type="button" class="nav-group-toggle" aria-label="Mostrar u ocultar submenú de WhatsApp" aria-expanded="{{ $whatsappMenuOpen ? 'true' : 'false' }}">
-                            <i class="fas fa-chevron-down"></i>
-                        </button>
-                    </div>
-                    <div class="nav-group-sub">
-                        @perm('dashboard.menu')
-                        <a href="{{ route('admin.reports.whatsapp') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.whatsapp') ? 'active' : '' }}">
-                            <i class="fas fa-chart-line"></i>
-                            <span class="sidebar-text">Reportes</span>
-                        </a>
-                        @endperm
-                    </div>
-                </div>
-
-            </nav>
-
-            <nav class="sidebar-nav sidebar-nav-config">
-                <div class="sidebar-section sidebar-text">Bot y ventas</div>
-
-                @perm('menus.menu')
-                <a href="{{ route('admin.menus.index') }}" class="nav-link {{ request()->routeIs('admin.menus.*') ? 'active' : '' }}">
-                    <i class="fas fa-folder-open"></i>
-                    <span class="sidebar-text">Categorías</span>
-                </a>
-                @endperm
-                @perm('products.menu')
-                <a href="{{ route('admin.products.index') }}" class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}">
-                    <i class="fas fa-box-open"></i>
-                    <span class="sidebar-text">Productos</span>
-                </a>
-                <a href="{{ route('admin.reports.inventory') }}" class="nav-link {{ request()->routeIs('admin.reports.inventory') ? 'active' : '' }}">
-                    <i class="fas fa-warehouse"></i>
-                    <span class="sidebar-text">Inventario</span>
-                </a>
-                @endperm
-                @perm('marketing_flow.menu')
-                <a href="{{ route('admin.marketing-flow.edit') }}" class="nav-link {{ request()->routeIs('admin.marketing-flow*') ? 'active' : '' }}">
-                    <i class="fas fa-project-diagram"></i>
-                    <span class="sidebar-text">Flujo del bot</span>
-                </a>
-                @endperm
-                @perm('campaigns.menu')
-                <a href="{{ route('admin.marketing.index') }}" class="nav-link {{ request()->routeIs('admin.marketing.*') ? 'active' : '' }}">
-                    <i class="fas fa-bullhorn"></i>
-                    <span class="sidebar-text">Campañas masivas</span>
-                </a>
-                @endperm
-                @perm('message_failures.menu')
-                <a href="{{ route('admin.message-failures.index') }}" class="nav-link {{ request()->routeIs('admin.message-failures.*') ? 'active' : '' }}">
-                    <i class="fas fa-triangle-exclamation"></i>
-                    <span class="sidebar-text">Fallos de envío</span>
-                    @if(($unresolvedFailuresCount ?? 0) > 0)
-                        <span class="sidebar-nav-badge">{{ $unresolvedFailuresCount }}</span>
-                    @endif
-                </a>
-                @endperm
-
-
-            </nav>
-
-            @if($canPerm('pricing_settings.menu') || $canPerm('roles.menu') || $canPerm('users.menu'))
-            <nav class="sidebar-nav sidebar-nav-config">
-                <div class="sidebar-section sidebar-text">Plataforma</div>
-
-                @perm('users.menu')
-                <a href="{{ route('admin.users.index') }}" class="nav-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}">
-                    <i class="fas fa-users-cog"></i>
-                    <span class="sidebar-text">Usuarios</span>
-                </a>
-                @endperm
-                @perm('roles.menu')
-                <a href="{{ route('admin.roles.index') }}" class="nav-link {{ request()->routeIs('admin.roles*') ? 'active' : '' }}">
-                    <i class="fas fa-key"></i>
-                    <span class="sidebar-text">Roles y permisos</span>
-                </a>
-                @endperm
-            </nav>
-            @endif
+            @include('admin.layouts.partials.sidebar-navigation')
         </div>
 
         <div class="sidebar-footer">
-            @perm('pricing_settings.menu')
-            <a href="{{ route('admin.franchises.index') }}" class="nav-link {{ request()->routeIs('admin.franchises.*') ? 'active' : '' }}">
-                <i class="fas fa-building"></i>
-                <span class="sidebar-text">Franquicias</span>
-            </a>
-            <a href="{{ route('admin.branches.index') }}" class="nav-link {{ request()->routeIs('admin.branches.*') ? 'active' : '' }}">
-                <i class="fas fa-store"></i>
-                <span class="sidebar-text">Sucursales</span>
-            </a>
-            <a href="{{ route('admin.pricing-settings.edit') }}" class="nav-link {{ request()->routeIs('admin.pricing-settings*') ? 'active' : '' }}">
-                <i class="fas fa-sliders-h"></i>
-                <span class="sidebar-text">Parámetros plataforma</span>
-            </a>
-            @endperm
-            @perm('chatbot.menu')
-            <a href="{{ route('admin.chatbot.config') }}" class="nav-link {{ request()->routeIs('admin.chatbot.config*') ? 'active' : '' }}">
-                <i class="fas fa-sliders-h"></i>
-                <span class="sidebar-text">Configuración del bot</span>
-            </a>
-            @endperm
-            {{-- <a href="{{ route('admin.profile.show') }}" class="sidebar-profile-link {{ request()->routeIs('admin.profile.*') ? 'active' : '' }}">
-                <i class="fas fa-user-circle"></i>
-                <span class="sidebar-text">Mi perfil</span>
-            </a>
-            <div class="sidebar-user-info">
-                <div class="sidebar-user-avatar">
-                    {{ strtoupper(substr(Auth::user()->name ?? 'A', 0, 1)) }}
-                </div>
-                <div class="sidebar-user-details">
-                    <span class="sidebar-text sidebar-user-name">{{ Auth::user()->name ?? 'Administrador' }}</span>
-                    <span class="sidebar-text sidebar-user-role">{{ Auth::user()->roleLabel() }}</span>
-                </div>
-            </div> --}}
-<br>
             <form action="{{ route('logout') }}" method="POST" class="sidebar-logout-form">
                 @csrf
                 <button type="submit" class="sidebar-logout-btn" onclick="return confirm('¿Estás seguro de que deseas cerrar sesión?');">
@@ -1281,8 +1120,8 @@
         <!-- Top Navbar -->
         <nav class="top-navbar">
             <div class="navbar-brand">
-                <i class="fab fa-whatsapp text-success"></i>
-                <span>Panel Administrativo</span>
+                <i class="fas fa-layer-group text-success"></i>
+                <span>Panel administrativo</span>
             </div>
             <div class="user-menu">
                 @perm('message_failures.view')

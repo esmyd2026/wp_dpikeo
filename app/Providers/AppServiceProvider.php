@@ -2,11 +2,9 @@
 
 namespace App\Providers;
 
-use App\Models\WhatsappBusinessProfile;
 use App\Services\PermissionService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -27,22 +25,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Carbon::setLocale(config('app.locale', 'es'));
 
-        // Las credenciales de WhatsApp Cloud API se administran desde el panel
-        // (Configuración del bot → Credenciales de WhatsApp) y viven en la tabla
-        // whatsapp_business_profiles, no en el .env. Se sobreescriben aquí los
-        // valores de config() para que TODO el código (WhatsappService y demás)
-        // use siempre lo último guardado en el panel sin necesitar redeploy.
-        if (Schema::hasTable('whatsapp_business_profiles')) {
-            $profile = WhatsappBusinessProfile::first();
-            if ($profile) {
-                config([
-                    'whatsapp.token' => $profile->access_token ?: config('whatsapp.token'),
-                    'whatsapp.phone_number_id' => $profile->phone_number_id ?: config('whatsapp.phone_number_id'),
-                    'whatsapp.phone_number' => $profile->phone_number ?: config('whatsapp.phone_number'),
-                    'whatsapp.business_id' => $profile->whatsapp_business_id ?: config('whatsapp.business_id'),
-                ]);
-            }
-        }
+        // Las credenciales de WhatsApp Cloud API viven por empresa en
+        // whatsapp_business_profiles (columna company_id) y cada WhatsappService
+        // las resuelve desde el perfil activo (ver WhatsappCredentialService).
+        // config('whatsapp.*') solo se usa como fallback de arranque cuando
+        // todavía no existe ningún perfil en la base (instalación nueva).
 
         // Sin esto, url()/asset() usan el Host de la petición entrante en vez
         // de APP_URL. En local eso genera links con 127.0.0.1, que Meta no
@@ -71,6 +58,12 @@ class AppServiceProvider extends ServiceProvider
                         \App\Models\WhatsappMessageFailure::unresolved()->count()
                     );
                 }
+
+                $authorizedCompanies = $user->authorizedCompanies();
+                $view->with('authorizedCompanies', $authorizedCompanies);
+                $view->with('activeCompany', $authorizedCompanies->count() > 1
+                    ? \App\Support\CompanyContext::current()->company
+                    : $authorizedCompanies->first());
             }
         });
     }

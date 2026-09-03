@@ -20,15 +20,20 @@ class AdminController extends Controller
 {
     public function dashboard()
     {
-        $orders = WhatsappCart::with(['items', 'contact'])->latest()->get();
-        $messages = WhatsappMessage::with(['contact', 'conversation'])->latest()->get();
+        $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+
+        $orders = WhatsappCart::forActiveCompany()->with(['items', 'contact'])->latest()->get();
+        $messages = WhatsappMessage::when($businessProfileId, fn ($q) => $q->whereHas(
+            'contact',
+            fn ($c) => $c->where('business_profile_id', $businessProfileId)
+        ))->with(['contact', 'conversation'])->latest()->get();
 
         return view('admin.dashboard', compact('orders', 'messages'));
     }
 
     public function orders()
     {
-        $orders = WhatsappCart::reportable()
+        $orders = WhatsappCart::reportable()->forActiveCompany()
             ->with(['items', 'contact'])
             ->withCount([
                 'notes as internal_notes_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_INTERNAL),
@@ -38,26 +43,26 @@ class AdminController extends Controller
             ->paginate(10);
 
         $stats = [
-            'total' => WhatsappCart::reportable()->count(),
-            'pending' => WhatsappCart::reportable()->where('status', WhatsappCart::STATUS_PENDING)->count(),
-            'confirmed' => WhatsappCart::reportable()->whereIn('status', [
+            'total' => WhatsappCart::reportable()->forActiveCompany()->count(),
+            'pending' => WhatsappCart::reportable()->forActiveCompany()->where('status', WhatsappCart::STATUS_PENDING)->count(),
+            'confirmed' => WhatsappCart::reportable()->forActiveCompany()->whereIn('status', [
                 WhatsappCart::STATUS_CONFIRMED,
                 WhatsappCart::STATUS_PREPARING,
                 WhatsappCart::STATUS_READY,
             ])->count(),
-            'completed' => WhatsappCart::reportable()->where('status', WhatsappCart::STATUS_COMPLETED)->count(),
-            'invoice_pending' => WhatsappCart::reportable()
+            'completed' => WhatsappCart::reportable()->forActiveCompany()->where('status', WhatsappCart::STATUS_COMPLETED)->count(),
+            'invoice_pending' => WhatsappCart::reportable()->forActiveCompany()
                 ->where('requires_invoice', true)
                 ->whereIn('invoice_status', ['requested', 'data_ready'])
                 ->count(),
-            'revenue' => WhatsappCart::reportable()->whereIn('status', [
+            'revenue' => WhatsappCart::reportable()->forActiveCompany()->whereIn('status', [
                 WhatsappCart::STATUS_CONFIRMED,
                 WhatsappCart::STATUS_COMPLETED,
                 WhatsappCart::STATUS_PAID,
             ])->sum('total'),
         ];
 
-        $latestOrderId = (int) (WhatsappCart::reportable()->max('id') ?? 0);
+        $latestOrderId = (int) (WhatsappCart::reportable()->forActiveCompany()->max('id') ?? 0);
 
         return view('admin.orders', compact('orders', 'stats', 'latestOrderId'));
     }
@@ -73,7 +78,7 @@ class AdminController extends Controller
         // No tiene sentido alertar (ni seguir mostrando en el timbre) un
         // pedido que ya se canceló o ya se entregó -- esos ya no requieren
         // que nadie los abra.
-        $orders = WhatsappCart::reportable()
+        $orders = WhatsappCart::reportable()->forActiveCompany()
             ->whereNotIn('status', [WhatsappCart::STATUS_CANCELLED, WhatsappCart::STATUS_COMPLETED])
             ->with('contact:id,name')
             ->where('id', '>', $sinceId)
@@ -81,7 +86,7 @@ class AdminController extends Controller
             ->limit(20)
             ->get(['id', 'contact_id', 'total', 'metadata', 'created_at']);
 
-        $latestId = max($sinceId, (int) (WhatsappCart::reportable()->max('id') ?? 0));
+        $latestId = max($sinceId, (int) (WhatsappCart::reportable()->forActiveCompany()->max('id') ?? 0));
 
         return response()->json([
             'latest_id' => $latestId,
@@ -111,14 +116,53 @@ class AdminController extends Controller
 
     public function orderDetails($id, OrderAdminService $orders)
     {
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
 
-        return response()->json($orders->orderPayload($order));
+        $payload = $orders->orderPayload($order);
+        $user = auth()->user();
+
+        // El detalle devuelve únicamente las secciones habilitadas para el
+        // rol. Ocultarlas en Blade no debe dejar sus datos expuestos en JSON.
+        if (!$user?->hasPermission('orders.billing')) {
+            unset(
+                $payload['billing'],
+                $payload['invoice_data'],
+                $payload['requires_invoice'],
+                $payload['invoice_status'],
+                $payload['invoice_status_label'],
+                $payload['agent_checklist'],
+                $payload['contact']['billing_type'],
+                $payload['contact']['billing_id'],
+                $payload['contact']['billing_legal_name'],
+            );
+        } elseif (!$user?->hasPermission('orders.followup')) {
+            $payload['agent_checklist'] = collect($payload['agent_checklist'] ?? [])
+                ->reject(fn (array $step) => ($step['key'] ?? null) === 'send')
+                ->values();
+        }
+
+        $payload['notes'] = collect($payload['notes'] ?? [])
+            ->filter(function (array $note) use ($user) {
+                return match ($note['type'] ?? null) {
+                    WhatsappCartNote::TYPE_INTERNAL => $user?->hasPermission('orders.internal_notes') ?? false,
+                    WhatsappCartNote::TYPE_FEEDBACK => $user?->hasPermission('orders.followup') ?? false,
+                    default => false,
+                };
+            })
+            ->values();
+        $payload['internal_notes_count'] = $user?->hasPermission('orders.internal_notes')
+            ? $payload['internal_notes_count']
+            : 0;
+        $payload['feedback_count'] = $user?->hasPermission('orders.followup')
+            ? $payload['feedback_count']
+            : 0;
+
+        return response()->json($payload);
     }
 
     public function orderPaymentProof($id, WhatsappMediaService $mediaService)
     {
-        $order = WhatsappCart::reportable()->with(['branch', 'contact'])->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with(['branch', 'contact'])->findOrFail($id);
 
         if (!$order->hasPaymentProof()) {
             abort(404);
@@ -182,7 +226,7 @@ class AdminController extends Controller
 
     public function updateOrder(Request $request, $id, OrderAdminService $orders)
     {
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
 
         $validated = $request->validate([
             'status' => ['nullable', 'string', 'in:pending,confirmed,payment_pending,paid,completed,cancelled'],
@@ -195,6 +239,21 @@ class AdminController extends Controller
             'sync_profile' => ['nullable', 'boolean'],
         ]);
 
+        $billingFields = [
+            'requires_invoice',
+            'invoice_status',
+            'billing_type',
+            'billing_id',
+            'billing_legal_name',
+            'address',
+            'sync_profile',
+        ];
+        $updatesBilling = array_intersect($billingFields, array_keys($validated)) !== [];
+        abort_if(
+            $updatesBilling && !(auth()->user()?->hasPermission('orders.billing') ?? false),
+            403
+        );
+
         $orders->updateOrder($order, $validated, (bool) ($validated['sync_profile'] ?? true));
 
         return response()->json([
@@ -205,12 +264,17 @@ class AdminController extends Controller
 
     public function storeOrderNote(Request $request, $id)
     {
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
 
         $validated = $request->validate([
             'type' => ['required', 'string', 'in:internal,feedback'],
             'body' => ['required', 'string', 'min:2', 'max:5000'],
         ]);
+
+        $requiredPermission = $validated['type'] === WhatsappCartNote::TYPE_INTERNAL
+            ? 'orders.internal_notes'
+            : 'orders.followup';
+        abort_unless(auth()->user()?->hasPermission($requiredPermission) ?? false, 403);
 
         $note = WhatsappCartNote::create([
             'whatsapp_cart_id' => $order->id,
@@ -236,7 +300,7 @@ class AdminController extends Controller
 
     public function sendOrderConfirmation(Request $request, $id, OrderConfirmationService $confirmation)
     {
-        $order = WhatsappCart::reportable()->with('contact')->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with('contact')->findOrFail($id);
 
         $validated = $request->validate([
             'message' => ['nullable', 'string', 'max:500'],
@@ -282,7 +346,7 @@ class AdminController extends Controller
      */
     public function sendFulfillmentCosts(Request $request, $id, \App\Services\OrderLifecycleService $lifecycle)
     {
-        $order = WhatsappCart::reportable()->with('contact')->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with('contact')->findOrFail($id);
 
         $validated = $request->validate([
             'delivery_fee' => ['nullable', 'numeric', 'min:0', 'max:1000'],
@@ -344,6 +408,15 @@ class AdminController extends Controller
     {
         $contacts = $this->getSidebarContacts((int) $contactId);
         $contact = \App\Models\WhatsappContact::findOrFail($contactId);
+
+        // El id del contacto llega en la URL: sin este chequeo, un admin
+        // podría abrir la conversación de otra empresa con solo cambiar el
+        // número, aunque el sidebar no se la muestre.
+        $activeBusinessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+        abort_unless(
+            !$activeBusinessProfileId || (int) $contact->business_profile_id === (int) $activeBusinessProfileId,
+            404
+        );
         $messages = \App\Models\WhatsappMessage::where('contact_id', $contactId)
             ->with('adminUser:id,name')
             ->orderBy('created_at')
@@ -712,7 +785,9 @@ class AdminController extends Controller
         $lastInboundWamid = $whatsappService->syncContactLastInbound($contact);
         $typingAvailable = !empty($lastInboundWamid);
 
-        $chatbotConfig = \App\Models\WhatsappChatbotConfig::first();
+        $chatbotConfig = ($contact->business_profile_id
+            ? \App\Models\WhatsappChatbotConfig::where('business_profile_id', $contact->business_profile_id)->first()
+            : null) ?? \App\Models\WhatsappChatbotConfig::first();
 
         return view('admin.chat', compact('contacts', 'contact', 'messages', 'stats', 'globalStats', 'lastInboundWamid', 'typingAvailable', 'chatbotConfig'));
     }
@@ -915,7 +990,7 @@ class AdminController extends Controller
         ]);
 
         try {
-            $order = WhatsappCart::reportable()->findOrFail($id);
+            $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
             $lifecycle->transition($order, $validated['status'], (int) $request->user()->id);
 
             return response()->json(['success' => true]);
@@ -939,6 +1014,7 @@ class AdminController extends Controller
 
         $contact = WhatsappContact::findOrFail($request->contact_id);
         $whatsappService = new WhatsappService();
+        $whatsappService->useBusinessProfile($contact->businessProfile);
 
         $wamid = $request->input('whatsapp_message_id');
         if (!$wamid) {
@@ -989,6 +1065,7 @@ class AdminController extends Controller
         try {
             $contact = WhatsappContact::findOrFail($request->contact_id);
             $whatsappService = new WhatsappService();
+            $whatsappService->useBusinessProfile($contact->businessProfile);
 
             $hasImage = $request->hasFile('image');
             $hasAudio = $request->hasFile('audio');
@@ -1336,10 +1413,13 @@ class AdminController extends Controller
      */
     private function getSidebarContacts(?int $currentContactId = null)
     {
+        $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+
         $contacts = WhatsappContact::query()
             ->whereIn('id', function ($query) {
                 $query->select('contact_id')->from('whatsapp_messages')->distinct();
             })
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->with(['latestMessage'])
             ->withMax('messages as last_message_at', 'created_at')
             ->orderByDesc('last_message_at')
@@ -1453,8 +1533,10 @@ class AdminController extends Controller
                     ->header('Cache-Control', 'no-cache');
             }
 
-            // Obtener la URL de la imagen desde WhatsApp Media API
-            $response = \Illuminate\Support\Facades\Http::withToken(config('whatsapp.token'))
+            // Obtener la URL de la imagen desde WhatsApp Media API -- con el
+            // token de la empresa dueña de este mensaje, nunca el global.
+            $mediaToken = $message->businessProfile?->access_token;
+            $response = \Illuminate\Support\Facades\Http::withToken($mediaToken)
                 ->timeout(5) // Timeout corto para no bloquear
                 ->get("https://graph.facebook.com/" . config('whatsapp.api_version', 'v22.0') . "/{$mediaId}");
 
@@ -1478,7 +1560,7 @@ class AdminController extends Controller
             }
 
             // Descargar la imagen desde WhatsApp
-            $imageResponse = \Illuminate\Support\Facades\Http::withToken(config('whatsapp.token'))
+            $imageResponse = \Illuminate\Support\Facades\Http::withToken($mediaToken)
                 ->timeout(5) // Timeout corto
                 ->get($imageUrl);
 

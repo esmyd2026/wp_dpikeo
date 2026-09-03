@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WhatsappCart;
 use App\Services\DailyOrderNumberService;
 use App\Services\OrderLifecycleService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -21,12 +22,16 @@ class KitchenBoardController extends Controller
 {
     public function index(): View
     {
-        return view('admin.kitchen.index');
+        return view('admin.kitchen.index', [
+            'activeCompany' => CompanyContext::current()->company,
+        ]);
     }
 
     public function display(): View
     {
-        return view('admin.kitchen.display');
+        return view('admin.kitchen.display', [
+            'activeCompany' => CompanyContext::current()->company,
+        ]);
     }
 
     /**
@@ -41,6 +46,7 @@ class KitchenBoardController extends Controller
 
         return view('admin.kitchen.ticket', [
             'order' => $this->mapOrder($order),
+            'activeCompany' => CompanyContext::current()->company,
         ]);
     }
 
@@ -86,7 +92,7 @@ class KitchenBoardController extends Controller
             WhatsappCart::STATUS_READY,
         ];
 
-        if (WhatsappCart::query()->whereIn('status', $operationalStatuses)->exists()) {
+        if (WhatsappCart::query()->forActiveCompany()->whereIn('status', $operationalStatuses)->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'No puedes reiniciar: todavía existen pedidos operativos. Entrégalos o cancélalos primero.',
@@ -101,7 +107,7 @@ class KitchenBoardController extends Controller
     /** @return array<int, array<string, mixed>> */
     private function ordersPayload(): array
     {
-        return WhatsappCart::reportable()
+        return WhatsappCart::reportable()->forActiveCompany()
             ->whereIn('status', [
                 WhatsappCart::STATUS_CONFIRMED,
                 WhatsappCart::STATUS_PAID,

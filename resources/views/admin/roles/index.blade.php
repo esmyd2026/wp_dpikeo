@@ -32,6 +32,14 @@
         padding-bottom: .65rem; margin-bottom: .75rem;
         border-bottom: 1px dashed #dee2e6; font-weight: 600;
     }
+    .perm-submenus {
+        padding: .75rem; margin-bottom: .85rem; border: 1px solid #dfeeea;
+        border-radius: 10px; background: #f7fbfa;
+    }
+    .perm-submenus-title {
+        display: block; margin-bottom: .55rem; color: #52706a;
+        font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    }
     .perm-grid {
         display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .35rem .75rem;
     }
@@ -129,7 +137,8 @@
                                         <div class="perm-module-body">
                                             @php
                                                 $menuPerm = $module['permissions']->firstWhere('type', 'menu');
-                                                $actions = $module['permissions']->where('type', '!=', 'menu');
+                                                $submenus = $module['permissions']->where('type', 'submenu');
+                                                $actions = $module['permissions']->whereNotIn('type', ['menu', 'submenu']);
                                             @endphp
 
                                             @if($menuPerm)
@@ -141,11 +150,28 @@
                                                 </label>
                                             @endif
 
+                                            @if($submenus->isNotEmpty())
+                                                <div class="perm-submenus">
+                                                    <span class="perm-submenus-title">
+                                                        <i class="fas fa-list me-1"></i> Opciones visibles en el menú
+                                                    </span>
+                                                    <div class="perm-grid">
+                                                        @foreach($submenus as $perm)
+                                                            <label class="perm-check">
+                                                                <input type="checkbox" name="permissions[]" value="{{ $perm->key }}"
+                                                                    @checked(in_array($perm->key, $assigned, true))>
+                                                                <span>{{ $perm->name }}</span>
+                                                            </label>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
+
                                             <div class="perm-grid module-actions" data-module="{{ $module['key'] }}">
                                                 @foreach($actions as $perm)
                                                     <label class="perm-check">
                                                         <input type="checkbox" name="permissions[]" value="{{ $perm->key }}"
-                                                            @checked(in_array($perm->key, $assigned, true))>
+                                                            @checked(in_array($perm->key, $assigned, true)) class="permission-action">
                                                         <span>{{ $perm->name }}</span>
                                                     </label>
                                                 @endforeach
@@ -273,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function syncActions() {
             if (!actions) return;
-            actions.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+            actions.querySelectorAll('.permission-action').forEach(function(cb) {
                 cb.disabled = !toggle.checked;
                 if (!toggle.checked) cb.checked = false;
             });

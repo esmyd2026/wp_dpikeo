@@ -25,7 +25,7 @@
 
 <div class="branch-page">
     <section class="branch-hero">
-        <h2>Sucursales DPIKEOS</h2>
+        <h2>Sucursales{{ $activeCompany ? ' — '.$activeCompany->name : '' }}</h2>
         <p>Define los locales que atienden pedidos. En caja podrás elegir la sucursal responsable; la comanda y los reportes conservarán esa referencia.</p>
     </section>
 
@@ -75,7 +75,7 @@
             <p>Agrega un local o punto de venta adicional.</p>
             <form class="branch-form" method="POST" action="{{ route('admin.branches.store') }}">
                 @csrf
-                <label>Nombre<input name="name" required maxlength="120" placeholder="Ej.: DPIKEOS Kennedy"></label>
+                <label>Nombre<input name="name" required maxlength="120" placeholder="Ej.: Sucursal Centro"></label>
                 <label>Código<input name="code" maxlength="24" placeholder="Ej.: KENNEDY"></label>
                 <label>Teléfono<input name="phone" maxlength="30" placeholder="WhatsApp o teléfono"></label>
                 <label>Dirección<textarea name="address" rows="2" maxlength="500" placeholder="Dirección o referencia"></textarea></label>

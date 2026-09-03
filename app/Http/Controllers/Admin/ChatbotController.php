@@ -16,6 +16,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use App\Services\DemoClienteService;
 use App\Services\ProductImageService;
+use App\Support\CompanyContext;
 
 class ChatbotController extends Controller
 {
@@ -23,12 +24,20 @@ class ChatbotController extends Controller
         private readonly DemoClienteService $demoCliente,
         private readonly ProductImageService $categoryImages,
     ) {}
+
+    /** Ver nota equivalente en ProductController::businessProfileId(). */
+    private function businessProfileId(): ?int
+    {
+        return CompanyContext::current()->businessProfileId();
+    }
     /**
      * Gestión de categorías del catálogo (items del menú prices_menu).
      */
     public function menus()
     {
-        $categories = WhatsappMenuItem::catalogCategories()
+        $businessProfileId = $this->businessProfileId();
+
+        $categories = WhatsappMenuItem::catalogCategories($businessProfileId)
             ->with('franchise:id,name,slug')
             ->withCount([
                 'prices',
@@ -38,7 +47,7 @@ class ChatbotController extends Controller
             ->orderBy('title')
             ->get();
 
-        $productStats = WhatsappPrice::summaryStats();
+        $productStats = WhatsappPrice::summaryStats($businessProfileId);
 
         $stats = [
             'total' => $categories->count(),
@@ -47,13 +56,13 @@ class ChatbotController extends Controller
             'empty' => $categories->where('prices_count', 0)->count(),
             'products_total' => $productStats['total'],
             'products_active' => $productStats['active'],
-            'products_unassigned' => $productStats['total'] - WhatsappPrice::inCatalogCategoriesCount(),
+            'products_unassigned' => $productStats['total'] - WhatsappPrice::inCatalogCategoriesCount(false, $businessProfileId),
         ];
 
         return view('admin.menus.index', compact('categories', 'stats') + [
             'demoClienteOptions' => $this->demoCliente->options(),
             'activeDemoCliente' => $this->demoCliente->activeKey(),
-            'franchises' => Franchise::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
+            'franchises' => Franchise::query()->where('is_active', true)->where('business_profile_id', $businessProfileId)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
         ]);
     }
 
@@ -82,11 +91,13 @@ class ChatbotController extends Controller
      */
     public function config()
     {
-        $config = WhatsappChatbotConfig::first();
+        $businessProfileId = $this->businessProfileId();
+        $config = $businessProfileId
+            ? WhatsappChatbotConfig::firstOrCreate(['business_profile_id' => $businessProfileId])
+            : WhatsappChatbotConfig::first();
         $messageTemplates = MessageTemplate::orderBy('name')->get();
-        $businessProfile = \App\Models\WhatsappBusinessProfile::first();
 
-        return view('admin.chatbot.config', compact('config', 'messageTemplates', 'businessProfile'));
+        return view('admin.chatbot.config', compact('config', 'messageTemplates'));
     }
 
     /**
@@ -161,12 +172,14 @@ class ChatbotController extends Controller
             'landing_phone_msg_4' => 'nullable|string|max:200',
         ]);
 
-        $config = WhatsappChatbotConfig::first();
+        $businessProfileId = $this->businessProfileId();
+        $config = $businessProfileId
+            ? WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first()
+            : WhatsappChatbotConfig::first();
         if (!$config) {
             $config = new WhatsappChatbotConfig();
-            $businessProfile = \App\Models\WhatsappBusinessProfile::first();
-            if ($businessProfile) {
-                $config->business_profile_id = $businessProfile->id;
+            if ($businessProfileId) {
+                $config->business_profile_id = $businessProfileId;
             }
         }
 
@@ -247,44 +260,6 @@ class ChatbotController extends Controller
      * whatsapp_business_profiles, no en el .env — por eso necesitan este
      * formulario en vez de solo variables de entorno.
      */
-    public function updateWhatsappCredentials(Request $request)
-    {
-        $validated = $request->validate([
-            'phone_number' => 'required|string|max:30',
-            'phone_number_id' => 'required|string|max:60',
-            'whatsapp_business_id' => 'nullable|string|max:60',
-            'access_token' => 'nullable|string|max:1000',
-        ], [
-            'phone_number.required' => 'El número de WhatsApp es obligatorio.',
-            'phone_number_id.required' => 'El Phone Number ID es obligatorio.',
-        ]);
-
-        $profile = \App\Models\WhatsappBusinessProfile::first();
-        if (!$profile) {
-            $profile = new \App\Models\WhatsappBusinessProfile([
-                'business_name' => 'DPIKEOS',
-                'display_name' => 'DPIKEOS',
-                'status' => 'active',
-            ]);
-        }
-
-        $profile->phone_number = $validated['phone_number'];
-        $profile->phone_number_id = $validated['phone_number_id'];
-        $profile->whatsapp_business_id = $validated['whatsapp_business_id'] ?: null;
-
-        // El token no se muestra en el formulario por seguridad. Si el campo
-        // llega vacío, se asume que el usuario no quiso cambiarlo y se deja
-        // el que ya estaba guardado.
-        if (!empty($validated['access_token'])) {
-            $profile->access_token = $validated['access_token'];
-        }
-
-        $profile->save();
-
-        return redirect()->route('admin.chatbot.config')
-            ->with('success', 'Credenciales de WhatsApp guardadas correctamente.');
-    }
-
     protected function deleteBotAvatarFile(?string $path): void
     {
         if ($path && Storage::disk('public')->exists($path)) {
@@ -422,15 +397,20 @@ class ChatbotController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
-            'franchise_id' => 'required|integer|exists:franchises,id',
+            'franchise_id' => [
+                'required',
+                'integer',
+                Rule::exists('franchises', 'id')->where('business_profile_id', $this->businessProfileId()),
+            ],
         ]);
 
         $title = trim($validated['title']);
-        $order = $validated['order'] ?? ((int) WhatsappMenuItem::catalogCategories()->max('order') + 1);
+        $order = $validated['order'] ?? ((int) WhatsappMenuItem::catalogCategories($this->businessProfileId())->max('order') + 1);
 
         $franchise = Franchise::query()->whereKey($validated['franchise_id'])->where('is_active', true)->firstOrFail();
         $item = WhatsappMenuItem::create([
             'menu_id' => $pricesMenu->id,
+            'business_profile_id' => $this->businessProfileId(),
             'franchise_id' => $franchise->id,
             'title' => $title,
             'description' => $validated['description'] ?? null,
@@ -465,7 +445,11 @@ class ChatbotController extends Controller
             'remove_image' => 'nullable|boolean',
             'order' => 'nullable|integer|min:0',
             'is_active' => 'nullable|boolean',
-            'franchise_id' => 'required|integer|exists:franchises,id',
+            'franchise_id' => [
+                'required',
+                'integer',
+                Rule::exists('franchises', 'id')->where('business_profile_id', $this->businessProfileId()),
+            ],
         ]);
 
         $title = trim($validated['title']);
@@ -508,13 +492,17 @@ class ChatbotController extends Controller
      */
     public function bulkUpdateMenuItemsStatus(Request $request)
     {
+        $pricesMenu = $this->getPricesMenu();
+
         $validated = $request->validate([
             'ids' => 'required|array|min:1',
-            'ids.*' => 'integer|exists:whatsapp_menu_items,id',
+            'ids.*' => [
+                'integer',
+                Rule::exists('whatsapp_menu_items', 'id')->where('menu_id', $pricesMenu->id),
+            ],
             'is_active' => 'required',
         ]);
 
-        $pricesMenu = $this->getPricesMenu();
         $isActive = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
         if ($isActive === null) {
             return response()->json(['message' => 'Estado inválido.'], 422);
@@ -553,7 +541,9 @@ class ChatbotController extends Controller
 
     private function getPricesMenu(): WhatsappMenu
     {
-        $menu = WhatsappMenu::where('action_id', 'prices_menu')->first();
+        $menu = WhatsappMenu::where('action_id', 'prices_menu')
+            ->where('business_profile_id', $this->businessProfileId())
+            ->first();
 
         if (!$menu) {
             abort(500, 'No está configurado el menú de catálogo (prices_menu).');

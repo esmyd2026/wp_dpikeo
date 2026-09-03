@@ -273,7 +273,9 @@
 <body>
     <nav class="nav">
         <a href="{{ url('/') }}" class="nav-brand">
-            <img src="{{ $logoUrl }}" alt="{{ $businessName }}">
+            @if($logoUrl)
+                <img src="{{ $logoUrl }}" alt="{{ $businessName }}">
+            @endif
             <span><em>{{ substr($businessName, 0, 3) }}</em>{{ substr($businessName, 3) }}</span>
         </a>
         <button type="button" class="nav-toggle" id="navToggle" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>

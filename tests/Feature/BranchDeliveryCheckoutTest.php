@@ -294,10 +294,10 @@ class BranchDeliveryCheckoutTest extends TestCase
             'content' => 'Menú', 'action_id' => 'prices_menu',
         ]);
         $category = WhatsappMenuItem::create([
-            'menu_id' => $menu->id, 'title' => 'Combos', 'action_id' => 'cat_test',
+            'menu_id' => $menu->id, 'business_profile_id' => $profile->id, 'title' => 'Combos', 'action_id' => 'cat_test',
         ]);
         $product = WhatsappPrice::create([
-            'menu_item_id' => $category->id, 'category' => 'Combos', 'sku' => 'TEST-1',
+            'menu_item_id' => $category->id, 'business_profile_id' => $profile->id, 'category' => 'Combos', 'sku' => 'TEST-1',
             'name' => 'Combo de prueba', 'price' => 5.99, 'currency' => 'USD',
             'is_active' => true, 'stock' => 20, 'allow_quantity_selection' => true,
             'min_quantity' => 1, 'max_quantity' => 20,

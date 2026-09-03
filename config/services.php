@@ -31,4 +31,23 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Meta (WhatsApp Embedded Signup)
+    |--------------------------------------------------------------------------
+    |
+    | app_id y config_id NO son secretos (viajan al frontend, los necesita el
+    | SDK de Facebook para abrir el flujo). app_secret es exclusivamente de
+    | backend -- se usa una sola vez para intercambiar el "code" que entrega
+    | el popup de Meta por un token de negocio; nunca debe llegar al navegador
+    | ni a los logs.
+    |
+    */
+    'meta' => [
+        'app_id' => env('META_APP_ID'),
+        'app_secret' => env('META_APP_SECRET'),
+        'embedded_signup_config_id' => env('META_EMBEDDED_SIGNUP_CONFIG_ID'),
+        'graph_api_version' => env('META_GRAPH_API_VERSION', 'v26.0'),
+    ],
+
 ];

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryMovement;
 use App\Models\WhatsappPrice;
+use App\Support\CompanyContext;
 use Illuminate\View\View;
 
 class InventoryReportController extends Controller
@@ -12,6 +13,7 @@ class InventoryReportController extends Controller
     public function index(): View
     {
         $products = WhatsappPrice::query()
+            ->where('business_profile_id', CompanyContext::current()->businessProfileId())
             ->with('menuCategory:id,title')
             ->orderBy('stock')
             ->orderBy('name')
@@ -25,6 +27,7 @@ class InventoryReportController extends Controller
         ];
 
         $movements = InventoryMovement::query()
+            ->whereHas('product', fn ($q) => $q->where('business_profile_id', CompanyContext::current()->businessProfileId()))
             ->with(['product:id,name,sku', 'order:id,metadata', 'user:id,name'])
             ->latest()
             ->limit(40)

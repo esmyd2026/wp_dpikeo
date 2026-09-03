@@ -7,8 +7,7 @@ use App\Enums\MarketingStepKey;
 use App\Http\Controllers\Controller;
 use App\Models\MarketingFlow;
 use App\Models\MarketingFlowStep;
-use App\Models\WhatsappBusinessProfile;
-use App\Models\WhatsappChatbotConfig;
+use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -16,7 +15,8 @@ class MarketingFlowController extends Controller
 {
     public function edit()
     {
-        $profile = WhatsappBusinessProfile::first();
+        $context = CompanyContext::current();
+        $profile = $context->businessProfile;
         $flow = null;
 
         if ($profile) {
@@ -33,10 +33,9 @@ class MarketingFlowController extends Controller
 
         return view('admin.marketing-flow.edit', [
             'profile' => $profile,
+            'activeCompany' => $context->company,
             'flow' => $flow,
-            'chatbotConfig' => $profile
-                ? WhatsappChatbotConfig::where('business_profile_id', $profile->id)->first()
-                : WhatsappChatbotConfig::first(),
+            'chatbotConfig' => $context->chatbotConfig(),
             'stepLabels' => MarketingStepKey::all(),
             'scenarioGroups' => MarketingStepKey::scenarioGroups(),
             'stepIcons' => MarketingStepKey::icons(),
@@ -53,7 +52,8 @@ class MarketingFlowController extends Controller
 
     public function update(Request $request)
     {
-        $profile = WhatsappBusinessProfile::firstOrFail();
+        $profile = CompanyContext::current()->businessProfile;
+        abort_unless($profile, 422, 'Esta empresa todavía no tiene un número de WhatsApp conectado. Conectalo antes de configurar el flujo.');
 
         $data = $request->validate([
             'flow_name' => 'required|string|max:255',

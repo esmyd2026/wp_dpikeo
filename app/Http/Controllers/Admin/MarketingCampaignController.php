@@ -9,6 +9,7 @@ use App\Models\WhatsappPrice;
 use App\Models\WhatsappTemplate;
 use App\Models\WhatsappBusinessProfile;
 use App\Services\WhatsappService;
+use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,12 @@ class MarketingCampaignController extends Controller
     public function __construct(WhatsappService $whatsappService)
     {
         $this->whatsappService = $whatsappService;
+    }
+
+    /** Ver nota equivalente en ProductController::businessProfileId(). */
+    private function businessProfileId(): ?int
+    {
+        return CompanyContext::current()->businessProfileId();
     }
 
     /**
@@ -58,10 +65,11 @@ class MarketingCampaignController extends Controller
                                          ->get();
         }
 
-        $contacts = WhatsappContact::where('status', 'active')->orderBy('name')->get();
-        $recentContactIds = $this->recentContactIds();
-        $products = $this->campaignProducts();
-        $businessProfile = WhatsappBusinessProfile::first();
+        $businessProfileId = $this->businessProfileId();
+        $contacts = WhatsappContact::where('status', 'active')->where('business_profile_id', $businessProfileId)->orderBy('name')->get();
+        $recentContactIds = $this->recentContactIds($businessProfileId);
+        $products = $this->campaignProducts($businessProfileId);
+        $businessProfile = CompanyContext::current()->businessProfile;
 
         return view('admin.marketing.create', compact('templates', 'contacts', 'recentContactIds', 'products', 'businessProfile'));
     }
@@ -214,10 +222,11 @@ class MarketingCampaignController extends Controller
                                          ->get();
         }
 
-        $contacts = WhatsappContact::where('status', 'active')->orderBy('name')->get();
-        $recentContactIds = $this->recentContactIds();
-        $products = $this->campaignProducts();
-        $businessProfile = WhatsappBusinessProfile::first();
+        $businessProfileId = $this->businessProfileId();
+        $contacts = WhatsappContact::where('status', 'active')->where('business_profile_id', $businessProfileId)->orderBy('name')->get();
+        $recentContactIds = $this->recentContactIds($businessProfileId);
+        $products = $this->campaignProducts($businessProfileId);
+        $businessProfile = CompanyContext::current()->businessProfile;
 
         return view('admin.marketing.edit', compact('campaign', 'templates', 'contacts', 'recentContactIds', 'products', 'businessProfile'));
     }
@@ -355,6 +364,15 @@ class MarketingCampaignController extends Controller
         if (!in_array($campaign->message_type, ['text', 'template', 'image'], true)) {
             return ['ok' => false, 'message' => 'Tipo de mensaje no soportado aún: ' . $campaign->message_type];
         }
+
+        // Fail closed: sin un negocio de WhatsApp propio, esta campaña no se
+        // envía con el de otra empresa "por defecto".
+        $businessProfile = $campaign->businessProfile;
+        if (!$businessProfile || !$businessProfile->access_token) {
+            return ['ok' => false, 'message' => 'Esta campaña no tiene una cuenta de WhatsApp configurada. No se envía con la de otra empresa.'];
+        }
+
+        $this->whatsappService->useBusinessProfile($businessProfile);
 
         try {
             $campaign->update(['status' => 'sending']);
@@ -527,9 +545,10 @@ class MarketingCampaignController extends Controller
      * tanto para filtrar la lista de selección manual en el formulario como
      * para no intentar envíos que Meta va a rechazar de entrada.
      */
-    private function recentContactIds(): array
+    private function recentContactIds(?int $businessProfileId = null): array
     {
         return WhatsappContact::where('last_inbound_at', '>=', now()->subHours(24))
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->pluck('id')
             ->all();
     }
@@ -539,9 +558,10 @@ class MarketingCampaignController extends Controller
      * tocar el botón, el cliente entra a la ficha de ese producto por el
      * mismo camino que ya usa el catálogo clásico del bot.
      */
-    private function campaignProducts()
+    private function campaignProducts(?int $businessProfileId = null)
     {
         return WhatsappPrice::where('is_active', true)
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->orderByDesc('is_promo')
             ->orderBy('name')
             ->get(['id', 'name', 'price', 'is_promo']);

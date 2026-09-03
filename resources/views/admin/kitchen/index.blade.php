@@ -3,6 +3,9 @@
 @section('header', 'Comandas')
 
 @section('content')
+@php
+    $canUpdateKitchen = auth()->user()?->hasPermission('orders.update') ?? false;
+@endphp
 <style>
     .kitchen-page { max-width: 1320px; margin: 0 auto; }
     .kitchen-hero { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; padding:.9rem 1rem; border-radius:16px; background:linear-gradient(110deg,#fff7ed,#fff 55%); border:1px solid #fed7aa; }
@@ -42,18 +45,112 @@
     .kitchen-empty { color:#94a3b8; text-align:center; font-size:.82rem; padding:2.5rem .8rem; }
     .kitchen-toast { position:fixed; right:1rem; bottom:1rem; padding:.7rem .9rem; border-radius:10px; background:#0f172a; color:#fff; font-size:.8rem; opacity:0; transform:translateY(10px); pointer-events:none; transition:.2s; z-index:10; }.kitchen-toast.show{opacity:1;transform:none}.kitchen-toast.error{background:#b91c1c}
     @media(max-width:960px){.kitchen-board{grid-template-columns:1fr}.kitchen-hero{align-items:flex-start;flex-direction:column}.kitchen-hero-actions{width:100%}.kitchen-link,.kitchen-reset{flex:1;justify-content:center;text-align:center}}
+
+    /* Lenguaje visual operativo, alineado con el módulo de pedidos. */
+    .kitchen-page { max-width: 1380px; }
+    .kitchen-hero {
+        padding: 1rem 1.1rem; border-color: #dbe5e2;
+        background: #fff; box-shadow: 0 2px 8px rgba(15,23,42,.04);
+    }
+    .kitchen-brand img { width: 54px; height: 44px; border-radius: 10px; }
+    .kitchen-hero h2 { font-size: 1.32rem; }
+    .kitchen-hero p { color: #64748b; }
+    .kitchen-hero-actions { flex-wrap: wrap; }
+    .kitchen-live {
+        display: inline-flex; align-items: center; gap: .42rem; padding: .48rem .65rem;
+        border-radius: 999px; background: #ecfdf5; color: #047857;
+        font-size: .72rem; font-weight: 800; white-space: nowrap;
+    }
+    .kitchen-live::before {
+        content: ''; width: 7px; height: 7px; border-radius: 50%; background: #10b981;
+        box-shadow: 0 0 0 4px rgba(16,185,129,.12);
+    }
+    .kitchen-link { background: #0f766e; box-shadow: 0 4px 12px rgba(15,118,110,.16); }
+    .kitchen-link:hover { background: #115e59; color: #fff; }
+    .kitchen-reset { border-color: #dbe5e2; color: #64748b; }
+    .kitchen-reset:hover { background: #f8fafc; color: #334155; }
+    .kitchen-flow {
+        align-items: center; margin-bottom: 1rem; padding: .7rem .85rem;
+        border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+    }
+    .kitchen-flow span { border: 0; padding: 0; background: transparent; }
+    .kitchen-flow b {
+        display: inline-grid; width: 23px; height: 23px; margin-right: .35rem; place-items: center;
+        border-radius: 50%; background: #e7f7f3; color: #0f766e; font-size: .68rem;
+    }
+    .kitchen-flow i { color: #cbd5e1; }
+    .kitchen-board { gap: .85rem; }
+    .kitchen-column { border-color: #dfe7e5; background: #f4f7f6; min-height: 390px; }
+    .kitchen-column-head { padding: .85rem .9rem; border-bottom-color: #dfe7e5; }
+    .kitchen-column-head-main { display: flex; align-items: center; gap: .55rem; }
+    .kitchen-column-icon {
+        width: 32px; height: 32px; display: grid; place-items: center;
+        border-radius: 9px; background: #e7f7f3; color: #0f766e;
+    }
+    .kitchen-column-head strong { display: block; font-size: .9rem; }
+    .kitchen-column-head small { display: block; margin-top: .05rem; color: #94a3b8; font-size: .67rem; }
+    .kitchen-column.queue .kitchen-column-head,
+    .kitchen-column.preparing .kitchen-column-head,
+    .kitchen-column.ready .kitchen-column-head { border-top: 4px solid #0f766e; }
+    .kitchen-count { background: #e7f7f3; color: #0f766e; }
+    .kitchen-cards { padding: .7rem; }
+    .kitchen-card {
+        position: relative; padding: .85rem .85rem .75rem; border-color: #dfe7e5;
+        border-left: 4px solid #0f766e; box-shadow: 0 3px 10px rgba(15,23,42,.05);
+    }
+    .kitchen-card:hover { box-shadow: 0 7px 18px rgba(15,23,42,.08); }
+    .kitchen-order-label { color: #64748b; font-size: .64rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+    .kitchen-order-number { margin-top: .08rem; font-size: 1.28rem; }
+    .kitchen-time { display: inline-flex; align-items: center; gap: .28rem; margin-top: .25rem; }
+    .kitchen-time.urgent { padding: .18rem .38rem; border-radius: 999px; background: #fef2f2; }
+    .kitchen-print { border-color: #dbe5e2; background: #f8fafc; color: #0f766e; }
+    .kitchen-print:hover { background: #e7f7f3; color: #115e59; }
+    .kitchen-card-meta {
+        display: flex; flex-wrap: wrap; gap: .3rem .8rem; margin-top: .55rem;
+        color: #64748b; font-size: .7rem;
+    }
+    .kitchen-card-meta span { display: inline-flex; align-items: center; gap: .3rem; }
+    .kitchen-items { margin: .65rem 0 .75rem; }
+    .kitchen-items li { padding: .42rem 0; font-size: .81rem; }
+    .kitchen-item-note { padding: .25rem .4rem; border-radius: 6px; background: #fffbeb; }
+    .kitchen-action.start,
+    .kitchen-action.ready,
+    .kitchen-action.deliver { background: #0f766e; }
+    .kitchen-action:hover { background: #115e59; }
+    .kitchen-action:disabled { opacity: .6; cursor: wait; }
+    .kitchen-empty {
+        margin: .4rem; padding: 2.6rem .8rem; border: 1px dashed #cbd5e1;
+        border-radius: 12px; background: rgba(255,255,255,.55);
+    }
+    .kitchen-empty i { display: block; margin-bottom: .5rem; color: #94a3b8; font-size: 1.15rem; }
+    @media(max-width:960px) {
+        .kitchen-live { order: 3; width: 100%; justify-content: center; }
+        .kitchen-flow { justify-content: center; }
+    }
+    @media(max-width:560px) {
+        .kitchen-hero-actions { display: grid; grid-template-columns: 1fr 1fr; }
+        .kitchen-live { grid-column: 1 / -1; }
+        .kitchen-flow i { transform: rotate(90deg); }
+        .kitchen-flow { flex-direction: column; align-items: flex-start; }
+    }
 </style>
 
 <div class="kitchen-page">
     <div class="kitchen-hero">
-        <div class="kitchen-brand"><img src="{{ asset('storage/img/dpikeologo.jpg') }}" alt="DPIKEOS"><div><h2>Centro de comandas</h2><p>La caja confirma, cocina prepara y despacho entrega.</p></div></div>
-        <div class="kitchen-hero-actions"><button type="button" class="kitchen-reset" id="kitchenResetTurns"><i class="fas fa-rotate-left"></i> Reiniciar turnos</button><a class="kitchen-link" href="{{ route('admin.kitchen.display') }}" target="_blank" rel="noopener"><i class="fas fa-tv"></i> Abrir pantalla TV</a></div>
+        <div class="kitchen-brand"><div><h2>Comandas de cocina{{ $activeCompany?->name ? ' — '.$activeCompany->name : '' }}</h2><p>Controla la preparación y entrega de cada turno.</p></div></div>
+        <div class="kitchen-hero-actions">
+            <span class="kitchen-live" id="kitchenLastUpdate">Actualizando pedidos</span>
+            @if($canUpdateKitchen)
+                <button type="button" class="kitchen-reset" id="kitchenResetTurns"><i class="fas fa-rotate-left"></i> Reiniciar turnos</button>
+            @endif
+            <a class="kitchen-link" href="{{ route('admin.kitchen.display') }}" target="_blank" rel="noopener"><i class="fas fa-tv"></i> Ver en pantalla completa</a>
+        </div>
     </div>
-    <div class="kitchen-flow"><span>1. Caja confirma</span><i class="fas fa-arrow-right"></i><span>2. Cocina prepara</span><i class="fas fa-arrow-right"></i><span>3. Despacho entrega</span></div>
+    <div class="kitchen-flow"><span><b>1</b>Caja confirma</span><i class="fas fa-arrow-right"></i><span><b>2</b>Cocina prepara</span><i class="fas fa-arrow-right"></i><span><b>3</b>Se entrega el pedido</span></div>
     <div class="kitchen-board">
-        <section class="kitchen-column queue"><div class="kitchen-column-head"><strong>En cola</strong><span class="kitchen-count" id="queueCount">0</span></div><div class="kitchen-cards" id="queueOrders"></div></section>
-        <section class="kitchen-column preparing"><div class="kitchen-column-head"><strong>En preparación</strong><span class="kitchen-count" id="preparingCount">0</span></div><div class="kitchen-cards" id="preparingOrders"></div></section>
-        <section class="kitchen-column ready"><div class="kitchen-column-head"><strong>Listos para entregar</strong><span class="kitchen-count" id="readyCount">0</span></div><div class="kitchen-cards" id="readyOrders"></div></section>
+        <section class="kitchen-column queue"><div class="kitchen-column-head"><div class="kitchen-column-head-main"><span class="kitchen-column-icon"><i class="fas fa-inbox"></i></span><div><strong>Por preparar</strong><small>Pedidos confirmados</small></div></div><span class="kitchen-count" id="queueCount">0</span></div><div class="kitchen-cards" id="queueOrders"></div></section>
+        <section class="kitchen-column preparing"><div class="kitchen-column-head"><div class="kitchen-column-head-main"><span class="kitchen-column-icon"><i class="fas fa-fire"></i></span><div><strong>En preparación</strong><small>Trabajando ahora</small></div></div><span class="kitchen-count" id="preparingCount">0</span></div><div class="kitchen-cards" id="preparingOrders"></div></section>
+        <section class="kitchen-column ready"><div class="kitchen-column-head"><div class="kitchen-column-head-main"><span class="kitchen-column-icon"><i class="fas fa-bag-shopping"></i></span><div><strong>Listos para entregar</strong><small>Esperando despacho</small></div></div><span class="kitchen-count" id="readyCount">0</span></div><div class="kitchen-cards" id="readyOrders"></div></section>
     </div>
 </div>
 <div class="kitchen-toast" id="kitchenToast"></div>
@@ -63,6 +160,7 @@ const kitchenDataUrl = @json(route('admin.kitchen.data'));
 const kitchenTransitionTemplate = @json(route('admin.kitchen.transition', ['id' => '__ORDER__']));
 const kitchenPrintTemplate = @json(route('admin.kitchen.print', ['id' => '__ORDER__']));
 const kitchenResetTurnsUrl = @json(route('admin.kitchen.turns.reset'));
+const kitchenCanUpdate = @json($canUpdateKitchen);
 const kitchenCsrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const kitchenEsc = value => { const node = document.createElement('div'); node.textContent = value ?? ''; return node.innerHTML; };
 
@@ -71,9 +169,9 @@ function kitchenToast(message, error = false) {
     clearTimeout(node._timer); node._timer = setTimeout(() => node.className = 'kitchen-toast', 2800);
 }
 function kitchenAction(order) {
-    if (['confirmed', 'paid'].includes(order.status)) return { status:'preparing', label:'Iniciar preparación', className:'start', icon:'fa-fire-burner' };
-    if (order.status === 'preparing') return { status:'ready', label:'Marcar listo', className:'ready', icon:'fa-check' };
-    return { status:'completed', label:'Entregado', className:'deliver', icon:'fa-handshake' };
+    if (['confirmed', 'paid'].includes(order.status)) return { status:'preparing', label:'Iniciar preparación', className:'start', icon:'fa-fire' };
+    if (order.status === 'preparing') return { status:'ready', label:'Pedido listo', className:'ready', icon:'fa-check' };
+    return { status:'completed', label:'Confirmar entrega', className:'deliver', icon:'fa-handshake' };
 }
 function kitchenCard(order) {
     const action = kitchenAction(order);
@@ -81,13 +179,24 @@ function kitchenCard(order) {
     const elapsedLabel = order.elapsed_label || 'Recién ingresado';
     const timing = elapsed >= 20 ? 'urgent' : '';
     const printUrl = kitchenPrintTemplate.replace('__ORDER__', order.id);
-    return `<article class="kitchen-card"><div class="kitchen-card-top"><div><div class="kitchen-order-number">Turno ${kitchenEsc(order.turn_number || order.display_number)}</div><div class="kitchen-time ${timing}">${kitchenEsc(elapsedLabel)} desde ingreso</div></div><a class="kitchen-print" href="${printUrl}" target="_blank" rel="noopener" title="Imprimir comanda" aria-label="Imprimir comanda turno ${kitchenEsc(order.turn_number || order.display_number)}"><i class="fas fa-print"></i></a></div><ul class="kitchen-items">${order.items.map(item => `<li><b>${item.quantity}×</b> ${kitchenEsc(item.name)}${item.note ? `<span class="kitchen-item-note">${kitchenEsc(item.note)}</span>` : ''}</li>`).join('')}</ul><button class="kitchen-action ${action.className}" data-order="${order.id}" data-status="${action.status}"><i class="fas ${action.icon} me-1"></i>${action.label}</button></article>`;
+    const actionButton = kitchenCanUpdate
+        ? `<button class="kitchen-action ${action.className}" data-order="${order.id}" data-status="${action.status}"><i class="fas ${action.icon} me-1"></i>${action.label}</button>`
+        : '';
+    return `<article class="kitchen-card">
+        <div class="kitchen-card-top">
+            <div><div class="kitchen-order-label">Comanda</div><div class="kitchen-order-number">Turno ${kitchenEsc(order.turn_number || order.display_number)}</div><div class="kitchen-time ${timing}"><i class="far fa-clock"></i>${kitchenEsc(elapsedLabel)}</div></div>
+            <a class="kitchen-print" href="${printUrl}" target="_blank" rel="noopener" title="Imprimir comanda" aria-label="Imprimir comanda turno ${kitchenEsc(order.turn_number || order.display_number)}"><i class="fas fa-print"></i></a>
+        </div>
+        <div class="kitchen-card-meta"><span><i class="fas fa-store"></i>${kitchenEsc(order.branch || 'Matriz')}</span><span><i class="fas fa-bag-shopping"></i>${order.items.length} ${order.items.length === 1 ? 'producto' : 'productos'}</span></div>
+        <ul class="kitchen-items">${order.items.map(item => `<li><b>${item.quantity}×</b> ${kitchenEsc(item.name)}${item.note ? `<span class="kitchen-item-note">${kitchenEsc(item.note)}</span>` : ''}</li>`).join('')}</ul>
+        ${actionButton}
+    </article>`;
 }
 function renderKitchen(orders) {
     const groups = { queue: orders.filter(o => ['confirmed','paid'].includes(o.status)), preparing: orders.filter(o => o.status === 'preparing'), ready: orders.filter(o => o.status === 'ready') };
     Object.entries(groups).forEach(([key, items]) => {
         document.getElementById(key + 'Count').textContent = items.length;
-        document.getElementById(key + 'Orders').innerHTML = items.length ? items.map(kitchenCard).join('') : '<div class="kitchen-empty">Sin pedidos en esta área.</div>';
+        document.getElementById(key + 'Orders').innerHTML = items.length ? items.map(kitchenCard).join('') : '<div class="kitchen-empty"><i class="fas fa-circle-check"></i>Sin pedidos en esta etapa</div>';
     });
     document.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => updateKitchenStatus(button.dataset.order, button.dataset.status, button)));
 }
@@ -100,7 +209,22 @@ async function updateKitchenStatus(id, status, button) {
         kitchenToast('Comanda actualizada'); fetchKitchen();
     } catch (error) { kitchenToast(error.message, true); button.disabled = false; }
 }
-async function fetchKitchen() { try { const response = await fetch(kitchenDataUrl, {headers:{Accept:'application/json'}}); if (!response.ok) throw new Error(); renderKitchen((await response.json()).orders || []); } catch (_) { kitchenToast('No se pudo actualizar el tablero.', true); } }
+async function fetchKitchen() {
+    const updateLabel = document.getElementById('kitchenLastUpdate');
+    try {
+        const response = await fetch(kitchenDataUrl, { headers:{ Accept:'application/json' } });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        renderKitchen(data.orders || []);
+        if (updateLabel) {
+            const time = new Date(data.updated_at || Date.now()).toLocaleTimeString('es-EC', { hour:'2-digit', minute:'2-digit' });
+            updateLabel.textContent = 'Actualizado ' + time;
+        }
+    } catch (_) {
+        if (updateLabel) updateLabel.textContent = 'Sin conexión';
+        kitchenToast('No se pudo actualizar el tablero.', true);
+    }
+}
 async function resetKitchenTurns() {
     if (!confirm('El contador volverá a 001. Solo es posible si no quedan pedidos operativos. ¿Continuar?')) return;
     try {

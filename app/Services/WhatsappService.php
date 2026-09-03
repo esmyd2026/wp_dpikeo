@@ -43,7 +43,6 @@ class WhatsappService
 
     protected $baseUrl;
     protected $apiVersion;
-    protected $apiToken;
     protected $businessPhone;
     protected $businessProfile;
     protected $lastMessage;
@@ -90,7 +89,6 @@ class WhatsappService
     {
         $this->baseUrl = config('whatsapp.api_url', 'https://graph.facebook.com');
         $this->apiVersion = config('whatsapp.api_version', 'v22.0');
-        $this->apiToken = config('whatsapp.token');
         $this->businessPhone = config('whatsapp.phone_number');
         // Artisan resuelve algunos comandos al iniciar. En una instalación nueva
         // todavía no existe la tabla, por lo que no debemos impedir migraciones.
@@ -106,6 +104,66 @@ class WhatsappService
         if (!$this->businessProfile) {
             Log::warning('No business profile found in database');
         }
+    }
+
+    /**
+     * El token siempre se resuelve desde $this->businessProfile en vez de
+     * cachearse en una propiedad: setWebhookPhoneNumberId() puede cambiar el
+     * perfil activo a mitad de request (multiempresa / multi-número), y este
+     * método asegura que cada llamada a Graph API use el token del perfil
+     * correcto en ese momento.
+     */
+    protected function apiToken(): ?string
+    {
+        return $this->businessProfile?->access_token ?: config('whatsapp.token');
+    }
+
+    /**
+     * Config del chatbot (nombre del bot, IVA, links de pago, etc.) del
+     * negocio activo. Si ese negocio todavía no tiene su propia fila, cae al
+     * primer registro global como valor por defecto (mismo comportamiento de
+     * antes de tener multiempresa).
+     */
+    /**
+     * Los menús del bot (menú principal, productos, pedidos, info, etc.) se
+     * identifican por un action_id fijo (ej. "main_menu") que se repite
+     * igual en cada empresa -- sin este filtro, dos empresas con el mismo
+     * action_id competirían por cuál aparece primero y una heredaría el menú
+     * de la otra.
+     */
+    private function menuByActionId(string $actionId): ?WhatsappMenu
+    {
+        return WhatsappMenu::where('action_id', $actionId)
+            ->where('business_profile_id', $this->businessProfile?->id)
+            ->first();
+    }
+
+    /** Producto del catálogo, siempre acotado al negocio activo -- nunca de otra empresa. */
+    private function findCatalogProduct(int $id): ?WhatsappPrice
+    {
+        return WhatsappPrice::where('id', $id)
+            ->where('business_profile_id', $this->businessProfile?->id)
+            ->first();
+    }
+
+    /** Categoría del catálogo, siempre acotada al negocio activo. */
+    private function findCatalogCategory(int $id): ?WhatsappMenuItem
+    {
+        return WhatsappMenuItem::where('id', $id)
+            ->where('business_profile_id', $this->businessProfile?->id)
+            ->first();
+    }
+
+    private function scopedChatbotConfig(): ?WhatsappChatbotConfig
+    {
+        if ($this->businessProfile) {
+            $config = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first();
+            if ($config) {
+                return $config;
+            }
+        }
+
+        return WhatsappChatbotConfig::first();
     }
 
     /**
@@ -142,7 +200,7 @@ class WhatsappService
     public function sendTemplateMessage(WhatsappContact $contact, WhatsappTemplate $template, array $variables = [])
     {
         try {
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/messages", [
                     'messaging_product' => 'whatsapp',
                     'to' => $contact->phone_number,
@@ -240,7 +298,7 @@ class WhatsappService
                 'human_sent' => $humanSent
             ]);
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post($url, [
                     'messaging_product' => 'whatsapp',
                     'to' => $contact->phone_number,
@@ -331,7 +389,7 @@ class WhatsappService
             }
 
             // Primero subir la imagen a WhatsApp Media API
-            $uploadResponse = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $uploadResponse = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->attach('file', file_get_contents($imagePath), basename($imagePath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
@@ -363,7 +421,7 @@ class WhatsappService
                 $payload['image']['caption'] = $caption;
             }
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/messages", $payload);
 
             if ($response->successful()) {
@@ -460,7 +518,7 @@ class WhatsappService
                 ],
             ];
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/messages", $payload);
 
             if ($response->successful()) {
@@ -518,7 +576,9 @@ class WhatsappService
         try {
             Log::info('[handleWebhook] 📱 Webhook recibido', [
                 'tipo' => $payload['object'] ?? 'desconocido',
-                'entry_id' => $payload['entry'][0]['id'] ?? 'sin_id'
+                'entry_id' => $payload['entry'][0]['id'] ?? 'sin_id',
+                'company_id' => $this->businessProfile?->company_id,
+                'business_profile_id' => $this->businessProfile?->id,
             ]);
 
             $entry = $payload['entry'][0] ?? null;
@@ -725,9 +785,9 @@ class WhatsappService
             $this->markMessageAsRead($message['id'], $message['from']);
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $pedidosMenu = WhatsappMenu::where('action_id', 'menu_pedido')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $pedidosMenu = $this->menuByActionId('menu_pedido');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             $menuMessage = [
                 'type' => 'interactive',
@@ -792,9 +852,8 @@ class WhatsappService
 
             // Obtener o crear contacto
             $contact = WhatsappContact::firstOrCreate(
-                ['phone_number' => $from],
+                ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
-                    'business_profile_id' => $this->businessProfile->id,
                     'name' => 'Contacto sin nombre',
                     'status' => 'active'
                 ]
@@ -815,8 +874,8 @@ class WhatsappService
             ]);
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             // Enviar respuesta
             $response = [
@@ -874,9 +933,8 @@ class WhatsappService
 
             // Obtener o crear contacto
             $contact = WhatsappContact::firstOrCreate(
-                ['phone_number' => $from],
+                ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
-                    'business_profile_id' => $this->businessProfile->id,
                     'name' => 'Contacto sin nombre',
                     'status' => 'active'
                 ]
@@ -897,8 +955,8 @@ class WhatsappService
             ]);
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             // Enviar respuesta
             $response = [
@@ -956,9 +1014,8 @@ class WhatsappService
 
             // Obtener o crear contacto
             $contact = WhatsappContact::firstOrCreate(
-                ['phone_number' => $from],
+                ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
-                    'business_profile_id' => $this->businessProfile->id,
                     'name' => 'Contacto sin nombre',
                     'status' => 'active'
                 ]
@@ -991,8 +1048,8 @@ class WhatsappService
             }
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             // Enviar respuesta interactiva
             $response = [
@@ -1050,9 +1107,8 @@ class WhatsappService
 
             // Obtener o crear contacto
             $contact = WhatsappContact::firstOrCreate(
-                ['phone_number' => $from],
+                ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
-                    'business_profile_id' => $this->businessProfile->id,
                     'name' => 'Contacto sin nombre',
                     'status' => 'active'
                 ]
@@ -1127,8 +1183,8 @@ class WhatsappService
             }
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             // Enviar respuesta
             $response = [
@@ -1186,9 +1242,8 @@ class WhatsappService
 
             // Obtener o crear contacto
             $contact = WhatsappContact::firstOrCreate(
-                ['phone_number' => $from],
+                ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
-                    'business_profile_id' => $this->businessProfile->id,
                     'name' => 'Contacto sin nombre',
                     'status' => 'active'
                 ]
@@ -1210,8 +1265,8 @@ class WhatsappService
             ]);
 
             // Obtener los menús desde la base de datos
-            $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-            $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+            $productosMenu = $this->menuByActionId('menu_productos');
+            $infoMenu = $this->menuByActionId('menu_info');
 
             // Enviar respuesta
             $response = [
@@ -1497,7 +1552,7 @@ class WhatsappService
             }
 
             // Primero subir el audio a WhatsApp Media API
-            $uploadResponse = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $uploadResponse = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->attach('file', file_get_contents($audioPath), basename($audioPath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
@@ -1525,7 +1580,7 @@ class WhatsappService
                 ]
             ];
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/messages", $payload);
 
             if ($response->successful()) {
@@ -1589,7 +1644,7 @@ class WhatsappService
             $documentFilename = $filename ?? basename($documentPath);
 
             // Primero subir el documento a WhatsApp Media API
-            $uploadResponse = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $uploadResponse = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->attach('file', file_get_contents($documentPath), basename($documentPath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
@@ -1622,7 +1677,7 @@ class WhatsappService
                 $payload['document']['caption'] = $caption;
             }
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/messages", $payload);
 
             if ($response->successful()) {
@@ -1707,7 +1762,7 @@ class WhatsappService
                 }
             }
 
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -1719,6 +1774,7 @@ class WhatsappService
                     'message_id' => $messageId,
                     'type' => $payload['type'],
                     'phone_number_id' => $phoneNumberId,
+                    'company_id' => $this->businessProfile?->company_id,
                 ]);
 
                 return [
@@ -2059,9 +2115,9 @@ class WhatsappService
 
             return $flowMenu;
         }
-        $productosMenu = WhatsappMenu::where('action_id', 'menu_productos')->first();
-        $pedidosMenu = WhatsappMenu::where('action_id', 'menu_pedido')->first();
-        $infoMenu = WhatsappMenu::where('action_id', 'menu_info')->first();
+        $productosMenu = $this->menuByActionId('menu_productos');
+        $pedidosMenu = $this->menuByActionId('menu_pedido');
+        $infoMenu = $this->menuByActionId('menu_info');
 
         return [
             'type' => 'interactive',
@@ -2159,6 +2215,22 @@ class WhatsappService
         return WhatsappContact::where('phone_number', $phone)->first();
     }
 
+    /**
+     * Fija explícitamente el negocio activo (fuera del flujo de webhook,
+     * donde ya se resuelve por setWebhookPhoneNumberId). Úsalo siempre que
+     * se construya un WhatsappService para actuar sobre un contacto/carrito/
+     * campaña ya conocido -- de lo contrario el servicio queda con el
+     * primer perfil de la base (comportamiento por defecto del constructor),
+     * que casi nunca es la empresa correcta en un sistema multiempresa.
+     */
+    public function useBusinessProfile(?WhatsappBusinessProfile $profile): void
+    {
+        if ($profile) {
+            $this->businessProfile = $profile;
+            $this->webhookProfileKnown = true;
+        }
+    }
+
     public function setWebhookPhoneNumberId(?string $phoneNumberId): void
     {
         $this->webhookPhoneNumberId = $phoneNumberId ?: null;
@@ -2214,7 +2286,7 @@ class WhatsappService
                 return false;
             }
 
-            $response = Http::withToken($this->apiToken)
+            $response = Http::withToken($this->apiToken())
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
@@ -2259,7 +2331,7 @@ class WhatsappService
                 return false;
             }
 
-            $response = Http::withToken($this->apiToken)
+            $response = Http::withToken($this->apiToken())
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
@@ -2720,7 +2792,7 @@ class WhatsappService
                 case 'ver_mas_precios':
                     // Nunca enviamos al cliente un listado técnico con SKU.
                     // Las categorías hacen el menú más corto, visual y fácil de recorrer.
-                    $response = app(MarketingCatalogBuilder::class)->buildCategoryBrowser($contact);
+                    $response = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCategoryBrowser($contact);
                     break;
                 case 'volver_productos':
                     $response = $this->getProductsMenu($contact);
@@ -2761,7 +2833,7 @@ class WhatsappService
                         // La lista nativa de WhatsApp permite un máximo de 10 filas.
                         // Si una categoría crece, mostramos su navegación limpia en lugar
                         // de forzar al cliente a copiar o escribir códigos SKU.
-                        $response = app(MarketingCatalogBuilder::class)->buildCategoryBrowser($contact);
+                        $response = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCategoryBrowser($contact);
                         break;
                     }
 
@@ -2809,7 +2881,7 @@ class WhatsappService
                         [, $productId, $variationIndex] = explode('_', $buttonId, 3);
                         $productId = (int) $productId;
                         $variationIndex = (int) $variationIndex;
-                        $variantProduct = WhatsappPrice::find($productId);
+                        $variantProduct = $this->findCatalogProduct($productId);
                         if ($variantProduct && $variantProduct->allow_quantity_selection) {
                             // El producto permite elegir cantidad: preguntamos
                             // cuántas unidades antes de agregar al carrito.
@@ -3184,12 +3256,14 @@ class WhatsappService
 
         $url = $bulkService->formUrl($token);
 
+        $businessLabel = $this->scopedChatbotConfig()?->bot_name ?: ($this->businessProfile?->business_name ?: 'nosotros');
+
         return [
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'cta_url',
                 'body' => [
-                    'text' => "🍗 *Pide DPIKEOS a tu ritmo*\n\n"
+                    'text' => "🛒 *Pide con {$businessLabel} a tu ritmo*\n\n"
                         . "Mira el menú, personaliza tus favoritos y revisa tu carrito en una sola pantalla.\n"
                         . "Al confirmar, tu pedido llega al equipo y te respondemos por este chat.",
                 ],
@@ -3353,7 +3427,9 @@ class WhatsappService
     private function addToCart(WhatsappContact $contact, $priceId, $quantity = 1, ?int $variationIndex = null)
     {
         try {
-            $price = WhatsappPrice::query()->whereKey($priceId)->where('is_active', true)->where('stock', '>', 0)->firstOrFail();
+            $price = WhatsappPrice::query()->whereKey($priceId)
+                ->where('business_profile_id', $this->businessProfile?->id)
+                ->where('is_active', true)->where('stock', '>', 0)->firstOrFail();
             $variation = $this->productVariation($price, $variationIndex);
             $unitPrice = $variation['price'] ?? ($price->is_promo ? $price->promo_price : $price->price);
             $lineNote = $variation ? 'Variación: ' . $variation['title'] : null;
@@ -3523,7 +3599,7 @@ class WhatsappService
             // preguntando nada más — el resto del pedido se resuelve en la
             // página externa, no en este chat.
             if (!empty($cart->metadata['card_payment_link_sent'] ?? false)) {
-                $cardPaymentUrl = trim((string) (WhatsappChatbotConfig::first()?->metadata['card_payment_url'] ?? ''));
+                $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
 
                 return [
                     'type' => 'text',
@@ -3574,7 +3650,7 @@ class WhatsappService
                     'contact_id' => $contact->id
                 ]);
 
-                $cardPaymentUrl = trim((string) (WhatsappChatbotConfig::first()?->metadata['card_payment_url'] ?? ''));
+                $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
 
                 return [
                     'type' => 'interactive',
@@ -4329,7 +4405,7 @@ class WhatsappService
      */
     private function isAuthorizedDispatchNumber(string $phone): bool
     {
-        $authorized = WhatsappChatbotConfig::first()?->delivery_dispatch_numbers ?? [];
+        $authorized = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
         if (empty($authorized)) {
             return false;
         }
@@ -4346,7 +4422,7 @@ class WhatsappService
      */
     private function handleDeliveryDispatchLookup(WhatsappContact $contact, string $from, string $rawText): bool
     {
-        $config = WhatsappChatbotConfig::first();
+        $config = $this->scopedChatbotConfig();
         $keyword = $config?->delivery_dispatch_keyword ?? '2501';
 
         if ($rawText !== '' && strcasecmp($rawText, $keyword) === 0) {
@@ -4534,7 +4610,7 @@ class WhatsappService
         ];
 
         try {
-            $response = Http::withToken($this->apiToken)->timeout(10)->retry(2, 1500)
+            $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/messages", $payload);
         } catch (\Throwable $e) {
             $this->recordSendFailure(
@@ -4609,8 +4685,8 @@ class WhatsappService
             if ($this->isAuthorizedDispatchNumber($from)) {
                 $rawText = is_array($message['text']) ? ($message['text']['body'] ?? '') : (string) $message['text'];
                 $dispatchContact = $contact ?? WhatsappContact::firstOrCreate(
-                    ['phone_number' => $from],
-                    ['business_profile_id' => $this->businessProfile->id, 'name' => 'Equipo de despacho', 'status' => 'active']
+                    ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
+                    ['name' => 'Equipo de despacho', 'status' => 'active']
                 );
 
                 if ($this->handleDeliveryDispatchLookup($dispatchContact, $from, trim($rawText))) {
@@ -4884,10 +4960,11 @@ class WhatsappService
                     // Buscar producto por SKU o nombre en la base de datos
                     $demoCliente = app(DemoClienteService::class);
                     $product = $demoCliente->applyProductScope(
-                        WhatsappPrice::where(function($query) use ($searchTerm) {
-                            $query->where('sku', 'like', '%' . $searchTerm . '%')
-                                  ->orWhere('name', 'like', '%' . $searchTerm . '%');
-                        })
+                        WhatsappPrice::where('business_profile_id', $this->businessProfile?->id)
+                            ->where(function($query) use ($searchTerm) {
+                                $query->where('sku', 'like', '%' . $searchTerm . '%')
+                                      ->orWhere('name', 'like', '%' . $searchTerm . '%');
+                            })
                     )
                         ->where('is_active', true)
                         ->first();
@@ -5259,7 +5336,7 @@ class WhatsappService
             $demoCliente = app(DemoClienteService::class);
 
             if ($categoryId) {
-                $item = WhatsappMenuItem::find($categoryId);
+                $item = $this->findCatalogCategory($categoryId);
                 if (!$item) {
                     return [
                         'type' => 'text',
@@ -5321,7 +5398,7 @@ class WhatsappService
                 ];
             }
 
-            $menu = WhatsappMenu::where('action_id', 'prices_menu')->first();
+            $menu = $this->menuByActionId('prices_menu');
 
             if (!$menu) {
                 return [
@@ -5448,7 +5525,7 @@ class WhatsappService
 
     private function buildQuickOrderFlowPayload(int $productId, WhatsappContact $contact): array
     {
-        $product = WhatsappPrice::find($productId);
+        $product = $this->findCatalogProduct($productId);
         $flow = $this->quickOrderFlowConfig();
 
         if (!$product || empty($flow['flow_id'])) {
@@ -5496,9 +5573,8 @@ class WhatsappService
 
         $contactName = $message['contacts'][0]['profile']['name'] ?? 'Contacto sin nombre';
         $contact = WhatsappContact::firstOrCreate(
-            ['phone_number' => $from],
+            ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
             [
-                'business_profile_id' => $this->businessProfile->id,
                 'name' => $contactName,
                 'status' => 'active',
             ]
@@ -5538,7 +5614,7 @@ class WhatsappService
 
             foreach ($items as $item) {
                 $retailerId = strtoupper(trim((string) ($item['product_retailer_id'] ?? '')));
-                $product = WhatsappPrice::where('sku', $retailerId)->where('is_active', true)->first();
+                $product = WhatsappPrice::where('sku', $retailerId)->where('business_profile_id', $this->businessProfile?->id)->where('is_active', true)->first();
                 if (!$product) {
                     Log::warning('[Catálogo Meta] producto no vinculado al panel', ['retailer_id' => $retailerId]);
                     continue;
@@ -5567,11 +5643,14 @@ class WhatsappService
         }
 
         $summary = $cart->items()->get()->map(fn ($line) => "• {$line->quantity} × {$line->name}")->implode("\n");
+        $greeting = ($community = $this->scopedChatbotConfig()?->community_name)
+            ? "✅ *¡Recibimos tu pedido!* Gracias por ser parte de {$community}."
+            : '✅ *¡Recibimos tu pedido!*';
         $this->sendMessage($from, [
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'button',
-                'body' => ['text' => "✅ *¡Recibimos tu pedido, Dpikeolover!*\n\n{$summary}\n\n*Total:* $" . number_format((float) $cart->total, 2) . "\n\nAhora confirma cómo deseas recibirlo."],
+                'body' => ['text' => "{$greeting}\n\n{$summary}\n\n*Total:* $" . number_format((float) $cart->total, 2) . "\n\nAhora confirma cómo deseas recibirlo."],
                 'action' => ['buttons' => [
                     ['type' => 'reply', 'reply' => ['id' => 'checkout', 'title' => '✅ Continuar pedido']],
                     ['type' => 'reply', 'reply' => ['id' => 'menu_productos', 'title' => '➕ Agregar más']],
@@ -5621,7 +5700,7 @@ class WhatsappService
                     continue;
                 }
                 $sku = strtoupper(trim((string) ($line['product_sku'] ?? $line['sku'] ?? '')));
-                $product = WhatsappPrice::where('sku', $sku)->where('is_active', true)->first();
+                $product = WhatsappPrice::where('sku', $sku)->where('business_profile_id', $this->businessProfile?->id)->where('is_active', true)->first();
                 if (!$product) {
                     continue;
                 }
@@ -5682,16 +5761,18 @@ class WhatsappService
 
         $orderNumber = $this->finalizeBulkWebOrder($cart);
         $cart->refresh();
+        $community = $this->scopedChatbotConfig()?->community_name;
+        $greeting = $community ? "¡Pedido recibido! Gracias por ser parte de {$community}. ✨" : '¡Pedido recibido! ✨';
         $this->sendMessage($from, [
             'type' => 'text',
-            'text' => ['body' => "¡Pedido recibido, Dpikeolover! ✨\n\n*N.º {$orderNumber}*\nTotal: *$" . number_format((float) $cart->total, 2) . "*\n\nEl equipo confirmará disponibilidad, preparación y entrega por este chat."],
+            'text' => ['body' => "{$greeting}\n\n*N.º {$orderNumber}*\nTotal: *$" . number_format((float) $cart->total, 2) . "*\n\nEl equipo confirmará disponibilidad, preparación y entrega por este chat."],
         ]);
     }
 
     private function getProductDetails($productId, ?WhatsappContact $contact = null)
     {
         try {
-            $price = WhatsappPrice::find($productId);
+            $price = $this->findCatalogProduct($productId);
             if (!$price || !$price->is_active) {
                 // Sin el filtro is_active, un id numérico adivinado (ej. tocando
                 // "3" a mano) permitía ver la ficha de productos deshabilitados
@@ -5816,9 +5897,10 @@ class WhatsappService
                 ]
             ];
 
-            // Si hay una imagen, agregarla como header
-            $imageUrl = app(\App\Services\ProductImageService::class)->resolveUrl($price->image)
-                ?? asset('storage/img/dpikeologo.jpg');
+            // Si hay una imagen, agregarla como header. Sin imagen propia del
+            // producto, el mensaje simplemente no lleva header (nunca cae al
+            // logo de otra empresa como reemplazo).
+            $imageUrl = app(\App\Services\ProductImageService::class)->resolveUrl($price->image);
             if ($imageUrl) {
                 $interactive['interactive']['header'] = [
                     'type' => 'image',
@@ -5841,7 +5923,7 @@ class WhatsappService
     // Agregar nuevo método para mostrar la selección de cantidad
     private function showVariationSelection($productId, ?WhatsappContact $contact = null)
     {
-        $price = WhatsappPrice::find($productId);
+        $price = $this->findCatalogProduct($productId);
         if (!$price) {
             return null;
         }
@@ -5875,7 +5957,7 @@ class WhatsappService
     private function showQuantitySelection(WhatsappContact $contact, $productId, ?int $variationIndex = null)
     {
         try {
-            $price = WhatsappPrice::find($productId);
+            $price = $this->findCatalogProduct($productId);
 
             if (!$price) {
                 return null;
@@ -5940,7 +6022,7 @@ class WhatsappService
     private function getProductsMenu(?WhatsappContact $contact = null, ?int $categoryId = null)
     {
         try {
-            return app(MarketingCatalogBuilder::class)->buildCatalog($contact, $categoryId);
+            return app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCatalog($contact, $categoryId);
         } catch (\Exception $e) {
             Log::error('❌ Error al generar el menú de precios', [
                 'error' => $e->getMessage(),
@@ -6061,7 +6143,7 @@ class WhatsappService
                 $contact = $this->findContactByPhone($to);
                 $fallback = $contact && app(BulkOrderService::class)->isAvailable()
                     ? $this->sendBulkWebOrderLink($contact)
-                    : app(MarketingCatalogBuilder::class)->buildCatalog($contact);
+                    : app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCatalog($contact);
                 Log::warning('[Catálogo Meta] No disponible; usando micrositio temporalmente', [
                     'to' => substr($to, 0, 4) . '****' . substr($to, -4),
                 ]);
@@ -6359,7 +6441,7 @@ class WhatsappService
                 return $flowInfo;
             }
 
-            $menu = WhatsappMenu::where('action_id', 'info_menu')->first();
+            $menu = $this->menuByActionId('info_menu');
             if (!$menu) {
                 return [
                     'type' => 'text',
@@ -6368,7 +6450,7 @@ class WhatsappService
             }
 
             // Obtener el menú principal para el botón de retorno
-            $mainMenu = WhatsappMenu::where('action_id', 'main_menu')->first();
+            $mainMenu = $this->menuByActionId('main_menu');
             $mainMenuButton = $mainMenu ? $mainMenu->button_text : 'Volver al Menú';
 
             // Obtener la respuesta de soporte
@@ -6969,7 +7051,7 @@ class WhatsappService
             $cart->metadata = $metadata;
             $cart->save();
 
-            $chatbotConfig = WhatsappChatbotConfig::first();
+            $chatbotConfig = $this->scopedChatbotConfig();
             $cardPaymentUrl = trim((string) ($chatbotConfig?->metadata['card_payment_url'] ?? ''));
             $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
             if ($cardPaymentMessage === '') {

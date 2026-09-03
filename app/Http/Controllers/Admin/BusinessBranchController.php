@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BusinessBranch;
-use App\Models\WhatsappBusinessProfile;
+use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,15 +15,24 @@ class BusinessBranchController extends Controller
 {
     public function index(): View
     {
+        $context = CompanyContext::current();
+
         return view('admin.branches.index', [
-            'profile' => WhatsappBusinessProfile::query()->first(),
-            'branches' => BusinessBranch::query()->withCount('orders')->orderByDesc('is_default')->orderBy('name')->get(),
+            'profile' => $context->businessProfile,
+            'activeCompany' => $context->company,
+            'branches' => BusinessBranch::query()
+                ->when($context->businessProfileId(), fn ($q) => $q->where('business_profile_id', $context->businessProfileId()))
+                ->withCount('orders')
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $profile = WhatsappBusinessProfile::query()->firstOrFail();
+        $profile = CompanyContext::current()->businessProfile;
+        abort_unless($profile, 422, 'Esta empresa todavía no tiene un número de WhatsApp conectado.');
         $data = $this->validated($request);
 
         DB::transaction(function () use ($profile, $data) {
@@ -37,8 +46,16 @@ class BusinessBranchController extends Controller
         return back()->with('success', 'Sucursal creada correctamente.');
     }
 
+    /** El id de la sucursal llega en la URL: sin este chequeo se podría editar/borrar la de otra empresa. */
+    private function authorizeBranch(BusinessBranch $branch): void
+    {
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        abort_unless(!$businessProfileId || (int) $branch->business_profile_id === (int) $businessProfileId, 404);
+    }
+
     public function update(Request $request, BusinessBranch $branch): RedirectResponse
     {
+        $this->authorizeBranch($branch);
         $data = $this->validated($request, $branch);
 
         DB::transaction(function () use ($branch, $data) {
@@ -53,6 +70,8 @@ class BusinessBranchController extends Controller
 
     public function destroy(BusinessBranch $branch): RedirectResponse
     {
+        $this->authorizeBranch($branch);
+
         if ($branch->is_default) {
             return back()->with('error', 'No puedes eliminar la sucursal predeterminada. Marca otra como predeterminada primero.');
         }
@@ -92,9 +111,15 @@ class BusinessBranchController extends Controller
             'code' => strtoupper(trim($data['code'] ?: Str::slug($data['name'], '-'))),
             'phone' => filled($data['phone'] ?? null) ? trim($data['phone']) : null,
             'address' => filled($data['address'] ?? null) ? trim($data['address']) : null,
-            // Siempre existe una sucursal predeterminada: los pedidos de
-            // WhatsApp se asignan allí cuando el cliente no selecciona local.
-            'is_default' => $request->boolean('is_default') || ($branch?->is_default ?? !BusinessBranch::query()->exists()),
+            // Siempre existe una sucursal predeterminada por empresa: los
+            // pedidos de WhatsApp se asignan allí cuando el cliente no
+            // selecciona local. Se compara contra las sucursales de ESTA
+            // empresa, nunca contra el total global (si no, la primera
+            // sucursal de una empresa nueva no quedaría como predeterminada
+            // solo porque otra empresa ya tenía las suyas).
+            'is_default' => $request->boolean('is_default') || ($branch?->is_default ?? !BusinessBranch::query()
+                ->where('business_profile_id', $branch?->business_profile_id ?? CompanyContext::current()->businessProfileId())
+                ->exists()),
             'is_active' => $request->boolean('is_active'),
             'dine_in_enabled' => $request->boolean('dine_in_enabled'),
             'latitude' => $data['latitude'] ?? null,

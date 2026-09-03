@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WhatsappBusinessProfile extends Model
@@ -11,19 +12,36 @@ class WhatsappBusinessProfile extends Model
     use HasFactory;
 
     protected $fillable = [
+        'company_id',
         'whatsapp_business_id',
         'phone_number',
         'phone_number_id',
         'business_name',
         'display_name',
         'status',
+        'connection_type',
         'access_token',
+        'connected_at',
         'metadata'
     ];
 
+    /** Vocabulario normalizado de whatsapp_business_profiles.status. */
+    public const STATUS_PENDING = 'pending';
+    public const STATUS_CONNECTED = 'connected';
+    public const STATUS_DISCONNECTED = 'disconnected';
+    public const STATUS_ERROR = 'error';
+    public const STATUS_REQUIRES_ACTION = 'requires_action';
+
     protected $casts = [
-        'metadata' => 'array'
+        'metadata' => 'array',
+        'access_token' => 'encrypted',
+        'connected_at' => 'datetime',
     ];
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
 
     public function messages()
     {
@@ -40,7 +58,7 @@ class WhatsappBusinessProfile extends Model
         return $this->hasMany(WhatsappContact::class);
     }
 
-    /** Sucursales operativas de DPIKEOS (matriz, locales y futuros puntos). */
+    /** Sucursales operativas de esta empresa (matriz, locales y futuros puntos). */
     public function branches(): HasMany
     {
         return $this->hasMany(BusinessBranch::class, 'business_profile_id');

@@ -7,6 +7,7 @@ use App\Models\WhatsappContact;
 use App\Models\BusinessBranch;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -18,11 +19,19 @@ class AdminBulkOrderController extends Controller
         private BulkOrderService $bulkOrders
     ) {}
 
+    /** Ver nota equivalente en ProductController::businessProfileId(). */
+    private function businessProfileId(): ?int
+    {
+        return CompanyContext::current()->businessProfileId();
+    }
+
     public function create(Request $request): View
     {
         $initialContact = null;
         if ($request->filled('contact')) {
-            $contact = WhatsappContact::query()->find($request->integer('contact'));
+            $contact = WhatsappContact::query()
+                ->where('business_profile_id', $this->businessProfileId())
+                ->find($request->integer('contact'));
             if ($contact) {
                 $initialContact = [
                     'id' => $contact->id,
@@ -39,7 +48,7 @@ class AdminBulkOrderController extends Controller
             'contactsSearchUrl' => route('admin.orders.bulk.contacts'),
             'contactsCreateUrl' => route('admin.orders.bulk.contacts.store'),
             'ordersUrl' => route('admin.orders'),
-            'branches' => BusinessBranch::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code']),
+            'branches' => BusinessBranch::query()->where('is_active', true)->where('business_profile_id', $this->businessProfileId())->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code']),
         ]);
     }
 
@@ -47,7 +56,8 @@ class AdminBulkOrderController extends Controller
     {
         $contacts = $this->bulkOrders->searchContacts(
             $request->string('q')->toString(),
-            min(30, max(5, $request->integer('limit', 20)))
+            min(30, max(5, $request->integer('limit', 20))),
+            $this->businessProfileId()
         );
 
         return response()->json(['contacts' => $contacts]);
@@ -87,6 +97,7 @@ class AdminBulkOrderController extends Controller
             'address' => filled($validated['address'] ?? null) ? trim($validated['address']) : null,
             'status' => 'active',
             'bot_enabled' => $phone !== '',
+            'business_profile_id' => $this->businessProfileId(),
         ];
         if ($requiresInvoice) {
             $attributes = array_merge($attributes, [
@@ -98,7 +109,7 @@ class AdminBulkOrderController extends Controller
         }
 
         $contact = $phone !== ''
-            ? WhatsappContact::query()->firstOrCreate(['phone_number' => $phone], $attributes)
+            ? WhatsappContact::query()->firstOrCreate(['phone_number' => $phone, 'business_profile_id' => $this->businessProfileId()], $attributes)
             : WhatsappContact::query()->create(array_merge($attributes, ['phone_number' => 'POS-'.now()->format('YmdHis').'-'.Str::lower(Str::random(5))]));
 
         if (!$contact->wasRecentlyCreated && $requiresInvoice) {
@@ -131,7 +142,8 @@ class AdminBulkOrderController extends Controller
         return response()->json(
             $this->bulkOrders->catalogPayload(
                 $request->integer('category') ?: null,
-                $request->string('q')->toString() ?: null
+                $request->string('q')->toString() ?: null,
+                $this->businessProfileId()
             )
         );
     }
@@ -153,7 +165,9 @@ class AdminBulkOrderController extends Controller
             'branch_id' => ['nullable', 'integer', 'exists:business_branches,id'],
         ]);
 
-        $contact = WhatsappContact::query()->findOrFail($validated['contact_id']);
+        $contact = WhatsappContact::query()
+            ->where('business_profile_id', $this->businessProfileId())
+            ->findOrFail($validated['contact_id']);
 
         try {
             $cart = $this->bulkOrders->submitFromAdmin(

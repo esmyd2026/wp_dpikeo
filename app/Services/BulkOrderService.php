@@ -95,11 +95,11 @@ class BulkOrderService
     /**
      * @return array{categories: array<int, array<string, mixed>>, products: array<int, array<string, mixed>>}
      */
-    public function catalogPayload(?int $categoryId = null, ?string $search = null): array
+    public function catalogPayload(?int $categoryId = null, ?string $search = null, ?int $businessProfileId = null): array
     {
         $categories = $this->demoCliente->scopeCategoriesWithVisibleProducts(
             $this->demoCliente->applyCategoryScope(
-                WhatsappMenuItem::catalogCategories()
+                WhatsappMenuItem::catalogCategories($businessProfileId)
             )
         )
             ->where('is_active', true)
@@ -114,7 +114,9 @@ class BulkOrderService
             ->all();
 
         $query = $this->demoCliente->applyProductScope(
-            WhatsappPrice::query()->where('is_active', true)->where('stock', '>', 0)
+            WhatsappPrice::query()
+                ->where('business_profile_id', $businessProfileId)
+                ->where('is_active', true)->where('stock', '>', 0)
         )
             ->with('menuCategory:id,title,icon');
 
@@ -265,7 +267,7 @@ class BulkOrderService
     /**
      * @return array<int, array{id: int, name: string, phone: string|null}>
      */
-    public function searchContacts(string $query, int $limit = 20): array
+    public function searchContacts(string $query, int $limit = 20, ?int $businessProfileId = null): array
     {
         $term = trim($query);
         if (mb_strlen($term) < 2) {
@@ -276,6 +278,7 @@ class BulkOrderService
 
         return WhatsappContact::query()
             ->where('status', 'active')
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->where(function ($q) use ($like) {
                 $q->where('name', 'like', $like)
                     ->orWhere('phone_number', 'like', $like)
@@ -363,6 +366,7 @@ class BulkOrderService
 
                 $price = WhatsappPrice::query()
                     ->where('id', $productId)
+                    ->where('business_profile_id', $contact->business_profile_id)
                     ->where('is_active', true)
                     ->where('stock', '>', 0)
                     ->first();
@@ -429,6 +433,7 @@ class BulkOrderService
                 ->update(['status' => WhatsappCart::STATUS_CANCELLED]);
 
             $whatsapp = app(WhatsappService::class);
+            $whatsapp->useBusinessProfile($contact->businessProfile);
             $orderNumber = $whatsapp->finalizeBulkWebOrder($cart);
             $cart->refresh();
             $cart->setAttribute('order_number', $orderNumber);

@@ -36,6 +36,7 @@ class MarketingFlowGraphTest extends TestCase
     private function seedFlowWithSteps(): MarketingFlow
     {
         $profile = WhatsappBusinessProfile::create([
+            'company_id' => \App\Models\Company::first()->id,
             'business_name' => 'Test Business',
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
@@ -467,6 +468,7 @@ class MarketingFlowGraphTest extends TestCase
 
         $category = \App\Models\WhatsappMenuItem::create([
             'menu_id' => $menu->id,
+            'business_profile_id' => $businessProfileId,
             'title' => 'Combos',
             'action_id' => 'cat_combos',
             'is_active' => true,
@@ -475,6 +477,7 @@ class MarketingFlowGraphTest extends TestCase
 
         $product = \App\Models\WhatsappPrice::create([
             'menu_item_id' => $category->id,
+            'business_profile_id' => $businessProfileId,
             'category' => 'Combos',
             'sku' => 'SKU-1',
             'name' => 'Combo Familiar',

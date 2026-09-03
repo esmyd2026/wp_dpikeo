@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\WhatsappTemplate;
+use App\Support\CompanyContext;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -15,19 +16,24 @@ class WhatsappTemplateController extends Controller
 
     public function __construct()
     {
-        // Antes leía env() directamente: con `php artisan config:cache` (que
-        // deploy.sh corre en producción) esas llamadas devuelven null, porque
-        // env() deja de leer el .env real una vez cacheada la config. Se usa
-        // config('whatsapp.*'), que sí respeta la caché.
         $this->baseUrl = config('whatsapp.api_url', 'https://graph.facebook.com');
         $this->apiVersion = config('whatsapp.api_version', 'v22.0');
-        $this->apiToken = config('whatsapp.token');
-        $this->businessId = config('whatsapp.business_id');
     }
 
     public function getApprovedTemplates()
     {
         try {
+            // Se resuelve acá (no en el constructor) para que Laravel pueda
+            // seguir instanciando este controlador fuera de un request
+            // autenticado (route:list, etc.) sin reventar. La empresa activa
+            // ya se resolvió y autorizó (CompanyContext::current()); si esa
+            // empresa todavía no tiene su WhatsApp configurado, no hay
+            // fallback a config('whatsapp.*') ni al perfil de otra empresa --
+            // los checks de abajo fallan cerrado cuando esto queda null.
+            $profile = CompanyContext::current()->businessProfile;
+            $this->apiToken = $profile?->access_token;
+            $this->businessId = $profile?->whatsapp_business_id;
+
             // Log environment variables (without sensitive data)
             Log::info('WhatsApp Template API Configuration', [
                 'base_url' => $this->baseUrl,
@@ -40,7 +46,7 @@ class WhatsappTemplateController extends Controller
                 Log::error('WHATSAPP_BUSINESS_ID not configured');
                 return response()->json([
                     'success' => false,
-                    'message' => 'WHATSAPP_BUSINESS_ID no está configurado en el archivo .env',
+                    'message' => 'WHATSAPP_PROFILE_NOT_CONFIGURED: esta empresa todavía no tiene un WhatsApp Business ID configurado',
                     'debug_info' => [
                         'base_url' => $this->baseUrl,
                         'api_version' => $this->apiVersion
@@ -52,7 +58,7 @@ class WhatsappTemplateController extends Controller
                 Log::error('WHATSAPP_TOKEN not configured');
                 return response()->json([
                     'success' => false,
-                    'message' => 'WHATSAPP_TOKEN no está configurado en el archivo .env',
+                    'message' => 'WHATSAPP_PROFILE_NOT_CONFIGURED: esta empresa todavía no tiene un token de WhatsApp configurado',
                     'debug_info' => [
                         'base_url' => $this->baseUrl,
                         'api_version' => $this->apiVersion,

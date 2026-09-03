@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\PermissionService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -45,6 +46,32 @@ class User extends Authenticatable
     public function sentWhatsappMessages(): HasMany
     {
         return $this->hasMany(WhatsappMessage::class, 'admin_user_id');
+    }
+
+    public function companies(): BelongsToMany
+    {
+        return $this->belongsToMany(Company::class);
+    }
+
+    /**
+     * Empresas que este usuario puede administrar: todas si es super_admin
+     * de Siglo Tecnológico, o solo las que tenga asignadas explícitamente en
+     * company_user. Nunca se infiere de "la primera empresa de la base".
+     */
+    public function authorizedCompanies()
+    {
+        return $this->isSuperAdmin()
+            ? Company::orderBy('name')->get()
+            : $this->companies()->orderBy('name')->get();
+    }
+
+    public function canAccessCompany(Company $company): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return $this->companies()->whereKey($company->id)->exists();
     }
 
     public function isActive(): bool

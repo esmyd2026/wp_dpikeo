@@ -42,7 +42,7 @@ class LandingController extends Controller
     public function index(): View
     {
         $profile = WhatsappBusinessProfile::first();
-        $businessName = $profile?->business_name ?: 'DPIKEOS';
+        $businessName = $profile?->business_name ?: 'Nuestro negocio';
 
         $config = WhatsappChatbotConfig::where('business_profile_id', $profile?->id)->first()
             ?? WhatsappChatbotConfig::first();
@@ -55,7 +55,7 @@ class LandingController extends Controller
         }
 
         $orderNumber = preg_replace('/[^0-9]/', '', config('whatsapp.demo_whatsapp_number', ''));
-        $orderMessage = rawurlencode('¡Hola! Quiero hacer un pedido 🍗');
+        $orderMessage = rawurlencode('¡Hola! Quiero hacer un pedido 🛒');
         $orderWhatsappUrl = $orderNumber ? "https://wa.me/{$orderNumber}?text={$orderMessage}" : null;
 
         return view('landing', [
@@ -63,7 +63,7 @@ class LandingController extends Controller
             'orderWhatsappUrl' => $orderWhatsappUrl,
             'landing' => $landing,
             'accentRgb' => WhatsappChatbotConfig::hexToRgb($landing['accent_color']),
-            'logoUrl' => $landing['logo_path'] ? asset('storage/'.$landing['logo_path']) : asset('storage/img/dpikeologo.jpg'),
+            'logoUrl' => $landing['logo_path'] ? asset('storage/'.$landing['logo_path']) : null,
             'canOrderOnline' => app(BulkOrderService::class)->isAvailable(),
         ]);
     }

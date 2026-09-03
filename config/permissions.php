@@ -19,6 +19,7 @@ return [
                 'chats.open' => ['label' => 'Abrir chat', 'type' => 'action'],
                 'chats.send' => ['label' => 'Enviar mensajes', 'type' => 'action'],
                 'chats.toggle_bot' => ['label' => 'Activar / desactivar bot', 'type' => 'action'],
+                'whatsapp_reports.menu' => ['label' => 'Reportes de WhatsApp', 'type' => 'submenu'],
             ],
         ],
         'clients' => [
@@ -39,6 +40,12 @@ return [
                 'orders.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
                 'orders.view' => ['label' => 'Ver pedidos y reportes de ventas', 'type' => 'action'],
                 'orders.update' => ['label' => 'Cambiar estado de pedidos', 'type' => 'action'],
+                'orders.billing' => ['label' => 'Ver y gestionar facturación del pedido', 'type' => 'action'],
+                'orders.internal_notes' => ['label' => 'Ver y gestionar notas para el equipo', 'type' => 'action'],
+                'orders.followup' => ['label' => 'Ver y gestionar conversaciones y seguimiento', 'type' => 'action'],
+                'kitchen.menu' => ['label' => 'Comandas', 'type' => 'submenu'],
+                'delivery.menu' => ['label' => 'Delivery', 'type' => 'submenu'],
+                'orders_reports.menu' => ['label' => 'Reporte de pedidos', 'type' => 'submenu'],
             ],
         ],
         'marketing_flow' => [
@@ -76,6 +83,7 @@ return [
                 'products.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
                 'products.view' => ['label' => 'Ver productos', 'type' => 'action'],
                 'products.update' => ['label' => 'Crear / editar productos', 'type' => 'action'],
+                'inventory.menu' => ['label' => 'Inventario', 'type' => 'submenu'],
             ],
         ],
         'chatbot' => [
@@ -85,6 +93,7 @@ return [
                 'chatbot.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
                 'chatbot.view' => ['label' => 'Ver configuración', 'type' => 'action'],
                 'chatbot.update' => ['label' => 'Editar configuración', 'type' => 'action'],
+                'companies.menu' => ['label' => 'Empresas y conexión Meta', 'type' => 'submenu'],
             ],
         ],
         'pricing_settings' => [
@@ -94,6 +103,8 @@ return [
                 'pricing_settings.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
                 'pricing_settings.view' => ['label' => 'Ver parámetros internos', 'type' => 'action'],
                 'pricing_settings.update' => ['label' => 'Editar parámetros internos', 'type' => 'action'],
+                'franchises.menu' => ['label' => 'Franquicias', 'type' => 'submenu'],
+                'branches.menu' => ['label' => 'Sucursales', 'type' => 'submenu'],
             ],
         ],
         'users' => [
@@ -149,14 +160,18 @@ return [
             'permissions' => [
                 'dashboard.menu', 'dashboard.view',
                 'chats.menu', 'chats.view', 'chats.open', 'chats.send', 'chats.toggle_bot',
+                'whatsapp_reports.menu',
                 'clients.menu', 'clients.view', 'clients.detail', 'clients.update', 'clients.notes',
                 'orders.menu', 'orders.view', 'orders.update',
+                'kitchen.menu', 'delivery.menu', 'orders_reports.menu',
                 'bulk_orders.create', 'bulk_orders.manage',
                 'marketing_flow.menu', 'marketing_flow.view', 'marketing_flow.update',
                 'campaigns.menu', 'campaigns.view', 'campaigns.manage', 'campaigns.send',
                 'menus.menu', 'menus.view', 'menus.update',
                 'products.menu', 'products.view', 'products.update',
+                'inventory.menu',
                 'chatbot.menu', 'chatbot.view', 'chatbot.update',
+                'companies.menu',
                 'users.menu', 'users.view', 'users.create', 'users.update',
                 'message_failures.menu', 'message_failures.view', 'message_failures.manage',
             ],
@@ -168,8 +183,10 @@ return [
             'permissions' => [
                 'dashboard.menu', 'dashboard.view',
                 'chats.menu', 'chats.view', 'chats.open', 'chats.send', 'chats.toggle_bot',
+                'whatsapp_reports.menu',
                 'clients.menu', 'clients.view', 'clients.detail', 'clients.update', 'clients.notes',
                 'orders.menu', 'orders.view', 'orders.update',
+                'kitchen.menu', 'delivery.menu', 'orders_reports.menu',
             ],
         ],
         'viewer' => [
@@ -179,8 +196,10 @@ return [
             'permissions' => [
                 'dashboard.menu', 'dashboard.view',
                 'chats.menu', 'chats.view', 'chats.open',
+                'whatsapp_reports.menu',
                 'clients.menu', 'clients.view', 'clients.detail',
                 'orders.menu', 'orders.view',
+                'kitchen.menu', 'delivery.menu', 'orders_reports.menu',
             ],
         ],
     ],

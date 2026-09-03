@@ -9,6 +9,7 @@ use App\Models\Franchise;
 use App\Services\DemoClienteService;
 use App\Services\ProductImageService;
 use App\Services\ProductImportExportService;
+use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -22,25 +23,40 @@ class ProductController extends Controller
         private readonly \App\Services\OrderLifecycleService $orderLifecycle,
     ) {}
 
+    /**
+     * Mientras el panel de catálogo no esté anidado bajo /empresas/{company}
+     * (una sola pantalla global de "Productos" hoy), se administra siempre
+     * el catálogo de la empresa por defecto. Esto conserva el comportamiento
+     * actual para dpikeo -- la única empresa con catálogo real hoy -- y ya
+     * deja las consultas acotadas por empresa en vez de globales.
+     */
+    private function businessProfileId(): ?int
+    {
+        return CompanyContext::current()->businessProfileId();
+    }
+
     public function index()
     {
+        $businessProfileId = $this->businessProfileId();
+
         $products = WhatsappPrice::with(['menuCategory:id,title,description,icon,franchise_id', 'franchise:id,name,slug'])
+            ->where('business_profile_id', $businessProfileId)
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
             ->get();
 
-        $categories = WhatsappMenuItem::catalogCategories()
+        $categories = WhatsappMenuItem::catalogCategories($businessProfileId)
             ->where('is_active', true)
             ->select('id', 'title', 'description', 'icon', 'franchise_id')
             ->orderBy('order')
             ->get();
 
-        $stats = WhatsappPrice::summaryStats();
+        $stats = WhatsappPrice::summaryStats($businessProfileId);
 
         return view('admin.products.index', compact('products', 'categories', 'stats') + [
             'demoClienteOptions' => $this->demoCliente->options(),
             'activeDemoCliente' => $this->demoCliente->activeKey(),
-            'franchises' => Franchise::query()->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
+            'franchises' => Franchise::query()->where('is_active', true)->where('business_profile_id', $businessProfileId)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
         ]);
     }
 
@@ -71,13 +87,26 @@ class ProductController extends Controller
         ]);
     }
 
+    /**
+     * El id del producto llega en la URL: sin este chequeo un admin podría
+     * ver/editar/borrar un producto de otra empresa con solo cambiar el
+     * número, aunque el panel no se lo muestre en su listado.
+     */
+    private function ensureOwnedByCurrentBusiness(WhatsappPrice $product): void
+    {
+        abort_unless((int) $product->business_profile_id === (int) $this->businessProfileId(), 404);
+    }
+
     public function show(WhatsappPrice $product)
     {
+        $this->ensureOwnedByCurrentBusiness($product);
+
         return response()->json($this->formatProduct($product->load('menuCategory')));
     }
 
     public function edit(WhatsappPrice $product)
     {
+        $this->ensureOwnedByCurrentBusiness($product);
         $categories = $this->getCategories();
 
         return view('admin.products.edit', compact('product', 'categories'));
@@ -85,6 +114,7 @@ class ProductController extends Controller
 
     public function update(Request $request, WhatsappPrice $product)
     {
+        $this->ensureOwnedByCurrentBusiness($product);
         $previousStock = (int) $product->stock;
         $data = $this->validateAndPrepare($request, $product);
 
@@ -110,6 +140,8 @@ class ProductController extends Controller
 
     public function destroy(WhatsappPrice $product)
     {
+        $this->ensureOwnedByCurrentBusiness($product);
+
         // Un producto vendido no se borra: se desactiva y se conserva el
         // historial, el PDF y las líneas de pedidos anteriores.
         if ($product->cartItems()->exists()) {
@@ -134,6 +166,8 @@ class ProductController extends Controller
      */
     public function duplicate(Request $request, WhatsappPrice $product)
     {
+        $this->ensureOwnedByCurrentBusiness($product);
+
         $validated = $request->validate([
             'franchise_ids' => 'required|array|min:1',
             'franchise_ids.*' => 'integer|exists:franchises,id',
@@ -145,9 +179,12 @@ class ProductController extends Controller
         $results = [];
 
         foreach (array_unique($validated['franchise_ids']) as $franchiseId) {
-            $franchise = Franchise::query()->whereKey($franchiseId)->where('is_active', true)->first();
+            $franchise = Franchise::query()->whereKey($franchiseId)
+                ->where('is_active', true)
+                ->where('business_profile_id', $product->business_profile_id)
+                ->first();
             if (!$franchise) {
-                $results[] = ['franchise' => null, 'status' => 'error', 'message' => 'Franquicia no encontrada o inactiva.'];
+                $results[] = ['franchise' => null, 'status' => 'error', 'message' => 'Franquicia no encontrada, inactiva, o de otra empresa.'];
                 continue;
             }
 
@@ -157,6 +194,7 @@ class ProductController extends Controller
             }
 
             $exists = WhatsappPrice::where('franchise_id', $franchise->id)
+                ->where('business_profile_id', $product->business_profile_id)
                 ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($product->name))])
                 ->exists();
             if ($exists) {
@@ -170,6 +208,7 @@ class ProductController extends Controller
 
             $copy = WhatsappPrice::create([
                 'menu_item_id' => $targetCategory->id,
+                'business_profile_id' => $product->business_profile_id,
                 'franchise_id' => $franchise->id,
                 'category' => $targetCategory->title,
                 'sku' => $newSku,
@@ -207,7 +246,7 @@ class ProductController extends Controller
 
     private function findOrCreateEquivalentCategory(?WhatsappMenuItem $sourceCategory, string $title, Franchise $franchise): WhatsappMenuItem
     {
-        $existing = WhatsappMenuItem::catalogCategories()
+        $existing = WhatsappMenuItem::catalogCategories($franchise->business_profile_id)
             ->where('franchise_id', $franchise->id)
             ->whereRaw('LOWER(title) = ?', [mb_strtolower(trim($title))])
             ->first();
@@ -216,10 +255,11 @@ class ProductController extends Controller
             return $existing;
         }
 
-        $menuId = $sourceCategory?->menu_id ?? $this->getPricesMenu()->id;
+        $menuId = $sourceCategory?->menu_id ?? $this->getPricesMenu($franchise->business_profile_id)->id;
 
         return WhatsappMenuItem::create([
             'menu_id' => $menuId,
+            'business_profile_id' => $franchise->business_profile_id,
             'franchise_id' => $franchise->id,
             'title' => $title,
             'description' => $sourceCategory?->description,
@@ -231,9 +271,11 @@ class ProductController extends Controller
         ]);
     }
 
-    private function getPricesMenu(): \App\Models\WhatsappMenu
+    private function getPricesMenu(?int $businessProfileId = null): \App\Models\WhatsappMenu
     {
-        $menu = \App\Models\WhatsappMenu::where('action_id', 'prices_menu')->first();
+        $menu = \App\Models\WhatsappMenu::where('action_id', 'prices_menu')
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->first();
 
         if (!$menu) {
             abort(500, 'No está configurado el menú de catálogo (prices_menu).');
@@ -264,7 +306,7 @@ class ProductController extends Controller
 
         $candidate = $base;
         $i = 2;
-        while (WhatsappPrice::where('sku', $candidate)->exists()) {
+        while (WhatsappPrice::where('sku', $candidate)->where('business_profile_id', $franchise->business_profile_id)->exists()) {
             $extra = (string) $i;
             $candidate = mb_substr($base, 0, 20 - mb_strlen($extra)) . $extra;
             $i++;
@@ -275,12 +317,12 @@ class ProductController extends Controller
 
     public function downloadImportTemplate()
     {
-        return $this->productImportExport->templateDownloadResponse();
+        return $this->productImportExport->templateDownloadResponse($this->businessProfileId());
     }
 
     public function exportCatalog()
     {
-        return $this->productImportExport->exportDownloadResponse();
+        return $this->productImportExport->exportDownloadResponse($this->businessProfileId());
     }
 
     public function importCatalog(Request $request)
@@ -292,7 +334,8 @@ class ProductController extends Controller
 
         $result = $this->productImportExport->importFromUpload(
             $request->file('file'),
-            $request->input('mode', 'upsert')
+            $request->input('mode', 'upsert'),
+            $this->businessProfileId()
         );
 
         $total = $result['created'] + $result['updated'];
@@ -325,6 +368,7 @@ class ProductController extends Controller
 
         $updated = WhatsappPrice::query()
             ->whereIn('id', $validated['ids'])
+            ->where('business_profile_id', $this->businessProfileId())
             ->update(['is_active' => $isActive]);
 
         return response()->json([
@@ -337,7 +381,7 @@ class ProductController extends Controller
 
     private function getCategories()
     {
-        return WhatsappMenuItem::catalogCategories()
+        return WhatsappMenuItem::catalogCategories($this->businessProfileId())
             ->where('is_active', true)
             ->orderBy('order')
             ->get();
@@ -346,16 +390,22 @@ class ProductController extends Controller
     private function validateAndPrepare(Request $request, ?WhatsappPrice $product = null)
     {
         $productId = $product?->id;
+        $businessProfileId = $this->businessProfileId();
 
         $validator = Validator::make($request->all(), [
             'sku' => [
                 'required',
                 'string',
                 'max:20',
-                Rule::unique('whatsapp_prices', 'sku')->ignore($productId),
+                Rule::unique('whatsapp_prices', 'sku')
+                    ->where('business_profile_id', $businessProfileId)
+                    ->ignore($productId),
             ],
             'name' => 'required|string|max:255',
-            'menu_item_id' => 'required|exists:whatsapp_menu_items,id',
+            'menu_item_id' => [
+                'required',
+                Rule::exists('whatsapp_menu_items', 'id')->where('business_profile_id', $businessProfileId),
+            ],
             'price' => 'required|numeric|min:0',
             'promo_price' => 'nullable|numeric|min:0|lt:price',
             'description' => 'nullable|string|max:5000',
@@ -368,7 +418,11 @@ class ProductController extends Controller
             'min_quantity' => 'nullable|integer|min:1',
             'max_quantity' => 'nullable|integer|min:1',
             'is_active' => 'nullable|boolean',
-            'franchise_id' => 'required|integer|exists:franchises,id',
+            'franchise_id' => [
+                'required',
+                'integer',
+                Rule::exists('franchises', 'id')->where('business_profile_id', $businessProfileId),
+            ],
             'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
             'remove_image' => 'nullable|boolean',
         ]);
@@ -407,6 +461,7 @@ class ProductController extends Controller
 
         return [
             'menu_item_id' => $category->id,
+            'business_profile_id' => $businessProfileId,
             'franchise_id' => $franchise->id,
             'category' => $category->title,
             'sku' => strtoupper(trim($validated['sku'])),

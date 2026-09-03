@@ -14,6 +14,13 @@ class DemoClienteService
         private PlanLimitsService $planLimits
     ) {}
 
+    /**
+     * Este toggle es una única fila global (PlatformBillingService), no por
+     * empresa. Si el negocio activo (webhook/sesión) no coincide con el
+     * dueño real de esa franquicia, se ignora -- si no, activar este filtro
+     * para dpikeo terminaría filtrando también el catálogo de Zapatos Demo
+     * (u otra empresa) por una franquicia que no es la suya.
+     */
     public function activeKey(): ?string
     {
         $raw = $this->planLimits->platformLimitsRaw()['active_demo_cliente'] ?? null;
@@ -23,8 +30,28 @@ class DemoClienteService
         }
 
         $key = trim($raw);
+        if ($key === '') {
+            return null;
+        }
 
-        return $key !== '' ? $key : null;
+        $franchise = Franchise::where('slug', $key)->first();
+        if (!$franchise) {
+            return $key;
+        }
+
+        try {
+            $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+        } catch (\Throwable $e) {
+            // Sin sesión (webhook/consola): no hay con qué comparar, se
+            // confía en el valor global como ya se hacía antes.
+            return $key;
+        }
+
+        if ($businessProfileId && (int) $franchise->business_profile_id !== (int) $businessProfileId) {
+            return null;
+        }
+
+        return $key;
     }
 
     public function saveActiveKey(?string $key): void
@@ -36,11 +63,24 @@ class DemoClienteService
 
     /**
      * @return array<string, string> slug => label
+     *
+     * Acotado a las franquicias de la empresa activa -- antes listaba
+     * TODAS las franquicias de la plataforma sin importar qué empresa
+     * estuviera seleccionada (una empresa nueva veía las franquicias de
+     * otra en este selector, aunque su catálogo real ya estaba aislado).
      */
     public function options(): array
     {
+        $businessProfileId = null;
+        try {
+            $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+        } catch (\Throwable $e) {
+            // Contexto sin sesión (comando/consola): sin filtro, igual que antes.
+        }
+
         return Franchise::query()
             ->where('is_active', true)
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->pluck('name', 'slug')

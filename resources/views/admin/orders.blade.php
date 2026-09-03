@@ -7,19 +7,22 @@
     use App\Services\OrderAdminService;
 
     $statusLabels = [
-        'pending' => 'Pendiente',
-        'confirmed' => 'Confirmado',
-        'preparing' => 'En preparación',
+        'pending' => 'Nuevo · por revisar',
+        'confirmed' => 'Aceptado',
+        'preparing' => 'En cocina',
         'ready' => 'Listo para entregar',
-        'completed' => 'Entregado',
+        'completed' => 'Ya entregado',
         'cancelled' => 'Cancelado',
-        'payment_pending' => 'Pago pendiente',
-        'paid' => 'Pagado',
+        'payment_pending' => 'Esperando pago',
+        'paid' => 'Pago recibido',
     ];
     $statusOptions = ['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'];
     $invoiceLabels = OrderAdminService::INVOICE_STATUSES;
     $canUpdate = auth()->user()?->hasPermission('orders.update') ?? false;
     $canBulkCreate = auth()->user()?->hasPermission('bulk_orders.create') ?? false;
+    $canViewBilling = auth()->user()?->hasPermission('orders.billing') ?? false;
+    $canViewInternalNotes = auth()->user()?->hasPermission('orders.internal_notes') ?? false;
+    $canViewFollowup = auth()->user()?->hasPermission('orders.followup') ?? false;
     $columnHints = [
         'id' => 'Identificador único del pedido en el sistema. Sirve para buscarlo, exportarlo o referenciarlo en notas internas.',
         'client' => 'Nombre del contacto de WhatsApp vinculado al pedido. Si tiene cédula en su perfil, aparece debajo del nombre.',
@@ -480,49 +483,199 @@
         border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto .65rem;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Detalle del pedido: lectura rápida y una sola prioridad visible. */
+    .modal-panel { max-width: 760px; border-radius: 18px; }
+    .modal-header { padding: 1rem 1.15rem; background: #fff; align-items: center; }
+    .modal-heading { min-width: 0; }
+    .modal-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
+    .modal-header h3 { font-size: 1.08rem; font-weight: 800; }
+    .modal-header .sub { margin-top: .25rem; }
+    .modal-status {
+        display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .55rem;
+        border-radius: 999px; font-size: .67rem; font-weight: 800;
+        background: #f1f5f9; color: #475569;
+    }
+    .modal-status.status-pending, .modal-status.status-payment_pending { background: #fff7ed; color: #c2410c; }
+    .modal-status.status-confirmed, .modal-status.status-paid { background: #eff6ff; color: #1d4ed8; }
+    .modal-status.status-preparing { background: #fff7ed; color: #c2410c; }
+    .modal-status.status-ready { background: #dcfce7; color: #15803d; }
+    .modal-status.status-completed { background: #e2e8f0; color: #475569; }
+    .modal-status.status-cancelled { background: #fee2e2; color: #b91c1c; }
+    .modal-close { width: 38px; height: 38px; flex-shrink: 0; transition: background .15s ease, transform .15s ease; }
+    .modal-close:hover { background: #cbd5e1; transform: rotate(3deg); }
+    .modal-body { background: #f3f6f9; }
+    .order-next-step {
+        display: flex; align-items: flex-start; gap: .75rem; padding: .8rem .9rem;
+        border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0;
+        color: #166534;
+    }
+    .order-next-step-icon {
+        width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: #fff; color: #059669;
+    }
+    .order-next-step strong { display: block; color: #14532d; font-size: .83rem; }
+    .order-next-step span { display: block; margin-top: .1rem; font-size: .75rem; }
+    .order-next-step.is-waiting { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .order-next-step.is-waiting .order-next-step-icon { color: #d97706; }
+    .order-next-step.is-waiting strong { color: #78350f; }
+    .order-next-step.is-finished { background: #f8fafc; border-color: #e2e8f0; color: #64748b; }
+    .order-next-step.is-finished .order-next-step-icon { color: #64748b; }
+    .order-next-step.is-finished strong { color: #334155; }
+    .order-section {
+        border-left: 4px solid #0f766e !important;
+        box-shadow: 0 1px 4px rgba(15,23,42,.04);
+    }
+    .order-section .order-section-head { background: #fff !important; }
+    .order-section-icon {
+        width: 30px; height: 30px; border-radius: 8px;
+        background: #e7f7f3 !important; color: #0f766e !important;
+    }
+    .payment-proof-card,
+    .payment-proof-card.is-awaiting {
+        background: #f8fbfa;
+        border-color: #d7e7e3;
+        box-shadow: none;
+    }
+    .payment-proof-icon,
+    .payment-proof-card.is-awaiting .payment-proof-icon {
+        background: #0f766e;
+        box-shadow: none;
+    }
+    .order-ticket-head { background: #fff; }
+    .modal-footer .o-btn.primary { min-width: 122px; justify-content: center; }
+
+    /* Cola operativa: prioriza lo que la cajera necesita leer y hacer. */
+    .orders-guide {
+        display: flex; align-items: center; gap: .7rem; margin-bottom: .85rem;
+        padding: .75rem .9rem; border: 1px solid #bbf7d0; border-radius: 12px;
+        background: #f0fdf4; color: #166534; font-size: .8rem;
+    }
+    .orders-guide i { font-size: 1rem; }
+    .orders-guide strong { color: #14532d; }
+    .orders-count { color: #64748b; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+
+    .orders-report-tools { position: relative; }
+    .orders-report-tools > summary { list-style: none; }
+    .orders-report-tools > summary::-webkit-details-marker { display: none; }
+    .orders-report-tools[open] .orders-report-panel { display: flex; }
+    .orders-report-panel {
+        display: none; position: absolute; top: calc(100% + .45rem); right: 0; z-index: 20;
+        width: max-content; max-width: min(92vw, 680px); padding: .8rem;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+        box-shadow: 0 14px 35px rgba(15,23,42,.14);
+    }
+
+    .orders-card-list { display: flex; flex-direction: column; gap: .65rem; }
+    .order-card {
+        display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem;
+        padding: .95rem 1rem; background: #fff; border: 1px solid #e2e8f0;
+        border-left: 5px solid #cbd5e1; border-radius: 14px;
+        box-shadow: 0 2px 7px rgba(15,23,42,.04);
+        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+    .order-card:hover { border-color: #a7f3d0; box-shadow: 0 7px 20px rgba(15,23,42,.08); transform: translateY(-1px); }
+    .order-card.status-pending, .order-card.status-payment_pending { border-left-color: #f59e0b; }
+    .order-card.status-confirmed, .order-card.status-paid { border-left-color: #3b82f6; }
+    .order-card.status-preparing { border-left-color: #f97316; }
+    .order-card.status-ready { border-left-color: #22c55e; }
+    .order-card.status-completed { border-left-color: #94a3b8; opacity: .84; }
+    .order-card.status-cancelled { border-left-color: #ef4444; opacity: .75; }
+    .order-card-main { min-width: 0; }
+    .order-card-top { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem; margin-bottom: .45rem; }
+    .order-number { color: #0f172a; font-size: .76rem; font-weight: 800; }
+    .order-time { color: #64748b; font-size: .74rem; }
+    .order-customer-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: .4rem .8rem; }
+    .order-customer { color: #0f172a; font-size: 1rem; font-weight: 800; }
+    .order-total { color: #075e54; font-size: 1rem; font-weight: 900; }
+    .order-meta { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin-top: .28rem; color: #64748b; font-size: .75rem; }
+    .order-meta span { display: inline-flex; align-items: center; gap: .3rem; }
+    .order-meta i { color: #94a3b8; }
+    .order-card .order-tags { margin-top: .55rem; }
+    .order-card-side { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; gap: .75rem; }
+    .order-stage { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; }
+    .order-stage-label { color: #64748b; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .order-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem; }
+    .order-card-actions .o-btn { min-height: 34px; }
+
+    @media (max-width: 760px) {
+        .orders-page { padding-bottom: 1rem; }
+        .orders-top h2 { font-size: 1.2rem; }
+        .orders-priority { gap: .45rem; }
+        .prio-card { padding: .7rem .75rem; }
+        .prio-card .val { font-size: 1.05rem; }
+        .orders-toolbar { align-items: stretch; }
+        .orders-search { flex-basis: 100%; max-width: none; }
+        .orders-toolbar > .o-btn { flex: 1; justify-content: center; }
+        .orders-count { width: 100%; text-align: center; }
+        .orders-report-tools { width: 100%; }
+        .orders-report-tools > summary { justify-content: center; width: 100%; }
+        .orders-report-panel { position: static; width: 100%; max-width: none; margin-top: .45rem; box-shadow: none; }
+        .orders-export-form { margin-left: 0; width: 100%; }
+        .orders-export-form .field { flex: 1 1 120px; }
+        .orders-export-form .field input, .orders-export-form .field select { width: 100%; }
+        .orders-export-form .o-btn { width: 100%; justify-content: center; }
+        .order-card { grid-template-columns: 1fr; gap: .7rem; padding: .85rem; }
+        .order-card-side { align-items: stretch; }
+        .order-stage { align-items: stretch; }
+        .order-status-select { width: 100%; }
+        .order-card-actions { display: grid; grid-template-columns: 1fr 1fr; }
+        .order-card-actions .o-btn { justify-content: center; }
+        .order-card-actions .primary { grid-column: 1 / -1; grid-row: 1; }
+        .modal-panel { max-height: 96vh; }
+        .modal-body { padding: .75rem; }
+    }
 </style>
 
 <div class="orders-page">
     <div class="orders-top">
-        <h2><i class="fas fa-shopping-bag me-1 text-success"></i> Pedidos</h2>
-        <p class="lead">Estado, observaciones internas y seguimiento con el cliente.</p>
+        <h2><i class="fas fa-cash-register me-1 text-success"></i> Pedidos del día</h2>
+        <p class="lead">Revisa lo solicitado, confirma el pago y avanza cada pedido hasta entregarlo.</p>
     </div>
 
     <div class="orders-priority">
         <div class="prio-card">
-            <div class="lbl">Pendientes</div>
+            <div class="lbl">Por revisar</div>
             <div class="val">{{ $stats['pending'] ?? 0 }}</div>
         </div>
         <div class="prio-card">
-            <div class="lbl">En operación</div>
+            <div class="lbl">En proceso</div>
             <div class="val">{{ $stats['confirmed'] ?? 0 }}</div>
         </div>
         <div class="prio-card">
-            <div class="lbl">Completados</div>
+            <div class="lbl">Entregados</div>
             <div class="val">{{ $stats['completed'] ?? 0 }}</div>
         </div>
         <div class="prio-card accent">
-            <div class="lbl">Ingresos</div>
+            <div class="lbl">Ventas registradas</div>
             <div class="val">${{ number_format($stats['revenue'] ?? 0, 0) }}</div>
         </div>
+    </div>
+
+    <div class="orders-guide">
+        <i class="fas fa-circle-info"></i>
+        <span><strong>Flujo rápido:</strong> abre el pedido, verifica productos y pago, y cambia su etapa cuando avances.</span>
     </div>
 
     <div class="orders-toolbar">
         <div class="orders-search">
             <i class="fas fa-search"></i>
-            <input type="text" id="orders-search" placeholder="Buscar por cliente, teléfono o cédula..." autocomplete="off">
+            <input type="text" id="orders-search" placeholder="Buscar cliente, teléfono o cédula" autocomplete="off">
         </div>
         @if($canBulkCreate)
-            <a href="{{ route('admin.orders.bulk.create') }}" class="o-btn primary">
-                <i class="fas fa-plus"></i> Nuevo pedido
+            <a href="{{ route('pos.create') }}" class="o-btn primary" target="_blank" rel="noopener">
+                <i class="fas fa-plus"></i> Tomar pedido en caja
             </a>
-            <a href="{{ route('pos.create') }}" class="o-btn" target="_blank" rel="noopener">
-                <i class="fas fa-cash-register"></i> Punto de venta
+            <a href="{{ route('admin.orders.bulk.create') }}" class="o-btn">
+                <i class="fas fa-pen"></i> Pedido manual
             </a>
         @endif
-        <span class="text-muted small">{{ $orders->total() }} pedido(s)</span>
+        <span class="orders-count">{{ $orders->total() }} pedido(s)</span>
 
-        <form class="orders-export-form" method="get" action="{{ route('admin.orders.export') }}" id="orders-export-form">
+        <details class="orders-report-tools">
+            <summary class="o-btn"><i class="fas fa-file-excel"></i> Descargar reporte</summary>
+        <form class="orders-export-form orders-report-panel" method="get" action="{{ route('admin.orders.export') }}" id="orders-export-form">
             <div class="field">
                 <label for="export-status">Estado</label>
                 <select name="status" id="export-status">
@@ -545,93 +698,17 @@
                 <i class="fas fa-file-excel"></i> Exportar Excel
             </button>
         </form>
+        </details>
     </div>
 
-    <div class="orders-table-wrap" id="orders-list">
+    <div id="orders-list">
         @if($orders->isEmpty())
             <div class="orders-empty">
                 <i class="fas fa-inbox fa-2x mb-2 opacity-50 d-block"></i>
                 <p class="mb-0 fw-semibold">No hay pedidos registrados</p>
             </div>
         @else
-            <table class="orders-table">
-                <thead>
-                    <tr>
-                        <th>
-                            <span class="th-label-row">
-                                N.° Orden
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['id'] }}" aria-label="Qué significa el número de pedido">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Cliente
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['client'] }}" aria-label="Qué significa Cliente">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Teléfono
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['phone'] }}" aria-label="Qué significa Teléfono">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Fecha
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['date'] }}" aria-label="Qué significa Fecha">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Total
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['total'] }}" aria-label="Qué significa Total">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Prod.
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['products'] }}" aria-label="Qué significa Prod.">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Etiquetas
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['tags'] }}" aria-label="Qué significan las etiquetas">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th>
-                            <span class="th-label-row">
-                                Estado
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['status'] }}" aria-label="Qué significa Estado">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                        <th class="text-end">
-                            <span class="th-label-row">
-                                Acciones
-                                <button type="button" class="metric-info-btn" title="{{ $columnHints['actions'] }}" aria-label="Qué significa Acciones">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
-                            </span>
-                        </th>
-                    </tr>
-                </thead>
-                <tbody>
+            <div class="orders-card-list">
                     @foreach($orders as $order)
                         @php
                             $itemsCount = $order->items->count();
@@ -644,31 +721,35 @@
                             $fulfillmentPending = $fulfillmentPickupMode === 'delivery'
                                 && ($order->metadata['delivery_fee_pending_review'] ?? false);
                             $hasTags = $isRecentOrder
-                                || ($order->internal_notes_count ?? 0) > 0
-                                || ($order->feedback_count ?? 0) > 0
+                                || ($canViewInternalNotes && ($order->internal_notes_count ?? 0) > 0)
+                                || ($canViewFollowup && ($order->feedback_count ?? 0) > 0)
                                 || (($order->metadata['awaiting_client_confirmation'] ?? false) && $order->status === 'pending')
                                 || $order->hasPaymentProof()
                                 || $order->isAwaitingPaymentProof()
                                 || $fulfillmentServiceType;
                         @endphp
-                        <tr id="order-row-{{ $order->id }}"
+                        <article class="order-card status-{{ $order->status }}" id="order-row-{{ $order->id }}"
                             data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? ''))) }}">
-                            <td><span class="order-cell-id">{{ $order->getOrderNumber() }}</span></td>
-                            <td>
-                                <span class="order-cell-name">{{ $contact->name ?? 'Cliente' }}</span>
-                                @if($clientNationalId)
-                                    <div class="order-cell-muted"><i class="fas fa-id-card me-1"></i>{{ $clientNationalId }}</div>
-                                @endif
-                            </td>
-                            <td class="order-cell-muted"><i class="fab fa-whatsapp text-success me-1"></i>{{ $contact->phone_number ?? '—' }}</td>
-                            <td class="order-cell-muted">{{ $order->created_at->format('d/m/Y H:i') }}</td>
-                            <td class="order-cell-money">${{ number_format($order->total, 0) }}</td>
-                            <td>{{ $itemsCount }}</td>
-                            <td>
-                                <div class="order-tags">
+                            <div class="order-card-main">
+                                <div class="order-card-top">
+                                    <span class="order-number">{{ $order->getOrderNumber() }}</span>
+                                    <span class="order-time"><i class="far fa-clock me-1"></i>{{ $order->created_at->format('d/m/Y · H:i') }}</span>
                                     @if($isRecentOrder)
-                                        <span class="o-tag new-order"><i class="fas fa-bolt"></i> Nuevo</span>
+                                        <span class="o-tag new-order"><i class="fas fa-bolt"></i> Recién recibido</span>
                                     @endif
+                                </div>
+                                <div class="order-customer-row">
+                                    <span class="order-customer">{{ $contact->name ?? 'Cliente' }}</span>
+                                    <span class="order-total">${{ number_format($order->total, 2) }}</span>
+                                </div>
+                                <div class="order-meta">
+                                    <span><i class="fas fa-bag-shopping"></i>{{ $itemsCount }} {{ $itemsCount === 1 ? 'producto' : 'productos' }}</span>
+                                    <span><i class="fab fa-whatsapp"></i>{{ $contact->phone_number ?? 'Sin teléfono' }}</span>
+                                    @if($clientNationalId)
+                                        <span><i class="fas fa-id-card"></i>{{ $clientNationalId }}</span>
+                                    @endif
+                                </div>
+                                <div class="order-tags">
                                     @if($fulfillmentServiceType === 'servir')
                                         <span class="o-tag fulfil-servir"><i class="fas fa-utensils"></i> Para servir</span>
                                     @elseif($fulfillmentPickupMode === 'retiro')
@@ -679,10 +760,10 @@
                                     @if($fulfillmentPending)
                                         <span class="o-tag fulfil-pending"><i class="fas fa-dollar-sign"></i> Confirmar envío</span>
                                     @endif
-                                    @if(($order->internal_notes_count ?? 0) > 0)
+                                    @if($canViewInternalNotes && ($order->internal_notes_count ?? 0) > 0)
                                         <span class="o-tag notes"><i class="fas fa-sticky-note"></i>{{ $order->internal_notes_count }}</span>
                                     @endif
-                                    @if(($order->feedback_count ?? 0) > 0)
+                                    @if($canViewFollowup && ($order->feedback_count ?? 0) > 0)
                                         <span class="o-tag feedback"><i class="fas fa-comment"></i>{{ $order->feedback_count }}</span>
                                     @endif
                                     @if(($order->metadata['awaiting_client_confirmation'] ?? false) && $order->status === 'pending')
@@ -694,11 +775,13 @@
                                         <span class="o-tag proof-wait"><i class="fas fa-hourglass-half"></i> Sin comprobante</span>
                                     @endif
                                     @unless($hasTags)
-                                        <span class="o-tag empty">—</span>
+                                        <span class="o-tag empty"><i class="fas fa-circle-check"></i> Sin novedades</span>
                                     @endunless
                                 </div>
-                            </td>
-                            <td>
+                            </div>
+                            <div class="order-card-side">
+                                <div class="order-stage">
+                                <span class="order-stage-label">Etapa del pedido</span>
                                 @if($canUpdate)
                                     <select class="order-status-select status-{{ $order->status }}"
                                         id="status-select-{{ $order->id }}"
@@ -712,24 +795,22 @@
                                 @else
                                     <span class="o-tag">{{ $statusLabels[$order->status] ?? $order->status }}</span>
                                 @endif
-                            </td>
-                            <td>
-                                <div class="order-row-actions">
+                                </div>
+                                <div class="order-card-actions">
                                     @perm('chats.open')
-                                        <a href="{{ route('admin.chat', $order->contact_id) }}" class="o-btn" title="Abrir chat"><i class="fas fa-comments"></i></a>
+                                        <a href="{{ route('admin.chat', $order->contact_id) }}" class="o-btn" title="Conversar con el cliente"><i class="fas fa-comments"></i> Chat</a>
                                     @endperm
                                     <button type="button" class="o-btn primary" onclick="showOrderDetails({{ $order->id }})">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye"></i> Ver pedido
                                     </button>
                                     <a href="{{ route('admin.orders.pdf', $order->id) }}" class="o-btn" title="Descargar PDF" target="_blank" rel="noopener">
-                                        <i class="fas fa-file-pdf"></i>
+                                        <i class="fas fa-file-pdf"></i> PDF
                                     </a>
                                 </div>
-                            </td>
-                        </tr>
+                            </div>
+                        </article>
                     @endforeach
-                </tbody>
-            </table>
+            </div>
         @endif
     </div>
 
@@ -741,8 +822,11 @@
 <div class="modal-overlay" id="orderModal" role="dialog" aria-modal="true">
     <div class="modal-panel">
         <div class="modal-header">
-            <div>
-                <h3 id="orderModalTitle">Pedido</h3>
+            <div class="modal-heading">
+                <div class="modal-title-row">
+                    <h3 id="orderModalTitle">Pedido</h3>
+                    <span class="modal-status" id="orderModalStatus"></span>
+                </div>
                 <p class="sub mb-0" id="orderModalSubtitle"></p>
             </div>
             <button type="button" class="modal-close" onclick="closeOrderModal()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
@@ -771,6 +855,9 @@ const SECTION_HINTS = @json($sectionHints);
 const FIELD_HINTS = @json($fieldHints);
 const CHAT_URL_TEMPLATE = @json(url('/admin/chats/__ID__'));
 const CAN_UPDATE = @json($canUpdate);
+const CAN_VIEW_BILLING = @json($canViewBilling);
+const CAN_VIEW_INTERNAL_NOTES = @json($canViewInternalNotes);
+const CAN_VIEW_FOLLOWUP = @json($canViewFollowup);
 const CSRF = @json(csrf_token());
 const FULFILLMENT_COSTS_URL_TEMPLATE = @json(url('/admin/orders/__ID__/fulfillment-costs'));
 let currentOrderId = null;
@@ -786,7 +873,6 @@ function sectionHead(title, icon, theme, hintKey) {
         <div class="order-section-head-main">
             <span class="order-section-icon"><i class="${icon}"></i></span>
             <span>${esc(title)}</span>
-            ${infoBtn(SECTION_HINTS[hintKey] || '', 'Información: ' + title)}
         </div>
     </div>`;
 }
@@ -814,9 +900,28 @@ function esc(s) {
 }
 
 function formatDate(dateStr) {
-    return new Date(dateStr).toLocaleString('es-ES', {
+    return new Date(dateStr).toLocaleString('es-EC', {
         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
+}
+
+function renderOrderNextStep(order) {
+    const steps = {
+        pending: ['Revisa este pedido', 'Confirma productos, forma de entrega y total antes de aceptarlo.', 'fa-clipboard-check', 'is-waiting'],
+        payment_pending: ['Espera o revisa el pago', 'Cuando llegue el comprobante, comprueba el valor antes de confirmar.', 'fa-hourglass-half', 'is-waiting'],
+        paid: ['Pago recibido', 'El pedido ya puede continuar a preparación.', 'fa-circle-check', ''],
+        confirmed: ['Pedido aceptado', 'Verifica que cocina tenga claro lo solicitado.', 'fa-utensils', ''],
+        preparing: ['Pedido en cocina', 'Cuando termine la preparación, márcalo como listo para entregar.', 'fa-fire', ''],
+        ready: ['Listo para entregar', 'Entrégalo al cliente o coordina el despacho.', 'fa-bag-shopping', ''],
+        completed: ['Pedido finalizado', 'Este pedido ya fue entregado.', 'fa-circle-check', 'is-finished'],
+        cancelled: ['Pedido cancelado', 'No requiere más acciones.', 'fa-ban', 'is-finished'],
+    };
+    const step = steps[order.status] || ['Revisa el pedido', 'Comprueba la información antes de continuar.', 'fa-circle-info', ''];
+
+    return `<div class="order-next-step ${step[3]}">
+        <span class="order-next-step-icon"><i class="fas ${step[2]}"></i></span>
+        <div><strong>${step[0]}</strong><span>${step[1]}</span></div>
+    </div>`;
 }
 
 function openModal() {
@@ -835,14 +940,18 @@ function renderOrderModal(order) {
     currentOrderData = order;
     document.getElementById('orderModalTitle').textContent = 'Pedido ' + (order.order_number || ('#' + order.id));
     document.getElementById('orderModalSubtitle').textContent =
-        (order.contact?.name ?? 'Cliente') + ' · ' + formatDate(order.created_at) + ' · $' + parseFloat(order.total).toFixed(2);
+        (order.contact?.name ?? 'Cliente') + ' · ' + formatDate(order.created_at) + ' · Total $' + parseFloat(order.total).toFixed(2);
+    const modalStatus = document.getElementById('orderModalStatus');
+    modalStatus.textContent = STATUS_LABELS[order.status] || order.status;
+    modalStatus.className = 'modal-status status-' + order.status;
 
     const b = order.billing || {};
     let html = '<div class="order-command-center">';
+    html += renderOrderNextStep(order);
 
     // Resumen tipo ticket: el operador identifica el pedido y su total sin
     // recorrer una tabla administrativa ni abrir campos que no necesita.
-    html += `<section class="order-ticket-card"><div class="order-ticket-head"><strong><i class="fas fa-bag-shopping me-1"></i>Resumen del pedido</strong><span>${order.items?.length || 0} producto(s)</span></div>`;
+    html += `<section class="order-ticket-card"><div class="order-ticket-head"><strong><i class="fas fa-bag-shopping me-1"></i>Lo que pidió el cliente</strong><span>${order.items?.length || 0} producto(s)</span></div>`;
     if (order.items?.length) {
         order.items.forEach(item => {
             const sub = (parseFloat(item.price) * parseInt(item.quantity)).toFixed(2);
@@ -860,8 +969,8 @@ function renderOrderModal(order) {
         html += `<section class="order-quick-actions"><div class="order-quick-actions-row"><div class="order-quick-actions-copy"><strong>${order.awaiting_client_confirmation ? 'Esperando confirmación del cliente' : 'Confirmar por WhatsApp'}</strong><span>${order.awaiting_client_confirmation ? 'El ticket ya fue enviado al cliente.' : 'Envía el ticket digital con las acciones de pedido.'}</span></div><button type="button" class="o-btn primary" onclick="sendOrderConfirmation()"><i class="fab fa-whatsapp me-1"></i>${order.awaiting_client_confirmation ? 'Reenviar ticket' : 'Enviar ticket'}</button></div><details class="order-disclosure mt-3"><summary>Agregar mensaje opcional</summary><div class="order-disclosure-body"><textarea class="form-control form-control-sm" id="confirmationMessage" rows="2" placeholder="Ej.: Tu pedido estará listo en 20 minutos."></textarea></div></details></section>`;
     }
 
-    if (order.requires_invoice || CAN_UPDATE) {
-        html += `<details class="order-disclosure" ${order.requires_invoice ? 'open' : ''}><summary><i class="fas fa-file-invoice me-1"></i>Facturación${order.requires_invoice ? ' · requerida' : ''}</summary><div class="order-disclosure-body">`;
+    if (CAN_VIEW_BILLING && (order.requires_invoice || CAN_UPDATE)) {
+        html += `<details class="order-disclosure" ${order.requires_invoice ? 'open' : ''}><summary><i class="fas fa-file-invoice me-1"></i>Factura${order.requires_invoice ? ' · solicitada por el cliente' : ' · solo si la solicitan'}</summary><div class="order-disclosure-body">`;
         if (CAN_UPDATE) {
             html += `<form id="invoice-form" onsubmit="saveOrderInvoice(event)">
                 <div class="form-check form-switch mb-3">
@@ -915,25 +1024,29 @@ function renderOrderModal(order) {
         html += `</div></details>`;
     }
 
-    html += `<details class="order-disclosure"><summary><i class="fas fa-sticky-note me-1"></i>Observaciones internas</summary><div class="order-disclosure-body">`;
-    html += `<div id="internal-notes-list">${renderNotesList(order.notes?.filter(n => n.type === 'internal') || [])}</div>`;
-    if (CAN_UPDATE) {
-        html += `<form class="mt-3 pt-2 border-top" onsubmit="addOrderNote(event, 'internal')">
-            <textarea class="form-control form-control-sm mb-2" name="body" rows="2" placeholder="Nota para el equipo (no la ve el cliente)..." required></textarea>
-            <button type="submit" class="o-btn btn-sm"><i class="fas fa-plus me-1"></i>Agregar observación</button>
-        </form>`;
+    if (CAN_VIEW_INTERNAL_NOTES) {
+        html += `<details class="order-disclosure"><summary><i class="fas fa-sticky-note me-1"></i>Notas para el equipo</summary><div class="order-disclosure-body">`;
+        html += `<div id="internal-notes-list">${renderNotesList(order.notes?.filter(n => n.type === 'internal') || [])}</div>`;
+        if (CAN_UPDATE) {
+            html += `<form class="mt-3 pt-2 border-top" onsubmit="addOrderNote(event, 'internal')">
+                <textarea class="form-control form-control-sm mb-2" name="body" rows="2" placeholder="Nota para el equipo (no la ve el cliente)..." required></textarea>
+                <button type="submit" class="o-btn btn-sm"><i class="fas fa-plus me-1"></i>Agregar observación</button>
+            </form>`;
+        }
+        html += `</div></details>`;
     }
-    html += `</div></details>`;
 
-    html += `<details class="order-disclosure"><summary><i class="fas fa-comment-dots me-1"></i>Historial y feedback</summary><div class="order-disclosure-body">`;
-    html += `<div id="feedback-notes-list">${renderNotesList(order.notes?.filter(n => n.type === 'feedback') || [])}</div>`;
-    if (CAN_UPDATE) {
-        html += `<form class="mt-3 pt-2 border-top" onsubmit="addOrderNote(event, 'feedback')">
-            <textarea class="form-control form-control-sm mb-2" name="body" rows="2" placeholder="Ej: Envié factura PDF por WhatsApp, cliente confirmó recepción..." required></textarea>
-            <button type="submit" class="o-btn btn-sm"><i class="fas fa-plus me-1"></i>Registrar feedback</button>
-        </form>`;
+    if (CAN_VIEW_FOLLOWUP) {
+        html += `<details class="order-disclosure"><summary><i class="fas fa-comment-dots me-1"></i>Conversaciones y seguimiento</summary><div class="order-disclosure-body">`;
+        html += `<div id="feedback-notes-list">${renderNotesList(order.notes?.filter(n => n.type === 'feedback') || [])}</div>`;
+        if (CAN_UPDATE) {
+            html += `<form class="mt-3 pt-2 border-top" onsubmit="addOrderNote(event, 'feedback')">
+                <textarea class="form-control form-control-sm mb-2" name="body" rows="2" placeholder="Ej: Envié factura PDF por WhatsApp, cliente confirmó recepción..." required></textarea>
+                <button type="submit" class="o-btn btn-sm"><i class="fas fa-plus me-1"></i>Registrar feedback</button>
+            </form>`;
+        }
+        html += `</div></details>`;
     }
-    html += `</div></details>`;
 
     html += '</div>';
 
@@ -941,7 +1054,7 @@ function renderOrderModal(order) {
 
     const footer = document.getElementById('orderModalFooter');
     footer.innerHTML = `<button type="button" class="o-btn" onclick="closeOrderModal()">Cerrar</button>`;
-    footer.innerHTML += `<a href="/admin/orders/${order.id}/pdf" class="o-btn primary" target="_blank" rel="noopener"><i class="fas fa-file-pdf me-1"></i>Descargar PDF</a>`;
+    footer.innerHTML += `<a href="/admin/orders/${order.id}/pdf" class="o-btn" target="_blank" rel="noopener"><i class="fas fa-file-pdf me-1"></i>Descargar PDF</a>`;
     if (order.contact?.id) {
         footer.innerHTML += `<a href="${CHAT_URL_TEMPLATE.replace('__ID__', order.contact.id)}" class="o-btn primary"><i class="fas fa-comments me-1"></i>Abrir chat</a>`;
     }
@@ -982,7 +1095,7 @@ function renderFulfillmentSection(order) {
     const f = order.fulfillment;
     if (!f) return '';
 
-    let html = `<section class="order-section" data-theme="fulfillment">${sectionHead('Entrega del pedido', 'fas fa-route', 'fulfillment', 'fulfillment')}<div class="order-section-body">`;
+    let html = `<section class="order-section" data-theme="fulfillment">${sectionHead('Forma de entrega', 'fas fa-store', 'fulfillment', 'fulfillment')}<div class="order-section-body">`;
 
     html += `<div class="fulfillment-grid">`;
     if (f.branch) {
@@ -1108,13 +1221,13 @@ function renderPaymentProofSection(order) {
     const badgeClass = isSubmitted ? 'ok' : 'wait';
     const badgeText = isSubmitted ? 'Recibido' : (isAwaiting ? 'Pendiente' : 'Sin envío');
 
-    let html = `<div class="order-section" data-theme="payment">${sectionHead('Comprobante de pago del cliente', 'fas fa-receipt', 'payment', 'payment_proof')}<div class="order-section-body flush">`;
+    let html = `<div class="order-section" data-theme="payment">${sectionHead('Pago del pedido', 'fas fa-credit-card', 'payment', 'payment_proof')}<div class="order-section-body flush">`;
     html += `<div class="${cardClass}">`;
     html += `<div class="payment-proof-top">
         <div class="payment-proof-title-wrap">
             <div class="payment-proof-icon"><i class="fas fa-${isSubmitted ? 'file-circle-check' : 'file-invoice-dollar'}"></i></div>
             <div>
-                <h4 class="payment-proof-title">${isSubmitted ? 'Comprobante enviado por WhatsApp' : 'Esperando comprobante del cliente'}</h4>
+                <h4 class="payment-proof-title">${isSubmitted ? 'Comprobante recibido' : 'Esperando comprobante'}</h4>
                 <p class="payment-proof-sub">${esc(payment.method_label)} · ${esc(payment.status_label)}</p>
             </div>
         </div>
@@ -1272,7 +1385,14 @@ function changeOrderStatus(orderId, selectEl) {
         if (data.success) {
             selectEl.className = 'order-status-select status-' + newStatus;
             selectEl.setAttribute('data-current-status', newStatus);
-            showToast('Estado actualizado');
+            const card = document.getElementById('order-row-' + orderId);
+            if (card) {
+                Array.from(card.classList)
+                    .filter(className => className.startsWith('status-'))
+                    .forEach(className => card.classList.remove(className));
+                card.classList.add('status-' + newStatus);
+            }
+            showToast('Etapa del pedido actualizada');
         } else { selectEl.value = prev; showToast('Error', 'error'); }
     })
     .catch(() => { selectEl.value = prev; showToast('Error', 'error'); });

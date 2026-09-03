@@ -10,6 +10,7 @@ class WhatsappPrice extends Model
 {
     protected $fillable = [
         'menu_item_id',
+        'business_profile_id',
         'franchise_id',
         'category',
         'sku',
@@ -86,6 +87,16 @@ class WhatsappPrice extends Model
         return $this->belongsTo(Franchise::class);
     }
 
+    public function businessProfile(): BelongsTo
+    {
+        return $this->belongsTo(WhatsappBusinessProfile::class);
+    }
+
+    public function scopeForBusinessProfile($query, int $businessProfileId)
+    {
+        return $query->where('business_profile_id', $businessProfileId);
+    }
+
     /** Pedidos históricos que conservan este producto como referencia. */
     public function cartItems(): HasMany
     {
@@ -116,22 +127,31 @@ class WhatsappPrice extends Model
     /**
      * Estadísticas globales del catálogo (misma fuente en productos y categorías).
      */
-    public static function summaryStats(): array
+    public static function summaryStats(?int $businessProfileId = null): array
     {
+        $base = static::query();
+        if ($businessProfileId) {
+            $base->where('business_profile_id', $businessProfileId);
+        }
+
         return [
-            'total' => static::query()->count(),
-            'active' => static::query()->where('is_active', true)->count(),
-            'promo' => static::query()->where('is_promo', true)->count(),
-            'no_stock' => static::query()->where('stock', '<=', 0)->count(),
+            'total' => (clone $base)->count(),
+            'active' => (clone $base)->where('is_active', true)->count(),
+            'promo' => (clone $base)->where('is_promo', true)->count(),
+            'no_stock' => (clone $base)->where('stock', '<=', 0)->count(),
         ];
     }
 
     /**
      * Productos vinculados a categorías del menú prices_menu del bot.
      */
-    public static function inCatalogCategoriesCount(bool $activeOnly = false): int
+    public static function inCatalogCategoriesCount(bool $activeOnly = false, ?int $businessProfileId = null): int
     {
-        $menuId = WhatsappMenu::where('action_id', 'prices_menu')->value('id');
+        $menuQuery = WhatsappMenu::where('action_id', 'prices_menu');
+        if ($businessProfileId) {
+            $menuQuery->where('business_profile_id', $businessProfileId);
+        }
+        $menuId = $menuQuery->value('id');
 
         if (!$menuId) {
             return 0;

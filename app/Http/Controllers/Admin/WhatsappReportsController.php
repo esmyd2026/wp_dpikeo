@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMessage;
 use App\Services\ConsumptionReportService;
+use App\Support\CompanyContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +18,16 @@ class WhatsappReportsController extends Controller
 
     public function index(Request $request, ConsumptionReportService $consumption)
     {
-        [$from, $to, $periodPreset] = $this->resolveReportPeriod($request);
+        // Se resuelve UNA vez acá y se pasa explícito a todo lo que sigue --
+        // ninguna consulta de este reporte debe volver a resolver "la
+        // empresa" por su cuenta.
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+
+        [$from, $to, $periodPreset] = $this->resolveReportPeriod($request, $businessProfileId);
         [$prevFrom, $prevTo] = $this->previousPeriod($from, $to);
 
-        $consumptionReport = $consumption->build($from, $to);
-        $metrics = $this->buildWhatsappMetrics($from, $to, $prevFrom, $prevTo);
+        $consumptionReport = $consumption->build($from, $to, $businessProfileId);
+        $metrics = $this->buildWhatsappMetrics($from, $to, $prevFrom, $prevTo, $businessProfileId);
 
         return view('admin.reports.whatsapp', compact(
             'consumptionReport',
@@ -32,39 +38,55 @@ class WhatsappReportsController extends Controller
         ));
     }
 
-    private function buildWhatsappMetrics(Carbon $from, Carbon $to, Carbon $prevFrom, Carbon $prevTo): array
+    private function buildWhatsappMetrics(Carbon $from, Carbon $to, Carbon $prevFrom, Carbon $prevTo, ?int $businessProfileId): array
     {
-        $periodMessages = WhatsappMessage::whereBetween('created_at', [$from, $to])->count();
-        $prevPeriodMessages = WhatsappMessage::whereBetween('created_at', [$prevFrom, $prevTo])->count();
+        $periodMessages = $this->scopedMessages($businessProfileId)
+            ->whereBetween('created_at', [$from, $to])->count();
+        $prevPeriodMessages = $this->scopedMessages($businessProfileId)
+            ->whereBetween('created_at', [$prevFrom, $prevTo])->count();
 
-        $received = WhatsappMessage::where('sender_type', 'client')
+        $received = $this->scopedMessages($businessProfileId)
+            ->where('sender_type', 'client')
             ->whereBetween('created_at', [$from, $to])
             ->count();
-        $sent = WhatsappMessage::whereIn('sender_type', ['system', 'humano'])
+        $sent = $this->scopedMessages($businessProfileId)
+            ->whereIn('sender_type', ['system', 'humano'])
             ->whereBetween('created_at', [$from, $to])
             ->count();
 
-        $responseRate = $this->clientResponseRate($from, $to);
-        $prevResponseRate = $this->clientResponseRate($prevFrom, $prevTo);
+        $responseRate = $this->clientResponseRate($from, $to, $businessProfileId);
+        $prevResponseRate = $this->clientResponseRate($prevFrom, $prevTo, $businessProfileId);
 
-        $avgResponseTime = $this->averageResponseTimeMinutes($from, $to);
+        $avgResponseTime = $this->averageResponseTimeMinutes($from, $to, $businessProfileId);
 
-        $activeClients = (int) WhatsappMessage::whereBetween('created_at', [$from, $to])
+        $activeClients = (int) $this->scopedMessages($businessProfileId)
+            ->whereBetween('created_at', [$from, $to])
             ->distinct()
             ->count('contact_id');
 
-        $newContacts = WhatsappContact::whereBetween('created_at', [$from, $to])->count();
-
-        $humanMessages = WhatsappMessage::where('sender_type', 'humano')
+        $newContacts = WhatsappContact::query()
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->whereBetween('created_at', [$from, $to])
             ->count();
 
-        $botMessages = WhatsappMessage::where('sender_type', 'system')
+        $humanMessages = $this->scopedMessages($businessProfileId)
+            ->where('sender_type', 'humano')
             ->whereBetween('created_at', [$from, $to])
             ->count();
 
-        $peakHourData = WhatsappMessage::whereBetween('created_at', [$from, $to])
-            ->select(DB::raw('HOUR(created_at) as hour'), DB::raw('COUNT(*) as count'))
+        $botMessages = $this->scopedMessages($businessProfileId)
+            ->where('sender_type', 'system')
+            ->whereBetween('created_at', [$from, $to])
+            ->count();
+
+        // HOUR() es MySQL; strftime('%H', ...) es el equivalente en SQLite (tests).
+        $hourExpr = DB::getDriverName() === 'sqlite'
+            ? "CAST(strftime('%H', created_at) AS INTEGER)"
+            : 'HOUR(created_at)';
+
+        $peakHourData = $this->scopedMessages($businessProfileId)
+            ->whereBetween('created_at', [$from, $to])
+            ->select(DB::raw("{$hourExpr} as hour"), DB::raw('COUNT(*) as count'))
             ->groupBy('hour')
             ->orderByDesc('count')
             ->first();
@@ -89,9 +111,17 @@ class WhatsappReportsController extends Controller
         ];
     }
 
-    private function clientResponseRate(Carbon $from, Carbon $to): float
+    /** Punto único de partida para cualquier consulta de mensajes de este reporte. */
+    private function scopedMessages(?int $businessProfileId)
     {
-        $clientMessages = WhatsappMessage::where('sender_type', 'client')
+        return WhatsappMessage::query()
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId));
+    }
+
+    private function clientResponseRate(Carbon $from, Carbon $to, ?int $businessProfileId): float
+    {
+        $clientMessages = $this->scopedMessages($businessProfileId)
+            ->where('sender_type', 'client')
             ->whereBetween('created_at', [$from, $to])
             ->get(['id', 'contact_id', 'created_at']);
 
@@ -101,7 +131,8 @@ class WhatsappReportsController extends Controller
 
         $answered = 0;
         foreach ($clientMessages as $msg) {
-            $hasReply = WhatsappMessage::where('contact_id', $msg->contact_id)
+            $hasReply = $this->scopedMessages($businessProfileId)
+                ->where('contact_id', $msg->contact_id)
                 ->whereIn('sender_type', ['system', 'humano'])
                 ->where('created_at', '>', $msg->created_at)
                 ->where('created_at', '<=', $msg->created_at->copy()->addDay())
@@ -115,9 +146,10 @@ class WhatsappReportsController extends Controller
         return round(($answered / $clientMessages->count()) * 100, 1);
     }
 
-    private function averageResponseTimeMinutes(Carbon $from, Carbon $to): float
+    private function averageResponseTimeMinutes(Carbon $from, Carbon $to, ?int $businessProfileId): float
     {
-        $outbound = WhatsappMessage::whereIn('sender_type', ['system', 'humano'])
+        $outbound = $this->scopedMessages($businessProfileId)
+            ->whereIn('sender_type', ['system', 'humano'])
             ->whereBetween('created_at', [$from, $to])
             ->orderBy('contact_id')
             ->orderBy('created_at')
@@ -129,7 +161,8 @@ class WhatsappReportsController extends Controller
 
         $diffs = [];
         foreach ($outbound as $reply) {
-            $prevClientAt = WhatsappMessage::where('contact_id', $reply->contact_id)
+            $prevClientAt = $this->scopedMessages($businessProfileId)
+                ->where('contact_id', $reply->contact_id)
                 ->where('sender_type', 'client')
                 ->where('created_at', '<', $reply->created_at)
                 ->orderByDesc('created_at')

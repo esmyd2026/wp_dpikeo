@@ -20,7 +20,7 @@ class OrdersReportsController extends Controller
         $statusBreakdown = $this->statusBreakdown($from, $to);
         $statusCards = $this->statusSummaryCards($statusBreakdown);
         $dailyTrend = $this->dailyOrderTrend($from, $to);
-        $recentOrders = WhatsappCart::reportable()
+        $recentOrders = WhatsappCart::reportable()->forActiveCompany()
             ->with(['contact'])
             ->whereBetween('created_at', [$from, $to])
             ->latest()
@@ -107,7 +107,7 @@ class OrdersReportsController extends Controller
 
     private function statusBreakdown(Carbon $from, Carbon $to): array
     {
-        $rows = WhatsappCart::reportable()
+        $rows = WhatsappCart::reportable()->forActiveCompany()
             ->whereBetween('created_at', [$from, $to])
             ->select('status', DB::raw('COUNT(*) as total'), DB::raw('COALESCE(SUM(total), 0) as amount'))
             ->groupBy('status')
@@ -122,7 +122,7 @@ class OrdersReportsController extends Controller
 
     private function dailyOrderTrend(Carbon $from, Carbon $to): array
     {
-        $rows = WhatsappCart::reportable()
+        $rows = WhatsappCart::reportable()->forActiveCompany()
             ->whereBetween('created_at', [$from, $to])
             ->where('status', '!=', WhatsappCart::STATUS_CANCELLED)
             ->select(

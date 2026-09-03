@@ -7,6 +7,7 @@ use App\Models\BusinessBranch;
 use App\Models\WhatsappContact;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -24,8 +25,11 @@ class PosOrderController extends Controller
 
     public function create(Request $request): View
     {
+        $activeCompany = CompanyContext::current()->company;
+
         $branches = BusinessBranch::query()
             ->where('is_active', true)
+            ->when(CompanyContext::current()->businessProfileId(), fn ($q) => $q->where('business_profile_id', CompanyContext::current()->businessProfileId()))
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
@@ -39,6 +43,7 @@ class PosOrderController extends Controller
             'submitUrl' => route('pos.submit'),
             'branches' => $branches,
             'defaultBranchId' => $defaultBranchId,
+            'headerTitle' => $activeCompany?->name,
         ]);
     }
 
@@ -60,11 +65,17 @@ class PosOrderController extends Controller
             'branch_id' => ['nullable', 'integer', 'exists:business_branches,id'],
         ]);
 
-        $contact = WhatsappContact::query()->findOrFail($validated['contact_id']);
+        $contact = WhatsappContact::query()
+            ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+            ->findOrFail($validated['contact_id']);
 
         $branchId = $validated['branch_id']
             ?? $request->session()->get('pos_branch_id')
-            ?? BusinessBranch::query()->where('is_active', true)->orderByDesc('is_default')->value('id');
+            ?? BusinessBranch::query()
+                ->where('is_active', true)
+                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+                ->orderByDesc('is_default')
+                ->value('id');
 
         try {
             $cart = $this->bulkOrders->submitFromAdmin(

@@ -59,6 +59,10 @@ class SendWhatsAppTemplate extends Command
 
         foreach ($contacts as $contact) {
             try {
+                // Se reutiliza la misma instancia para todos los contactos
+                // (de cualquier empresa); hay que reapuntarla en cada uno.
+                $this->whatsappService->useBusinessProfile($contact->businessProfile);
+
                 // Usar el helper para armar los parámetros correctamente
                 $customValues = [];
                 if (isset($template->components) && is_array($template->components)) {

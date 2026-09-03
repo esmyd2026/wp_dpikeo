@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>Ingreso — DPIKEOS</title>
+    <title>Ingreso — Panel de Administración</title>
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <link rel="apple-touch-icon" href="{{ asset('favicon.svg') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -271,34 +271,34 @@
         <aside class="login-brand">
             <div class="brand-top">
                 <div class="brand-logo">
-                    <div class="brand-logo-icon"><img src="{{ asset('storage/img/dpikeologo.jpg') }}" alt="DPIKEOS" style="width:34px;height:34px;object-fit:contain;border-radius:8px"></div>
-                    <div class="brand-logo-text"><span>DPI</span>KEOS</div>
+                    <div class="brand-logo-icon"><i class="fab fa-whatsapp"></i></div>
+                    <div class="brand-logo-text">Panel de <span>Administración</span></div>
                 </div>
-                                <h2 class="brand-headline">Operación y pedidos DPIKEOS</h2>
-                <p class="brand-sub">La operación central de DPIKEOS: pedidos, cocina, sucursales y atención por WhatsApp, en un solo lugar.</p>
+                <h2 class="brand-headline">Gestión empresarial y WhatsApp</h2>
+                <p class="brand-sub">Administrá catálogo, pedidos, atención y campañas por WhatsApp de tu empresa, en un solo lugar.</p>
                 <div class="brand-features">
-                    <div class="brand-feature"><i class="fas fa-utensils"></i> Menú visual y pedidos rápidos</div>
-                    <div class="brand-feature"><i class="fas fa-fire-burner"></i> Comandas y control de cocina</div>
+                    <div class="brand-feature"><i class="fas fa-comments"></i> Atención y pedidos por WhatsApp</div>
+                    <div class="brand-feature"><i class="fas fa-box-open"></i> Catálogo, precios y campañas</div>
                     <div class="brand-feature"><i class="fas fa-chart-line"></i> Ventas, inventario y reportes</div>
                     <div class="brand-feature"><i class="fas fa-shield-halved"></i> Acceso seguro solo para tu equipo</div>
                 </div>
             </div>
-            <div class="brand-footer">&copy; {{ date('Y') }} DPIKEOS · Uso exclusivo de personal autorizado</div>
+            <div class="brand-footer">&copy; {{ date('Y') }} Uso exclusivo de personal autorizado</div>
         </aside>
 
         <main class="login-panel">
             <div style="width:100%;max-width:420px">
                 <div class="mobile-brand">
                     <div class="brand-logo">
-                        <div class="brand-logo-icon"><img src="{{ asset('storage/img/dpikeologo.jpg') }}" alt="DPIKEOS" style="width:34px;height:34px;object-fit:contain;border-radius:8px"></div>
-                        <div class="brand-logo-text" style="color:#111b21"><span style="color:#e85d04">DPI</span>KEOS</div>
+                        <div class="brand-logo-icon" style="background:rgba(37,211,102,.12);color:#25d366"><i class="fab fa-whatsapp"></i></div>
+                        <div class="brand-logo-text" style="color:#111b21">Panel de <span style="color:#25d366">Administración</span></div>
                     </div>
                 </div>
 
                 <div class="login-card">
                     <div class="login-card-header">
                         <h1>Iniciar sesión</h1>
-                        <p>Accede al panel de administración de DPIKEOS.</p>
+                        <p>Accede al panel de administración.</p>
                     </div>
                     <div class="login-card-body">
                         <form id="login-form" action="{{ route('login') }}" method="POST" autocomplete="off" novalidate>

@@ -48,19 +48,22 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         ->middleware('permission:dashboard.view,dashboard.menu')
         ->name('dashboard');
 
+    Route::post('/empresa-activa', [App\Http\Controllers\Admin\ActiveCompanyController::class, 'store'])
+        ->name('active-company.store');
+
     Route::get('/reports/whatsapp', [WhatsappReportsController::class, 'index'])
-        ->middleware('permission:dashboard.view,dashboard.menu')
+        ->middleware('permission:dashboard.view,dashboard.menu,whatsapp_reports.menu')
         ->name('reports.whatsapp');
 
     Route::get('/reports/orders', [OrdersReportsController::class, 'index'])
-        ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,orders.menu,orders_reports.menu', 'platform.feature:orders'])
         ->name('reports.orders');
     Route::get('/reports/inventory', [App\Http\Controllers\Admin\InventoryReportController::class, 'index'])
-        ->middleware('permission:products.view,products.menu')
+        ->middleware('permission:products.view,products.menu,inventory.menu')
         ->name('reports.inventory');
 
     Route::get('/sucursales', [App\Http\Controllers\Admin\BusinessBranchController::class, 'index'])
-        ->middleware('permission:pricing_settings.view,pricing_settings.menu')
+        ->middleware('permission:pricing_settings.view,pricing_settings.menu,branches.menu')
         ->name('branches.index');
     Route::post('/sucursales', [App\Http\Controllers\Admin\BusinessBranchController::class, 'store'])
         ->middleware('permission:pricing_settings.update')
@@ -72,7 +75,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         ->middleware('permission:pricing_settings.update')
         ->name('branches.destroy');
     Route::get('/franquicias', [App\Http\Controllers\Admin\FranchiseController::class, 'index'])
-        ->middleware('permission:pricing_settings.view,pricing_settings.menu')
+        ->middleware('permission:pricing_settings.view,pricing_settings.menu,franchises.menu')
         ->name('franchises.index');
     Route::post('/franquicias', [App\Http\Controllers\Admin\FranchiseController::class, 'store'])
         ->middleware('permission:pricing_settings.update')
@@ -88,16 +91,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
         ->name('orders');
     Route::get('/comandas', [App\Http\Controllers\Admin\KitchenBoardController::class, 'index'])
-        ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,orders.menu,kitchen.menu', 'platform.feature:orders'])
         ->name('kitchen.index');
     Route::get('/comandas/pantalla', [App\Http\Controllers\Admin\KitchenBoardController::class, 'display'])
-        ->middleware(['permission:orders.view', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,kitchen.menu', 'platform.feature:orders'])
         ->name('kitchen.display');
     Route::get('/comandas/datos', [App\Http\Controllers\Admin\KitchenBoardController::class, 'data'])
-        ->middleware(['permission:orders.view', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,kitchen.menu', 'platform.feature:orders'])
         ->name('kitchen.data');
     Route::get('/comandas/{id}/imprimir', [App\Http\Controllers\Admin\KitchenBoardController::class, 'print'])
-        ->middleware(['permission:orders.view', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,kitchen.menu', 'platform.feature:orders'])
         ->name('kitchen.print');
     Route::post('/comandas/turnos/reiniciar', [App\Http\Controllers\Admin\KitchenBoardController::class, 'resetTurns'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
@@ -106,16 +109,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('kitchen.transition');
     Route::get('/delivery', [App\Http\Controllers\Admin\DeliveryController::class, 'index'])
-        ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,orders.menu,delivery.menu', 'platform.feature:orders'])
         ->name('delivery.index');
     Route::get('/delivery/datos', [App\Http\Controllers\Admin\DeliveryController::class, 'data'])
-        ->middleware(['permission:orders.view', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,delivery.menu', 'platform.feature:orders'])
         ->name('delivery.data');
     Route::post('/delivery/{id}/confirmar', [App\Http\Controllers\Admin\DeliveryController::class, 'confirmDelivery'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('delivery.confirm');
     Route::get('/delivery/repartidores', [App\Http\Controllers\Admin\DeliveryController::class, 'drivers'])
-        ->middleware(['permission:orders.view', 'platform.feature:orders'])
+        ->middleware(['permission:orders.view,delivery.menu', 'platform.feature:orders'])
         ->name('delivery.drivers');
     Route::post('/delivery/{id}/despachar', [App\Http\Controllers\Admin\DeliveryController::class, 'dispatchToDriver'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
@@ -288,9 +291,24 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::put('/chatbot/mensajes/{messageTemplate}', [App\Http\Controllers\Admin\ChatbotController::class, 'updateMessageTemplate'])
         ->middleware('permission:chatbot.update')
         ->name('chatbot.message-templates.update');
-    Route::put('/chatbot/whatsapp', [App\Http\Controllers\Admin\ChatbotController::class, 'updateWhatsappCredentials'])
-        ->middleware('permission:chatbot.update')
-        ->name('chatbot.whatsapp.update');
+
+    Route::prefix('empresas')->name('empresas.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'index'])
+            ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')
+            ->name('index');
+        Route::post('/', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'store'])
+            ->middleware('permission:chatbot.update')
+            ->name('store');
+        Route::get('/{company:slug}/whatsapp', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'show'])
+            ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')
+            ->name('whatsapp');
+        Route::put('/{company:slug}/whatsapp', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'updateCredentials'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.update');
+        Route::post('/{company:slug}/whatsapp/embedded-signup', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'embeddedSignup'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.embedded-signup');
+    });
 
     Route::get('/marketing-flow', [App\Http\Controllers\Admin\MarketingFlowController::class, 'edit'])
         ->middleware('permission:marketing_flow.view,marketing_flow.menu')

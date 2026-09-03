@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use Illuminate\Http\UploadedFile;
@@ -65,18 +66,22 @@ class ProductImportExportService
         private readonly DemoClienteService $demoCliente,
     ) {}
 
-    public function templateDownloadResponse(): StreamedResponse
+    public function templateDownloadResponse(?int $businessProfileId = null): StreamedResponse
     {
-        $categories = WhatsappMenuItem::catalogCategories()
+        $categories = WhatsappMenuItem::catalogCategories($businessProfileId)
             ->where('is_active', true)
             ->orderBy('order')
             ->get(['id', 'title', 'action_id', 'demo_cliente']);
 
         $exampleCategory = $categories->first()?->title ?? 'Nombre de categoría existente';
+        $businessName = $businessProfileId
+            ? (WhatsappBusinessProfile::find($businessProfileId)?->business_name ?? 'tu empresa')
+            : 'tu empresa';
+        $demoClienteExample = $categories->first()?->demo_cliente ?: '';
 
         $exampleRow = [
-            'DP020',
-            'Ejemplo: Nuevo producto DPIKEOS',
+            'PROD-001',
+            "Ejemplo: Nuevo producto {$businessName}",
             $exampleCategory,
             12.50,
             '',
@@ -88,20 +93,21 @@ class ProductImportExportService
             999,
             'Si',
             'Si',
-            'dpikeos',
+            $demoClienteExample,
         ];
 
-        return $this->streamWorkbook('plantilla-productos.xlsx', function (Spreadsheet $spreadsheet) use ($categories, $exampleRow) {
-            $this->buildInstructionsSheet($spreadsheet);
+        return $this->streamWorkbook('plantilla-productos.xlsx', function (Spreadsheet $spreadsheet) use ($categories, $exampleRow, $businessName) {
+            $this->buildInstructionsSheet($spreadsheet, $businessName);
             $this->buildProductsSheet($spreadsheet->createSheet(), [$exampleRow], 'Productos');
             $this->buildCategoriesSheet($spreadsheet->createSheet(), $categories);
             $spreadsheet->setActiveSheetIndex(0);
         });
     }
 
-    public function exportDownloadResponse(): StreamedResponse
+    public function exportDownloadResponse(?int $businessProfileId = null): StreamedResponse
     {
         $products = WhatsappPrice::with('menuCategory:id,title')
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->orderBy('name')
             ->get();
 
@@ -117,7 +123,7 @@ class ProductImportExportService
     /**
      * @return array{created:int,updated:int,skipped:int,errors:list<array{row:int,sku:string,message:string}>}
      */
-    public function importFromUpload(UploadedFile $file, string $mode = 'upsert'): array
+    public function importFromUpload(UploadedFile $file, string $mode = 'upsert', ?int $businessProfileId = null): array
     {
         $mode = in_array($mode, ['upsert', 'create', 'update'], true) ? $mode : 'upsert';
 
@@ -153,10 +159,12 @@ class ProductImportExportService
             }
         }
 
-        $categories = $this->loadCategoryCatalog();
-        $existingSkus = WhatsappPrice::query()->pluck('id', 'sku')->mapWithKeys(
-            fn ($id, $sku) => [strtoupper((string) $sku) => $id]
-        )->all();
+        $categories = $this->loadCategoryCatalog($businessProfileId);
+        $existingSkus = WhatsappPrice::query()
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->pluck('id', 'sku')->mapWithKeys(
+                fn ($id, $sku) => [strtoupper((string) $sku) => $id]
+            )->all();
 
         $result = [
             'created' => 0,
@@ -198,7 +206,7 @@ class ProductImportExportService
             }
 
             try {
-                $payload = $this->buildProductPayload($rowData, $categories, $row);
+                $payload = $this->buildProductPayload($rowData, $categories, $row, $businessProfileId);
             } catch (\InvalidArgumentException $e) {
                 $result['skipped']++;
                 $result['errors'][] = [
@@ -256,23 +264,22 @@ class ProductImportExportService
         $sheet->freezePane('A2');
     }
 
-    private function buildInstructionsSheet(Spreadsheet $spreadsheet): void
+    private function buildInstructionsSheet(Spreadsheet $spreadsheet, string $businessName = 'tu empresa'): void
     {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Instrucciones');
 
-        $demoOptions = implode(', ', array_keys($this->demoCliente->options()));
         $lines = [
-            ['Carga masiva de productos — DPIKEOS'],
+            ["Carga masiva de productos — {$businessName}"],
             [''],
             ['1. Complete la hoja «Productos». No cambie los nombres de las columnas de la fila 1.'],
             ['2. Columnas obligatorias: sku, nombre, categoria, precio.'],
-            ['3. sku: único, hasta 20 caracteres alfanuméricos (ej. DP020).'],
+            ['3. sku: único, hasta 20 caracteres alfanuméricos (ej. PROD-001).'],
             ['4. categoria: nombre exacto de una categoría de la hoja «Categorias» (también acepta ID numérico o action_id).'],
             ['5. precio_promo: opcional; debe ser menor que precio.'],
             ['6. caracteristicas: separe valores con | o saltos de línea dentro de la celda.'],
             ['7. activo / permitir_cantidad: Si, No, 1 o 0.'],
-            ['8. Los productos importados pertenecen al catálogo DPIKEOS.'],
+            ["8. Los productos importados pertenecen al catálogo de {$businessName}."],
             ['9. Si el SKU ya existe, el producto se actualiza (modo por defecto).'],
             ['10. Respete el límite de productos de su plan.'],
             [''],
@@ -379,12 +386,12 @@ class ProductImportExportService
     }
 
     /** @return array{index: array<string, WhatsappMenuItem>, title_counts: array<string, int>} */
-    private function loadCategoryCatalog(): array
+    private function loadCategoryCatalog(?int $businessProfileId = null): array
     {
         $index = [];
         $titleCounts = [];
 
-        foreach (WhatsappMenuItem::catalogCategories()->get() as $category) {
+        foreach (WhatsappMenuItem::catalogCategories($businessProfileId)->get() as $category) {
             $titleLower = mb_strtolower(trim($category->title));
             $titleCounts[$titleLower] = ($titleCounts[$titleLower] ?? 0) + 1;
 
@@ -448,7 +455,7 @@ class ProductImportExportService
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
-    private function buildProductPayload(array $row, array $catalog, int $excelRow): array
+    private function buildProductPayload(array $row, array $catalog, int $excelRow, ?int $businessProfileId = null): array
     {
         $sku = strtoupper(trim((string) ($row['sku'] ?? '')));
         if ($sku === '' || strlen($sku) > 20 || !preg_match('/^[A-Z0-9\-]+$/', $sku)) {
@@ -500,6 +507,7 @@ class ProductImportExportService
 
         return [
             'menu_item_id' => $category->id,
+            'business_profile_id' => $businessProfileId ?? $category->business_profile_id,
             'category' => $category->title,
             'sku' => $sku,
             'name' => $name,
@@ -572,7 +580,7 @@ class ProductImportExportService
             $hints[] = "{$slug} ({$label})";
         }
 
-        $list = $hints !== [] ? implode(', ', $hints) : 'dpikeos (DPIKEOS)';
+        $list = $hints !== [] ? implode(', ', $hints) : 'ninguno configurado';
 
         return "demo_cliente «{$value}» no reconocido. Valores válidos: {$list}.";
     }

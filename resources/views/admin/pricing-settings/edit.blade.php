@@ -97,14 +97,14 @@
         </p>
     </div>
 
-    <section class="platform-section" id="catalogo-dpikeos">
+    <section class="platform-section" id="catalogo-empresa">
         <div class="platform-section-head">
-            <h2>🍗 Catálogo DPIKEOS</h2>
-            <p>Este panel opera exclusivamente el menú DPIKEOS. Administra categorías, productos, fotos, precios, variaciones y existencias desde el módulo Productos.</p>
+            <h2>🛒 Catálogo de la empresa activa</h2>
+            <p>Este panel opera el menú de la empresa activa seleccionada. Administra categorías, productos, fotos, precios, variaciones y existencias desde el módulo Productos.</p>
         </div>
         <div class="platform-section-body">
             <a href="{{ route('admin.products.index') }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg text-decoration-none">
-                <i class="fas fa-utensils"></i> Administrar menú DPIKEOS
+                <i class="fas fa-box-open"></i> Administrar menú
             </a>
         </div>
     </section>

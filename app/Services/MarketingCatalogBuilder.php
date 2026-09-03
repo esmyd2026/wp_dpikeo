@@ -325,7 +325,9 @@ class MarketingCatalogBuilder
     protected function getCatalogMenu(): ?WhatsappMenu
     {
         if ($this->catalogMenuCache === null) {
-            $this->catalogMenuCache = WhatsappMenu::where('action_id', 'prices_menu')->first();
+            $this->catalogMenuCache = WhatsappMenu::where('action_id', 'prices_menu')
+                ->where('business_profile_id', $this->businessProfile?->id)
+                ->first();
         }
 
         return $this->catalogMenuCache;

@@ -17,10 +17,12 @@ class BulkOrderController extends Controller
         abort_unless($record, 404);
 
         $contact = $record->contact;
+        $businessProfile = $contact->businessProfile;
 
         return view('bulk-order.show', [
             'token' => $token,
             'contactName' => $contact->name ?? 'Cliente',
+            'businessName' => $businessProfile?->business_name ?: 'Pedido en línea',
             'expiresAt' => $record->expires_at,
             'existingCartItems' => $bulkOrders->existingCartItems($contact),
             // Keep the API calls on the exact host where the storefront was opened.
@@ -32,11 +34,13 @@ class BulkOrderController extends Controller
 
     public function catalog(string $token, Request $request, BulkOrderService $bulkOrders): JsonResponse
     {
-        abort_unless($bulkOrders->findValidToken($token), 404);
+        $record = $bulkOrders->findValidToken($token);
+        abort_unless($record, 404);
 
         $payload = $bulkOrders->catalogPayload(
             $request->integer('category') ?: null,
-            $request->string('q')->toString() ?: null
+            $request->string('q')->toString() ?: null,
+            $record->contact->business_profile_id
         );
 
         return response()->json($payload);

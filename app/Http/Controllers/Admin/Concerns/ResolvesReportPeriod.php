@@ -12,7 +12,7 @@ trait ResolvesReportPeriod
     /**
      * @return array{0: Carbon, 1: Carbon, 2: string}
      */
-    protected function resolveReportPeriod(Request $request): array
+    protected function resolveReportPeriod(Request $request, ?int $businessProfileId = null): array
     {
         $preset = $request->input('period', 'month');
         $to = Carbon::now()->endOfDay();
@@ -38,18 +38,20 @@ trait ResolvesReportPeriod
             '30d' => $to->copy()->subDays(29)->startOfDay(),
             '90d' => $to->copy()->subDays(89)->startOfDay(),
             'month' => Carbon::now()->startOfMonth()->startOfDay(),
-            'all' => $this->earliestReportDate() ?? $to->copy()->subDays(29)->startOfDay(),
+            'all' => $this->earliestReportDate($businessProfileId) ?? $to->copy()->subDays(29)->startOfDay(),
             default => Carbon::now()->startOfMonth()->startOfDay(),
         };
 
         return [$from, $to, $preset];
     }
 
-    protected function earliestReportDate(): ?Carbon
+    protected function earliestReportDate(?int $businessProfileId = null): ?Carbon
     {
         $dates = collect([
-            WhatsappCart::reportable()->min('created_at'),
-            WhatsappMessage::min('created_at'),
+            WhatsappCart::reportable()->forActiveCompany()->min('created_at'),
+            WhatsappMessage::query()
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->min('created_at'),
         ])->filter();
 
         if ($dates->isEmpty()) {

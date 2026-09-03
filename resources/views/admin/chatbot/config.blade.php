@@ -77,7 +77,7 @@
                             Datos para transferencias o depósitos
                         </label>
                         <textarea id="bank_transfer_instructions" name="bank_transfer_instructions" rows="4" maxlength="1500"
-                            placeholder="Ej: Banco Mercantil&#10;Cuenta corriente: 0105-1234-56-1234567890&#10;Titular: DPIKEOS C.A. — RIF J-12345678-9&#10;Zelle: pagos@dpikeos.com"
+                            placeholder="Ej: Banco Mercantil&#10;Cuenta corriente: 0105-1234-56-1234567890&#10;Titular: Mi Empresa C.A. — RIF J-12345678-9&#10;Zelle: pagos@miempresa.com"
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">{{ old('bank_transfer_instructions', $config->metadata['bank_transfer_instructions'] ?? '') }}</textarea>
                         <p class="mt-1 text-xs text-gray-500">
                             Se le envía al cliente junto con el mensaje de costo confirmado cuando su
@@ -320,15 +320,21 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700">Logo</label>
                             <div class="mt-1 flex items-center gap-3">
-                                <img src="{{ $landing['logo_path'] ? asset('storage/'.$landing['logo_path']) : asset('storage/img/dpikeologo.jpg') }}"
-                                    alt="Logo" class="w-12 h-12 rounded-lg object-contain border border-gray-200 bg-white">
+                                @if($landing['logo_path'])
+                                    <img src="{{ asset('storage/'.$landing['logo_path']) }}"
+                                        alt="Logo" class="w-12 h-12 rounded-lg object-contain border border-gray-200 bg-white">
+                                @else
+                                    <div class="w-12 h-12 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300">
+                                        <i class="fas fa-image"></i>
+                                    </div>
+                                @endif
                                 <div class="flex-1 space-y-1">
                                     <input type="file" id="landing_logo_image" name="landing_logo_image" accept="image/jpeg,image/png,image/jpg,image/webp"
                                         class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
                                     @if($landing['logo_path'])
                                         <label class="inline-flex items-center text-xs text-gray-600">
                                             <input type="checkbox" name="remove_landing_logo" value="1" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-1">
-                                            Quitar logo (vuelve al logo por defecto)
+                                            Quitar logo
                                         </label>
                                     @endif
                                 </div>
@@ -445,96 +451,13 @@
         <div class="mt-6 bg-gray-50 p-6 rounded-lg">
             <h3 class="text-lg font-medium text-gray-900 mb-1">📱 Credenciales de WhatsApp Cloud API</h3>
             <p class="text-sm text-gray-600 mb-4">
-                Estos son los datos que conectan el bot con tu número real de WhatsApp en Meta. Sin esto configurado
-                correctamente, el bot no puede enviar ni recibir mensajes. Los obtienes en
-                <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline">developers.facebook.com/apps</a>
-                → tu app → <strong>WhatsApp → Configuración de la API</strong>.
+                La conexión del número de WhatsApp (Phone Number ID, WABA ID y token) ahora se administra por
+                empresa, no acá.
             </p>
-
-            @if($businessProfile && ($businessProfile->phone_number_id === 'PENDIENTE_CONFIGURAR' || $businessProfile->access_token === 'PENDIENTE_CONFIGURAR'))
-                <div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 text-sm">
-                    <i class="fas fa-triangle-exclamation mr-1"></i>
-                    Todavía tienes valores de ejemplo sin configurar (<code>PENDIENTE_CONFIGURAR</code>). El bot no podrá
-                    enviar ni recibir mensajes reales hasta que completes los datos de abajo.
-                </div>
-            @endif
-
-            <form action="{{ route('admin.chatbot.whatsapp.update') }}" method="POST" class="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                @csrf
-                @method('PUT')
-
-                <div>
-                    <label for="phone_number" class="block text-sm font-medium text-gray-700">Número de WhatsApp</label>
-                    <input type="text" id="phone_number" name="phone_number"
-                        value="{{ old('phone_number', $businessProfile->phone_number ?? '') }}"
-                        placeholder="Ej: 593994281769" required
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    <p class="mt-1 text-xs text-gray-500">
-                        El número real que tus clientes usan para escribirle al bot, con código de país y sin
-                        signos ni espacios (ej. 593994281769). Es solo referencia interna, no cambia el número dado
-                        de alta en Meta.
-                    </p>
-                    @error('phone_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="phone_number_id" class="block text-sm font-medium text-gray-700">Phone Number ID</label>
-                    <input type="text" id="phone_number_id" name="phone_number_id"
-                        value="{{ old('phone_number_id', $businessProfile->phone_number_id ?? '') }}"
-                        placeholder="Ej: 123456789012345" required
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Identificador numérico que Meta le asigna a tu número de WhatsApp (no es el número de
-                        teléfono). Aparece en <strong>WhatsApp → Configuración de la API</strong> como
-                        «Identificador de número de teléfono» / «Phone number ID». Es el dato que más comúnmente
-                        se necesita para que el bot pueda enviar mensajes.
-                    </p>
-                    @error('phone_number_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                </div>
-
-                <div>
-                    <label for="whatsapp_business_id" class="block text-sm font-medium text-gray-700">
-                        WhatsApp Business Account ID <span class="text-gray-400 font-normal">(opcional)</span>
-                    </label>
-                    <input type="text" id="whatsapp_business_id" name="whatsapp_business_id"
-                        value="{{ old('whatsapp_business_id', $businessProfile->whatsapp_business_id ?? '') }}"
-                        placeholder="Ej: 987654321098765"
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Identificador de la cuenta de WhatsApp Business (WABA) en Meta Business Manager. No es
-                        obligatorio para que el bot funcione, pero lo usan algunos reportes y plantillas de Meta.
-                    </p>
-                </div>
-
-                <div>
-                    <label for="access_token" class="block text-sm font-medium text-gray-700">Token de acceso permanente</label>
-                    <input type="password" id="access_token" name="access_token" autocomplete="new-password"
-                        placeholder="{{ $businessProfile && $businessProfile->access_token && $businessProfile->access_token !== 'PENDIENTE_CONFIGURAR' ? '•••••••••••••••••••• (ya configurado, déjalo vacío para no cambiarlo)' : 'Aún no configurado' }}"
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono">
-                    <p class="mt-1 text-xs text-gray-500">
-                        Por seguridad, el token guardado nunca se muestra aquí. Pega uno nuevo solo si quieres
-                        reemplazarlo; si lo dejas en blanco, se conserva el que ya está guardado. Genera un token
-                        <strong>permanente</strong> (no el temporal de 24 h) desde
-                        <strong>Meta Business Manager → Usuarios del sistema</strong>, con permiso
-                        <code>whatsapp_business_messaging</code>.
-                    </p>
-                    @error('access_token')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-                </div>
-
-                <div class="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-xs text-blue-800">
-                    <i class="fas fa-circle-info mr-1"></i>
-                    El <strong>token de verificación del webhook</strong> (<code>WEBHOOK_VERIFY_TOKEN</code>) y el
-                    <strong>App Secret</strong> (<code>WHATSAPP_APP_SECRET</code>) no se configuran aquí — esos van
-                    directo en el archivo <code>.env</code> del servidor.
-                </div>
-
-                <div class="flex justify-end">
-                    <button type="submit"
-                        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
-                        <i class="fas fa-save mr-2"></i>Guardar credenciales de WhatsApp
-                    </button>
-                </div>
-            </form>
+            <a href="{{ route('admin.empresas.index') }}"
+                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                <i class="fas fa-building mr-2"></i>Ir a Empresas → WhatsApp
+            </a>
         </div>
 
         <div class="mt-6 bg-gray-50 p-6 rounded-lg">

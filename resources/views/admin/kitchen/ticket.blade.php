@@ -32,7 +32,7 @@
 </head>
 <body>
     <main class="ticket">
-        <header class="brand"><img src="{{ asset('storage/img/dpikeologo.jpg') }}" alt=""><strong>DPIKEOS</strong><span>COMANDA DE COCINA</span></header>
+        <header class="brand"><strong>{{ $activeCompany?->name ?? 'Cocina' }}</strong><span>COMANDA DE COCINA</span></header>
         <section class="order"><strong>TURNO {{ $order['turn_number'] }}</strong><small>{{ $order['branch'] }}</small><small>Ref. {{ $order['number'] }}</small><small>{{ $order['created_at'] ? \Carbon\Carbon::parse($order['created_at'])->format('d/m/Y · h:i a') : now()->format('d/m/Y · h:i a') }}</small><small>{{ $order['status_label'] }}</small></section>
         <section class="section">
             <div class="section-title">Datos del cliente</div>

@@ -12,7 +12,7 @@ class LegalController extends Controller
         $profile = WhatsappBusinessProfile::first();
 
         return view('legal.privacy', [
-            'businessName' => $profile?->business_name ?: 'DPIKEOS',
+            'businessName' => $profile?->business_name ?: 'esta empresa',
             'whatsappNumber' => $profile?->phone_number,
             'contactEmail' => config('mail.from.address'),
         ]);

@@ -106,12 +106,17 @@ class PendingReplyRecoveryService
 
         Log::warning('[PendingReplyRecoveryService] El bot no respondió a tiempo, reintentando', [
             'contact_id' => $contact->id,
+            'business_profile_id' => $contact->business_profile_id,
             'original_message_id' => $stuck->message_id,
             'stuck_message_created_at' => $stuck->created_at?->toIso8601String(),
             'attempt' => $attempts + 1,
         ]);
 
         try {
+            // La misma instancia de WhatsappService se reutiliza para todos
+            // los mensajes atascados del comando (de cualquier empresa); hay
+            // que reapuntarla al negocio del contacto en cada intento.
+            $whatsapp->useBusinessProfile($contact->businessProfile);
             $whatsapp->processIncomingMessage($messageData);
 
             return true;

@@ -150,7 +150,9 @@ class OrderLifecycleService
                     'status_label' => $label,
                 ], "📦 Tu pedido *{$order->getOrderNumber()}* cambió de estado:\n\n*{$label}*");
 
-                app(WhatsappService::class)->sendBotPayload($contact, [
+                $whatsapp = app(WhatsappService::class);
+                $whatsapp->useBusinessProfile($contact->businessProfile);
+                $whatsapp->sendBotPayload($contact, [
                     'type' => 'text',
                     'text' => ['body' => $body],
                 ]);
@@ -255,6 +257,7 @@ class OrderLifecycleService
                     // no se le pidió, se le pide junto con este mismo mensaje
                     // (ver WhatsappService::maybeRequestPaymentProofAfterCosts).
                     $whatsapp = app(WhatsappService::class);
+                    $whatsapp->useBusinessProfile($contact->businessProfile);
                     $proofText = $whatsapp->maybeRequestPaymentProofAfterCosts($order);
                     if ($proofText) {
                         $body .= "\n\n" . $proofText;
@@ -276,6 +279,25 @@ class OrderLifecycleService
         return ['order' => $order, 'sent' => $sent, 'reason' => $reason];
     }
 
+    /**
+     * Config del chatbot de la empresa dueña de este pedido (vía su contacto),
+     * o la primera fila global como respaldo si el contacto no tiene negocio
+     * asignado.
+     */
+    private function chatbotConfigFor(WhatsappCart $order): ?WhatsappChatbotConfig
+    {
+        $businessProfileId = $order->contact?->business_profile_id;
+
+        if ($businessProfileId) {
+            $config = WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first();
+            if ($config) {
+                return $config;
+            }
+        }
+
+        return WhatsappChatbotConfig::first();
+    }
+
     private function buildFulfillmentCostsMessageBody(WhatsappCart $order, bool $includesDelivery, bool $includesPickup): string
     {
         $metadata = $order->metadata ?? [];
@@ -293,7 +315,7 @@ class OrderLifecycleService
         // saber a qué cuenta mandar el pago justo cuando se le confirma el
         // monto final -- si no, este mensaje no le dice nada accionable.
         $bankInstructions = $order->payment_method === 'transferencia'
-            ? (WhatsappChatbotConfig::first()?->bank_transfer_instructions)
+            ? $this->chatbotConfigFor($order)?->bank_transfer_instructions
             : null;
         $bankLine = $bankInstructions
             ? "\n\n🏦 *Datos para tu transferencia o depósito*\n{$bankInstructions}"

@@ -2,7 +2,7 @@
     $isAgent = ($mode ?? 'public') === 'agent';
     $isKiosk = ($mode ?? 'public') === 'kiosk';
     $contactName = $contactName ?? 'Cliente';
-    $headerTitle = $headerTitle ?? 'DPIKEOS';
+    $headerTitle = $headerTitle ?? 'Pedido en línea';
     $headerSubtitle = $headerSubtitle ?? (
         $isAgent
             ? 'Selecciona un cliente, agrega productos y registra el pedido desde el panel.'
@@ -742,8 +742,8 @@
             <a href="{{ $ordersUrl }}" class="bulk-order-back-link"><i class="fas fa-arrow-left"></i> Volver a pedidos</a>
         @endif
         <div class="bulk-order-brand">
-            @if(!$isAgent)
-                <img src="{{ asset('storage/img/dpikeologo.jpg') }}" alt="Logo DPIKEOS">
+            @if(!$isAgent && !empty($logoUrl))
+                <img src="{{ $logoUrl }}" alt="Logo">
             @endif
             <h1>{{ $headerTitle }}</h1>
         </div>
@@ -813,7 +813,7 @@
 
             <div id="bulkOrderFormBody" @if($isAgent || $isKiosk) class="bulk-order-form-disabled" @endif>
                 <section class="bulk-order-panel">
-                    <h2>Menú DPIKEOS</h2>
+                    <h2>Menú</h2>
                     <div class="bulk-order-filters">
                         <input type="search" id="bulkSearch" placeholder="¿Qué se te antoja hoy?" autocomplete="off">
                         <div class="bulk-order-filter-label">Explora el menú</div>

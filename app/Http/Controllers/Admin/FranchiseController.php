@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Franchise;
+use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,16 +16,38 @@ class FranchiseController extends Controller
 {
     public function index(): View
     {
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+
         return view('admin.franchises.index', [
-            'franchises' => Franchise::query()->withCount(['products', 'categories'])->orderByDesc('is_default')->orderBy('name')->get(),
+            'activeCompany' => CompanyContext::current()->company,
+            'franchises' => Franchise::query()
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->withCount(['products', 'categories'])
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get(),
         ]);
+    }
+
+    /** El id de la franquicia llega en la URL: sin este chequeo se podría editar/borrar la de otra empresa. */
+    private function authorizeFranchise(Franchise $franchise): void
+    {
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        abort_unless(!$businessProfileId || (int) $franchise->business_profile_id === (int) $businessProfileId, 404);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        abort_unless($businessProfileId, 422, 'Esta empresa todavía no tiene un número de WhatsApp conectado.');
+
         $data = $this->validated($request);
-        DB::transaction(function () use ($data) {
-            if ($data['is_default']) Franchise::query()->update(['is_default' => false]);
+        $data['business_profile_id'] = $businessProfileId;
+
+        DB::transaction(function () use ($data, $businessProfileId) {
+            if ($data['is_default']) {
+                Franchise::query()->where('business_profile_id', $businessProfileId)->update(['is_default' => false]);
+            }
             Franchise::create($data);
         });
 
@@ -33,9 +56,12 @@ class FranchiseController extends Controller
 
     public function update(Request $request, Franchise $franchise): RedirectResponse
     {
+        $this->authorizeFranchise($franchise);
         $data = $this->validated($request, $franchise);
         DB::transaction(function () use ($data, $franchise) {
-            if ($data['is_default']) Franchise::query()->whereKeyNot($franchise->id)->update(['is_default' => false]);
+            if ($data['is_default']) {
+                Franchise::query()->where('business_profile_id', $franchise->business_profile_id)->whereKeyNot($franchise->id)->update(['is_default' => false]);
+            }
             $franchise->update($data);
         });
 
@@ -44,6 +70,8 @@ class FranchiseController extends Controller
 
     public function destroy(Franchise $franchise): RedirectResponse
     {
+        $this->authorizeFranchise($franchise);
+
         if ($franchise->is_default) {
             return back()->with('error', 'No puedes eliminar la franquicia predeterminada. Marca otra como predeterminada primero.');
         }
@@ -59,9 +87,14 @@ class FranchiseController extends Controller
 
     private function validated(Request $request, ?Franchise $franchise = null): array
     {
+        $businessProfileId = $franchise?->business_profile_id ?? CompanyContext::current()->businessProfileId();
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'slug' => ['nullable', 'string', 'max:64', 'alpha_dash', Rule::unique('franchises', 'slug')->ignore($franchise?->id)],
+            'slug' => [
+                'nullable', 'string', 'max:64', 'alpha_dash',
+                Rule::unique('franchises', 'slug')->where('business_profile_id', $businessProfileId)->ignore($franchise?->id),
+            ],
             'description' => ['nullable', 'string', 'max:500'],
             'is_default' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
@@ -71,7 +104,7 @@ class FranchiseController extends Controller
             'name' => trim($data['name']),
             'slug' => Str::lower(trim($data['slug'] ?: Str::slug($data['name']))),
             'description' => filled($data['description'] ?? null) ? trim($data['description']) : null,
-            'is_default' => $request->boolean('is_default') || ($franchise?->is_default ?? !Franchise::query()->exists()),
+            'is_default' => $request->boolean('is_default') || ($franchise?->is_default ?? !Franchise::query()->where('business_profile_id', $businessProfileId)->exists()),
             'is_active' => $request->boolean('is_active'),
         ];
     }

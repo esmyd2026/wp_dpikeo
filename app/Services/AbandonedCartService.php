@@ -115,7 +115,9 @@ class AbandonedCartService
             ? "🕐 Parece que no continuarás con esta orden, así que la cerramos por ahora. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí."
             : "🔄 Reiniciamos tu conversación con nosotros. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí.";
 
-        app(WhatsappService::class)->sendBotPayload($contact, [
+        $whatsapp = app(WhatsappService::class);
+        $whatsapp->useBusinessProfile($contact->businessProfile);
+        $whatsapp->sendBotPayload($contact, [
             'type' => 'text',
             'text' => ['body' => $body],
         ]);

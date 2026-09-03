@@ -7,10 +7,9 @@ use App\Models\MarketingFlow;
 use App\Models\MarketingFlowEdge;
 use App\Models\MarketingFlowNode;
 use App\Models\MarketingFlowVersion;
-use App\Models\WhatsappBusinessProfile;
-use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
+use App\Support\CompanyContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -21,13 +20,16 @@ class MarketingFlowGraphController extends Controller
 {
     public function edit()
     {
-        $profile = WhatsappBusinessProfile::first();
-        $chatbotConfig = $profile
-            ? WhatsappChatbotConfig::where('business_profile_id', $profile->id)->first()
-            : WhatsappChatbotConfig::first();
+        $context = CompanyContext::current();
 
         return view('admin.marketing-flow.graph', [
-            'chatbotConfig' => $chatbotConfig,
+            'chatbotConfig' => $context->chatbotConfig(),
+            'activeCompany' => $context->company,
+            // Cada empresa arranca sin flujo -- nunca hereda el de otra
+            // empresa (ver resolveFlow()). Se lo muestra explícito acá para
+            // que el admin sepa que tiene que crear el suyo, no que está
+            // viendo un flujo vacío por error.
+            'hasFlow' => (bool) $this->resolveFlow(),
         ]);
     }
 
@@ -219,7 +221,10 @@ class MarketingFlowGraphController extends Controller
      */
     public function catalogOptions()
     {
+        $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+
         $products = WhatsappPrice::query()
+            ->where('business_profile_id', $businessProfileId)
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'price', 'promo_price', 'is_promo', 'image'])
@@ -230,7 +235,7 @@ class MarketingFlowGraphController extends Controller
                 'has_image' => (bool) $price->image_url,
             ]);
 
-        $categories = WhatsappMenuItem::catalogCategories()
+        $categories = WhatsappMenuItem::catalogCategories($businessProfileId)
             ->where('is_active', true)
             ->orderBy('order')
             ->get(['id', 'title'])
@@ -253,8 +258,7 @@ class MarketingFlowGraphController extends Controller
             'image' => 'required|image|max:3072',
         ]);
 
-        $profileId = WhatsappBusinessProfile::first()?->id ?? 0;
-        $path = $request->file('image')->store("marketing-flow-node-images/{$profileId}", 'public');
+        $path = $request->file('image')->store("marketing-flow-node-images/{$flow->business_profile_id}", 'public');
 
         $config = $node->config ?? [];
         $usesHeaderImage = in_array($node->node_type, [MarketingFlowNode::TYPE_BUTTON_MENU, MarketingFlowNode::TYPE_LIST_MENU], true);
@@ -517,7 +521,7 @@ class MarketingFlowGraphController extends Controller
 
     private function resolveFlow(): ?MarketingFlow
     {
-        $profile = WhatsappBusinessProfile::first();
+        $profile = CompanyContext::current()->businessProfile;
         if (!$profile) {
             return null;
         }

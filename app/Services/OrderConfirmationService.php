@@ -23,6 +23,8 @@ class OrderConfirmationService
             throw new InvalidArgumentException('El pedido no tiene un cliente asociado.');
         }
 
+        $this->whatsapp->useBusinessProfile($contact->businessProfile);
+
         if (!in_array($order->status, [WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING], true)) {
             throw new InvalidArgumentException('Solo se puede solicitar confirmación en pedidos pendientes.');
         }

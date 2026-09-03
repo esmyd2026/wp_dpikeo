@@ -44,6 +44,46 @@ class WhatsappChatbotConfig extends Model
         return $this->metadata['bot_name'] ?? null;
     }
 
+    /**
+     * Cómo le dice esta empresa a sus clientes en mensajes de cierre de
+     * pedido (ej. "Dpikeolovers" para dpikeo). Ya existía en metadata desde
+     * el seeder pero no estaba conectado a ningún mensaje real -- ver
+     * WhatsappService (mensajes de confirmación de pedido masivo). Sin
+     * dato propio, null (el mensaje queda neutro, nunca usa el de otra empresa).
+     */
+    public function getCommunityNameAttribute(): ?string
+    {
+        $value = trim((string) ($this->metadata['community_name'] ?? ''));
+
+        return $value !== '' ? $value : null;
+    }
+
+    /**
+     * Título/subtítulo del dashboard de esta empresa. Sin dato propio, cae a
+     * un texto genérico con el nombre real de la empresa -- nunca al texto
+     * de otra empresa.
+     */
+    public function getDashboardTitleAttribute(): string
+    {
+        $custom = trim((string) ($this->metadata['dashboard_title'] ?? ''));
+        if ($custom !== '') {
+            return $custom;
+        }
+
+        $companyName = $this->businessProfile?->company?->name
+            ?? $this->businessProfile?->business_name
+            ?? 'Panel';
+
+        return "{$companyName} · Centro de operación";
+    }
+
+    public function getDashboardSubtitleAttribute(): string
+    {
+        $custom = trim((string) ($this->metadata['dashboard_subtitle'] ?? ''));
+
+        return $custom !== '' ? $custom : 'Gestiona pedidos, catálogo y atención por WhatsApp.';
+    }
+
     public function getFallbackMessageAttribute(): ?string
     {
         return $this->default_response;

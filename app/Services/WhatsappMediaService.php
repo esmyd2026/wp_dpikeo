@@ -46,7 +46,7 @@ class WhatsappMediaService
         }
 
         $apiVersion = config('whatsapp.api_version', 'v22.0');
-        $token = config('whatsapp.token');
+        $token = $message->businessProfile?->access_token ?: config('whatsapp.token');
 
         $metaResponse = Http::withToken($token)
             ->timeout(10)

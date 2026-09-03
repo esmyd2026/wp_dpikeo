@@ -83,6 +83,32 @@ class WhatsappCart extends Model
         return $query->whereNotIn('status', ['active', 'abandoned']);
     }
 
+    /**
+     * Acota a los pedidos del contacto de la empresa activa del admin
+     * autenticado. Sin usuario/sesión (comandos, jobs) no filtra -- esos
+     * contextos no tienen "empresa activa" y deben resolver su propio tenant
+     * explícitamente si lo necesitan.
+     */
+    public function scopeForActiveCompany($query)
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return $query;
+        }
+
+        try {
+            $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+        } catch (\Throwable $e) {
+            return $query;
+        }
+
+        if (!$businessProfileId) {
+            return $query;
+        }
+
+        return $query->whereHas('contact', fn ($q) => $q->where('business_profile_id', $businessProfileId));
+    }
+
     public function isPending()
     {
         return $this->status === self::STATUS_PENDING;

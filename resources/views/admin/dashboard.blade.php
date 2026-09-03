@@ -91,8 +91,8 @@
 
 <div class="home-wrap">
     <div class="home-top">
-        <h1>DPIKEOS · Centro de operación</h1>
-        <p>Gestiona pedidos, cocina, catálogo y atención de Club Dpikeolovers.</p>
+        <h1>{{ $dashboardTitle }}</h1>
+        <p>{{ $dashboardSubtitle }}</p>
     </div>
 
     <div class="home-quick">
