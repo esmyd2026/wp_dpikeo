@@ -87,4 +87,32 @@ class MetaEmbeddedSignupTest extends TestCase
         $rawColumn = DB::table('whatsapp_business_profiles')->where('id', $profile->id)->value('access_token');
         $this->assertNotSame('REAL-BUSINESS-TOKEN', $rawColumn);
     }
+
+    public function test_coexistence_mode_is_saved_with_its_own_connection_type_without_changing_the_graph_handshake(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'COEX-TOKEN'], 200),
+            'graph.facebook.com/*/COEX-PHONE-ID*' => Http::response([
+                'id' => 'COEX-PHONE-ID',
+                'display_phone_number' => '+593 95 952 0743',
+                'verified_name' => 'Dpikeo',
+            ], 200),
+            'graph.facebook.com/*/COEX-WABA*' => Http::response(['id' => 'COEX-WABA', 'name' => 'Dpikeo WABA'], 200),
+            'graph.facebook.com/*/subscribed_apps*' => Http::response(['success' => true], 200),
+        ]);
+
+        $company = $this->makeCompany('Dpikeo Coexistencia Test');
+
+        $profile = app(MetaEmbeddedSignupService::class)->connect(
+            $company, 'auth-code-coex', 'COEX-WABA', 'COEX-PHONE-ID', 'coexistence'
+        );
+
+        $this->assertSame('whatsapp_business_app_coexistence', $profile->connection_type);
+        $this->assertSame(WhatsappBusinessProfile::STATUS_CONNECTED, $profile->status);
+
+        // El mismo handshake server-to-server que el modo estándar: 4
+        // llamadas a Graph API, ninguna a un endpoint /register.
+        Http::assertSentCount(4);
+        Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/register'));
+    }
 }

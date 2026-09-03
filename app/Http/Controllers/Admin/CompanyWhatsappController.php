@@ -91,10 +91,17 @@ class CompanyWhatsappController extends Controller
             'code' => 'required|string',
             'waba_id' => 'required|string',
             'phone_number_id' => 'required|string',
+            'connection_mode' => 'nullable|string|in:standard,coexistence',
         ]);
 
         try {
-            $signup->connect($company, $validated['code'], $validated['waba_id'], $validated['phone_number_id']);
+            $signup->connect(
+                $company,
+                $validated['code'],
+                $validated['waba_id'],
+                $validated['phone_number_id'],
+                $validated['connection_mode'] ?? 'standard'
+            );
         } catch (RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }

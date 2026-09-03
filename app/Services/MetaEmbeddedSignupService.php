@@ -22,8 +22,16 @@ class MetaEmbeddedSignupService
     {
     }
 
-    public function connect(Company $company, string $code, string $wabaId, string $phoneNumberId): WhatsappBusinessProfile
+    /**
+     * $connectionMode distingue únicamente cómo quedó registrada la conexión
+     * ('embedded_signup' vs 'whatsapp_business_app_coexistence'); no cambia
+     * ningún paso del intercambio con Graph API -- el handshake server-to-server
+     * es idéntico para los dos modos hasta que Meta indique lo contrario.
+     */
+    public function connect(Company $company, string $code, string $wabaId, string $phoneNumberId, string $connectionMode = 'standard'): WhatsappBusinessProfile
     {
+        $connectionType = $connectionMode === 'coexistence' ? 'whatsapp_business_app_coexistence' : 'embedded_signup';
+
         // phone_number_id es único a nivel de toda la plataforma (índice
         // único en la tabla). Sin este chequeo, si alguien completa el
         // Embedded Signup con un número que Meta ya asoció a OTRA empresa acá,
@@ -44,6 +52,7 @@ class MetaEmbeddedSignupService
                 'company_id' => $company->id,
                 'waba_id' => $wabaId,
                 'phone_number_id' => $phoneNumberId,
+                'connection_mode' => $connectionMode,
                 'error' => $e->getMessage(),
             ]);
 
@@ -56,7 +65,7 @@ class MetaEmbeddedSignupService
                     'display_name' => $company->name,
                     'whatsapp_business_id' => $wabaId,
                     'status' => WhatsappBusinessProfile::STATUS_ERROR,
-                    'connection_type' => 'embedded_signup',
+                    'connection_type' => $connectionType,
                     'metadata' => ['last_error' => $e->getMessage(), 'failed_at' => now()->toIso8601String()],
                 ]
             );
@@ -73,7 +82,7 @@ class MetaEmbeddedSignupService
                 'whatsapp_business_id' => $wabaInfo['id'] ?? $wabaId,
                 'access_token' => $token,
                 'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
-                'connection_type' => 'embedded_signup',
+                'connection_type' => $connectionType,
                 'connected_at' => now(),
                 'metadata' => ['last_error' => null],
             ]

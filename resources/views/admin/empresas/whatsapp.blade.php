@@ -32,6 +32,7 @@
                             'demo' => 'Demo',
                             'manual' => 'Manual',
                             'embedded_signup' => 'Embedded Signup',
+                            'whatsapp_business_app_coexistence' => 'Coexistencia (WhatsApp Business App)',
                             default => null,
                         };
                     @endphp
@@ -59,11 +60,23 @@
         @endif
 
         @if($embeddedSignupReady)
-            <button type="button" id="btn-conectar-whatsapp"
-                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
-                <i class="fab fa-whatsapp mr-2"></i>Conectar WhatsApp
-            </button>
-            <span id="conectar-whatsapp-status" class="ml-3 text-sm text-gray-500"></span>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="button" id="btn-conectar-whatsapp"
+                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
+                    <i class="fab fa-whatsapp mr-2"></i>Conectar número nuevo
+                </button>
+                <button type="button" id="btn-conectar-whatsapp-coexistencia"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fab fa-whatsapp mr-2"></i>Ya uso WhatsApp Business
+                </button>
+            </div>
+            <p class="mt-2 text-xs text-gray-500 max-w-2xl">
+                "Ya uso WhatsApp Business" es para un número que hoy está activo en la app de WhatsApp Business
+                (celular). Es una prueba: si Meta no tiene habilitada la coexistencia para esta configuración,
+                puede devolver el mismo error de "migra o desconecta" que el botón estándar — en ningún caso se
+                desconecta ni se migra el número automáticamente.
+            </p>
+            <span id="conectar-whatsapp-status" class="mt-2 block text-sm text-gray-500"></span>
         @else
             <button type="button" disabled
                 title="Falta configurar META_APP_ID y META_EMBEDDED_SIGNUP_CONFIG_ID en el servidor"
@@ -175,13 +188,16 @@
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/es_LA/sdk.js"></script>
     <script>
         (function () {
-            const btn = document.getElementById('btn-conectar-whatsapp');
+            const btnStandard = document.getElementById('btn-conectar-whatsapp');
+            const btnCoexistence = document.getElementById('btn-conectar-whatsapp-coexistencia');
             const statusEl = document.getElementById('conectar-whatsapp-status');
-            if (!btn) return;
+            if (!btnStandard && !btnCoexistence) return;
 
             const embeddedSignupUrl = @json(route('admin.empresas.whatsapp.embedded-signup', $company));
             const configId = @json($metaConfigId);
             let sessionInfo = null;
+            // 'standard' | 'coexistence' -- qué botón disparó el FB.login en curso.
+            let activeMode = 'standard';
 
             // Meta manda waba_id/phone_number_id por postMessage durante el
             // popup; FB.login() por su parte devuelve el "code" al terminar.
@@ -191,8 +207,22 @@
                     const data = JSON.parse(event.data);
                     if (data.type !== 'WA_EMBEDDED_SIGNUP') return;
 
-                    if (data.event === 'FINISH' || data.event === 'FINISH_ONLY_WABA' || data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+                    if (data.event === 'FINISH' || data.event === 'FINISH_ONLY_WABA') {
                         sessionInfo = data.data; // { phone_number_id, waba_id, business_id }
+                    } else if (data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+                        // Prueba de coexistencia: no asumimos que este payload
+                        // tiene la misma forma que el de FINISH estándar. Se
+                        // loguean solo los nombres de campo (nunca valores
+                        // completos ni tokens) para poder confirmarlo.
+                        const fields = data.data ? Object.keys(data.data) : [];
+                        console.info('[EmbeddedSignup][coexistence] FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING recibido. Campos:', fields);
+                        sessionInfo = {
+                            waba_id: data.data?.waba_id ?? null,
+                            phone_number_id: data.data?.phone_number_id ?? null,
+                        };
+                        if (!sessionInfo.waba_id || !sessionInfo.phone_number_id) {
+                            statusEl.textContent = `Coexistencia: el payload no trajo waba_id/phone_number_id con esos nombres. Campos recibidos: ${fields.join(', ') || 'ninguno'} (ver consola).`;
+                        }
                     } else if (data.event === 'CANCEL') {
                         statusEl.textContent = `Cancelado en el paso: ${data.data?.current_step || 'desconocido'}.`;
                     } else if (data.event === 'ERROR') {
@@ -210,7 +240,9 @@
                 }
 
                 if (!sessionInfo || !sessionInfo.waba_id || !sessionInfo.phone_number_id) {
-                    statusEl.textContent = 'Meta no envió los datos del número. Intentá de nuevo.';
+                    if (activeMode !== 'coexistence') {
+                        statusEl.textContent = 'Meta no envió los datos del número. Intentá de nuevo.';
+                    }
                     return;
                 }
 
@@ -227,6 +259,7 @@
                         code: response.authResponse.code,
                         waba_id: sessionInfo.waba_id,
                         phone_number_id: sessionInfo.phone_number_id,
+                        connection_mode: activeMode,
                     }),
                 })
                     .then((r) => r.json())
@@ -241,24 +274,36 @@
                     });
             }
 
-            btn.addEventListener('click', function () {
+            // El flujo estándar queda exactamente igual que antes: mismo
+            // config_id, mismo response_type/override, extras = { version: 'v4' }.
+            function startEmbeddedSignup(mode) {
                 if (typeof FB === 'undefined') {
                     statusEl.textContent = 'El SDK de Facebook todavía no cargó, esperá un segundo e intentá de nuevo.';
                     return;
                 }
 
-                statusEl.textContent = 'Abriendo Meta...';
+                activeMode = mode;
                 sessionInfo = null;
+                statusEl.textContent = mode === 'coexistence' ? 'Abriendo Meta (WhatsApp Business App)...' : 'Abriendo Meta...';
+
+                const extras = mode === 'coexistence'
+                    ? { version: 'v4', featureType: 'whatsapp_business_app_onboarding' }
+                    : { version: 'v4' };
 
                 FB.login(fbLoginCallback, {
                     config_id: configId,
                     response_type: 'code',
                     override_default_response_type: true,
-                    extras: {
-                        version: 'v4',
-                    },
+                    extras: extras,
                 });
-            });
+            }
+
+            if (btnStandard) {
+                btnStandard.addEventListener('click', function () { startEmbeddedSignup('standard'); });
+            }
+            if (btnCoexistence) {
+                btnCoexistence.addEventListener('click', function () { startEmbeddedSignup('coexistence'); });
+            }
         })();
     </script>
     @endpush
