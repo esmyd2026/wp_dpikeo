@@ -44,7 +44,7 @@ class MultiTenantIsolationTest extends TestCase
             'phone_number_id' => $phoneNumberId,
             'whatsapp_business_id' => "WABA-{$slug}",
             'access_token' => $token,
-            'status' => 'active',
+            'status' => 'connected',
         ]);
 
         $config = WhatsappChatbotConfig::create([

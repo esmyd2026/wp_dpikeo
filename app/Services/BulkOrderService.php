@@ -433,7 +433,18 @@ class BulkOrderService
                 ->update(['status' => WhatsappCart::STATUS_CANCELLED]);
 
             $whatsapp = app(WhatsappService::class);
-            $whatsapp->useBusinessProfile($contact->businessProfile);
+
+            try {
+                $whatsapp->useBusinessProfile($contact->businessProfile);
+            } catch (\Throwable $e) {
+                Log::error('[BulkOrderService] No se pudo resolver el perfil de WhatsApp del contacto', [
+                    'contact_id' => $contact->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                throw new InvalidArgumentException('No se pudo confirmar el pedido por WhatsApp: revisá la conexión de WhatsApp de esta empresa.');
+            }
+
             $orderNumber = $whatsapp->finalizeBulkWebOrder($cart);
             $cart->refresh();
             $cart->setAttribute('order_number', $orderNumber);

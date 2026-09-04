@@ -61,9 +61,24 @@ class AppServiceProvider extends ServiceProvider
 
                 $authorizedCompanies = $user->authorizedCompanies();
                 $view->with('authorizedCompanies', $authorizedCompanies);
-                $view->with('activeCompany', $authorizedCompanies->count() > 1
-                    ? \App\Support\CompanyContext::current()->company
-                    : $authorizedCompanies->first());
+
+                // Este composer corre en TODAS las vistas admin.* -- si
+                // CompanyContext::current() falla (ej. la empresa activa
+                // tiene 2+ números conectados y ninguno marcado principal,
+                // WHATSAPP_PRIMARY_PROFILE_NOT_CONFIGURED), no puede tumbar
+                // el panel entero. Cae al primer nombre autorizado solo para
+                // el chrome del sidebar; la pantalla que sí necesita el
+                // perfil resuelto (dashboard, catálogo, etc.) sigue fallando
+                // explícito como corresponde.
+                $activeCompany = $authorizedCompanies->first();
+                if ($authorizedCompanies->count() > 1) {
+                    try {
+                        $activeCompany = \App\Support\CompanyContext::current()->company;
+                    } catch (\Throwable $e) {
+                        // Se mantiene el fallback de arriba.
+                    }
+                }
+                $view->with('activeCompany', $activeCompany);
             }
         });
     }

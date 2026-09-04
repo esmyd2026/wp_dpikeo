@@ -35,6 +35,7 @@ use App\Models\WhatsappButton;
 use App\Mail\MonitoringNotification;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use App\Exceptions\WhatsappBusinessProfileUnavailableException;
 
 class WhatsappService
 {
@@ -50,6 +51,15 @@ class WhatsappService
     protected $webhookPhoneNumberId = null;
     protected bool $webhookProfileKnown = true;
     protected bool $inboundMarkedRead = false;
+    /**
+     * true en cuanto alguien intentó explícitamente resolver un tenant para
+     * esta instancia (useBusinessProfile() o setWebhookPhoneNumberId()), sin
+     * importar si el intento tuvo éxito. Distingue "nadie pidió un tenant
+     * concreto" (modo legacy de instalación mono-empresa, ver apiToken())
+     * de "alguien pidió un tenant y no se pudo resolver" (nunca debe caer al
+     * token global de otra empresa).
+     */
+    protected bool $tenantResolutionAttempted = false;
 
     protected function humanTrackingPayload(bool $humanSent): array
     {
@@ -92,8 +102,12 @@ class WhatsappService
         $this->businessPhone = config('whatsapp.phone_number');
         // Artisan resuelve algunos comandos al iniciar. En una instalación nueva
         // todavía no existe la tabla, por lo que no debemos impedir migraciones.
+        // Sin ningún tenant explícito todavía (nadie llamó useBusinessProfile()
+        // ni setWebhookPhoneNumberId()), solo se adopta un perfil "por
+        // defecto" cuando es inequívoco -- exactamente uno usable en toda la
+        // tabla (instalación mono-empresa clásica). Con 0 o 2+ no se adivina.
         $this->businessProfile = Schema::hasTable('whatsapp_business_profiles')
-            ? WhatsappBusinessProfile::first()
+            ? $this->resolveUnambiguousLegacyProfile()
             : null;
         $this->lastMessage = null;
 
@@ -106,16 +120,41 @@ class WhatsappService
         }
     }
 
+    private function resolveUnambiguousLegacyProfile(): ?WhatsappBusinessProfile
+    {
+        $usable = WhatsappBusinessProfile::usable()->get();
+
+        return $usable->count() === 1 ? $usable->first() : null;
+    }
+
     /**
      * El token siempre se resuelve desde $this->businessProfile en vez de
      * cachearse en una propiedad: setWebhookPhoneNumberId() puede cambiar el
      * perfil activo a mitad de request (multiempresa / multi-número), y este
      * método asegura que cada llamada a Graph API use el token del perfil
      * correcto en ese momento.
+     *
+     * Nunca cae al token global de .env cuando alguien ya intentó resolver un
+     * tenant explícito para esta instancia (ver $tenantResolutionAttempted):
+     * "empresa B sin perfil" jamás debe terminar enviando con las
+     * credenciales de otra empresa. El fallback a config('whatsapp.token')
+     * sigue existiendo SOLO para el modo legacy -- una instancia a la que
+     * nunca se le pidió ningún tenant concreto (instalación mono-empresa
+     * antigua, comandos de consola que todavía no pasan por CompanyContext).
      */
     protected function apiToken(): ?string
     {
-        return $this->businessProfile?->access_token ?: config('whatsapp.token');
+        if ($this->businessProfile) {
+            return $this->businessProfile->access_token;
+        }
+
+        if ($this->tenantResolutionAttempted) {
+            throw new WhatsappBusinessProfileUnavailableException(
+                'No hay un perfil de WhatsApp válido para esta operación (sin perfil, desconectado, o principal no configurado). Se rechaza el envío en vez de usar el token global de otra empresa.'
+            );
+        }
+
+        return config('whatsapp.token');
     }
 
     /**
@@ -2215,20 +2254,51 @@ class WhatsappService
         return WhatsappContact::where('phone_number', $phone)->first();
     }
 
+    public function getBusinessProfile(): ?WhatsappBusinessProfile
+    {
+        return $this->businessProfile;
+    }
+
     /**
      * Fija explícitamente el negocio activo (fuera del flujo de webhook,
-     * donde ya se resuelve por setWebhookPhoneNumberId). Úsalo siempre que
-     * se construya un WhatsappService para actuar sobre un contacto/carrito/
-     * campaña ya conocido -- de lo contrario el servicio queda con el
-     * primer perfil de la base (comportamiento por defecto del constructor),
-     * que casi nunca es la empresa correcta en un sistema multiempresa.
+     * donde ya se resuelve por setWebhookPhoneNumberId). Úsalo siempre que se
+     * construya un WhatsappService para actuar sobre un contacto/carrito/
+     * campaña ya conocido -- de lo contrario el servicio solo adopta un
+     * perfil "por defecto" cuando es inequívoco (ver
+     * resolveUnambiguousLegacyProfile(), llamado desde el constructor), que
+     * en un sistema multiempresa con más de un perfil en la base es null.
+     */
+
+    /**
+     * Rechaza (lanzando, no en silencio) un perfil ausente o no usable. Es
+     * crítico que además LIMPIE $this->businessProfile antes de fallar: en
+     * un job/comando que reutiliza una sola instancia para varios contactos
+     * de distintas empresas (SendWhatsAppTemplate, PendingReplyRecoveryService,
+     * etc.), un catch demasiado amplio en el llamador no debe terminar
+     * enviando con las credenciales del contacto anterior.
      */
     public function useBusinessProfile(?WhatsappBusinessProfile $profile): void
     {
-        if ($profile) {
-            $this->businessProfile = $profile;
-            $this->webhookProfileKnown = true;
+        $this->tenantResolutionAttempted = true;
+
+        if (!$profile || !$profile->isUsable()) {
+            $this->businessProfile = null;
+            $this->webhookProfileKnown = false;
+
+            Log::warning('[useBusinessProfile] Perfil de WhatsApp ausente o no usable; se rechaza sin reutilizar el anterior.', [
+                'business_profile_id' => $profile?->id,
+                'status' => $profile?->status,
+            ]);
+
+            throw new WhatsappBusinessProfileUnavailableException(
+                $profile
+                    ? "El perfil de WhatsApp #{$profile->id} no está usable (status={$profile->status})."
+                    : 'No se proporcionó ningún perfil de WhatsApp para este envío.'
+            );
         }
+
+        $this->businessProfile = $profile;
+        $this->webhookProfileKnown = true;
     }
 
     public function setWebhookPhoneNumberId(?string $phoneNumberId): void
@@ -2240,7 +2310,10 @@ class WhatsappService
             return;
         }
 
-        $profile = WhatsappBusinessProfile::where('phone_number_id', $phoneNumberId)->first();
+        // Igual que useBusinessProfile(): un número desconectado localmente
+        // no debe volver a recibir/responder mensajes solo porque Meta siga
+        // mandando el webhook a ese phone_number_id.
+        $profile = WhatsappBusinessProfile::where('phone_number_id', $phoneNumberId)->usable()->first();
 
         if ($profile) {
             $this->businessProfile = $profile;

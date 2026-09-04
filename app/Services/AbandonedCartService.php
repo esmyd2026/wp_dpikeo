@@ -93,7 +93,19 @@ class AbandonedCartService
         if ($contact) {
             $contact->forgetFlowPosition();
             $contact->forgetPrivacyNoticeSent();
-            $this->notifyContact($contact, $reason);
+
+            try {
+                $this->notifyContact($contact, $reason);
+            } catch (Throwable $e) {
+                // El carrito ya se canceló arriba (transition() no depende de
+                // esto); que falle solo el aviso por WhatsApp no debe abortar
+                // el resto del lote en cancelTimedOut().
+                Log::error('[AbandonedCartService] No se pudo avisar al cliente del cierre del carrito', [
+                    'cart_id' => $cart->id,
+                    'contact_id' => $contact->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         Log::info('[AbandonedCartService] Carrito cerrado', [

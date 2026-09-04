@@ -372,7 +372,11 @@ class MarketingCampaignController extends Controller
             return ['ok' => false, 'message' => 'Esta campaña no tiene una cuenta de WhatsApp configurada. No se envía con la de otra empresa.'];
         }
 
-        $this->whatsappService->useBusinessProfile($businessProfile);
+        try {
+            $this->whatsappService->useBusinessProfile($businessProfile);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'La cuenta de WhatsApp de esta campaña no está disponible (desconectada o inválida). No se envía con la de otra empresa: ' . $e->getMessage()];
+        }
 
         try {
             $campaign->update(['status' => 'sending']);

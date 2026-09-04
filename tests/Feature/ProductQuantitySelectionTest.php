@@ -62,6 +62,7 @@ class ProductQuantitySelectionTest extends TestCase
         $profile = WhatsappBusinessProfile::create([
             'business_name' => 'DPIKEOS', 'display_name' => 'DPIKEOS', 'phone_number' => '593990000001',
             'whatsapp_business_id' => 'test-business', 'access_token' => 'test',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
         $menu = WhatsappMenu::create([
             'business_profile_id' => $profile->id, 'title' => 'Menú', 'type' => 'list',

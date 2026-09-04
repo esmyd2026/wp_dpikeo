@@ -22,6 +22,10 @@ class WhatsappBusinessProfile extends Model
         'connection_type',
         'access_token',
         'connected_at',
+        'disconnected_at',
+        'last_verified_at',
+        'last_verification_status',
+        'is_primary',
         'metadata'
     ];
 
@@ -36,7 +40,28 @@ class WhatsappBusinessProfile extends Model
         'metadata' => 'array',
         'access_token' => 'encrypted',
         'connected_at' => 'datetime',
+        'disconnected_at' => 'datetime',
+        'last_verified_at' => 'datetime',
+        'is_primary' => 'boolean',
     ];
+
+    /**
+     * "Usable" = puede autenticar un envío real. Únicamente status=connected
+     * califica -- 'pending' (nunca tuvo credenciales completas), 'error'
+     * (Graph API rechazó algo) y 'disconnected' (dado de baja localmente)
+     * quedan afuera. El vocabulario legacy 'active' ya no existe en datos
+     * reales (ver migración de normalización); fixtures/tests deben usar
+     * STATUS_CONNECTED explícitamente.
+     */
+    public function scopeUsable($query)
+    {
+        return $query->where('status', self::STATUS_CONNECTED);
+    }
+
+    public function isUsable(): bool
+    {
+        return $this->status === self::STATUS_CONNECTED;
+    }
 
     public function company(): BelongsTo
     {

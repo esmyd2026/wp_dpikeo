@@ -41,6 +41,7 @@ class MarketingFlowGraphTest extends TestCase
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
             'access_token' => 'test-token',
+            'status' => \App\Models\WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
 
         $flow = MarketingFlow::create([
@@ -384,6 +385,7 @@ class MarketingFlowGraphTest extends TestCase
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
             'access_token' => 'test-token',
+            'status' => \App\Models\WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
         $flow = MarketingFlow::create([
             'business_profile_id' => $profile->id,
@@ -530,6 +532,7 @@ class MarketingFlowGraphTest extends TestCase
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
             'access_token' => 'test-token',
+            'status' => \App\Models\WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
         $flow = MarketingFlow::create([
             'business_profile_id' => $profile->id,
@@ -611,6 +614,7 @@ class MarketingFlowGraphTest extends TestCase
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
             'access_token' => 'test-token',
+            'status' => \App\Models\WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
         [$category, $product] = $this->seedCatalogFixture($profile->id);
         $product->update(['metadata' => ['variations' => [
@@ -636,6 +640,7 @@ class MarketingFlowGraphTest extends TestCase
             'display_name' => 'Test Business',
             'phone_number' => '5930000000',
             'access_token' => 'test-token',
+            'status' => \App\Models\WhatsappBusinessProfile::STATUS_CONNECTED,
         ]);
         [$category, $product] = $this->seedCatalogFixture($profile->id);
 

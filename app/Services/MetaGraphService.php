@@ -57,6 +57,25 @@ class MetaGraphService
         return $response->json();
     }
 
+    /**
+     * Diagnóstico de solo lectura para "Probar conexión" -- NO se usa en el
+     * alta de Embedded Signup (esa sigue llamando getPhoneNumber() tal cual
+     * estaba). Pide campos extra de solo consulta; si Meta rechaza alguno de
+     * estos (p.ej. code_verification_status no disponible para esa versión
+     * de la API), la llamada entera falla y el llamador lo reporta como
+     * "conexión con problemas" -- no rompe getPhoneNumber() ni el alta real.
+     */
+    public function inspectPhoneNumber(string $phoneNumberId, string $token): array
+    {
+        $response = Http::withToken($token)->get("{$this->baseUrl}/{$this->apiVersion()}/{$phoneNumberId}", [
+            'fields' => 'id,display_phone_number,verified_name,quality_rating,code_verification_status',
+        ]);
+
+        $this->throwIfFailed($response, 'No se pudo consultar el número en Graph API.');
+
+        return $response->json();
+    }
+
     /** @return array{id: string, name: ?string} */
     public function getWaba(string $wabaId, string $token): array
     {

@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Exceptions\WhatsappPrimaryProfileNotConfiguredException;
 use App\Models\Company;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappChatbotConfig;
@@ -29,9 +30,38 @@ class CompanyContext
         return new self($profile?->company, $profile);
     }
 
+    /**
+     * Una empresa puede tener varios WhatsappBusinessProfile (manual,
+     * embedded signup, coexistencia) y algunos pueden estar desconectados/en
+     * error/pendientes sin haberse borrado (se conservan por trazabilidad).
+     * Prioridad de resolución, nunca arbitraria:
+     *   1. El usable (status=connected) marcado is_primary=true.
+     *   2. Si hay exactamente UN usable, ese -- inequívoco aunque no esté
+     *      marcado principal todavía.
+     *   3. 2+ usables y ninguno marcado principal: no se adivina -- falla
+     *      explícito (WHATSAPP_PRIMARY_PROFILE_NOT_CONFIGURED) para forzar
+     *      que un admin elija desde el panel.
+     *   0 usables: se devuelve sin perfil (compañía sin WhatsApp operativo
+     *      todavía), no es un error de esta resolución.
+     */
     public static function forCompany(Company $company): self
     {
-        return new self($company, $company->whatsappAccounts()->first());
+        $usable = $company->whatsappAccounts()->usable()->get();
+
+        if ($usable->isEmpty()) {
+            return new self($company, null);
+        }
+
+        $primary = $usable->firstWhere('is_primary', true);
+        if ($primary) {
+            return new self($company, $primary);
+        }
+
+        if ($usable->count() === 1) {
+            return new self($company, $usable->first());
+        }
+
+        throw WhatsappPrimaryProfileNotConfiguredException::forCompany($company->slug, $usable->count());
     }
 
     /**

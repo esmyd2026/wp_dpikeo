@@ -12,11 +12,25 @@
         <h2 class="text-xl font-semibold text-gray-900 mb-1">{{ $company->name }}</h2>
         <p class="text-sm text-gray-600 mb-6">Números de WhatsApp conectados a esta empresa.</p>
 
+        @php
+            $usableAccounts = $accounts->where('status', 'connected');
+            $hasPrimary = $usableAccounts->contains('is_primary', true);
+        @endphp
+
         @if($accounts->isEmpty())
             <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 text-sm mb-6">
                 <i class="fas fa-triangle-exclamation mr-1"></i> Todavía no hay ningún número conectado.
             </div>
         @else
+            @if(!$hasPrimary && $usableAccounts->count() >= 2)
+                <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 text-sm mb-4">
+                    <i class="fas fa-star-half-stroke mr-1"></i>
+                    <strong>Requiere selección de número principal.</strong> Esta empresa tiene
+                    {{ $usableAccounts->count() }} números conectados y ninguno marcado como principal —
+                    el panel (dashboard, catálogo, campañas) no puede elegir uno solo. Marcá "Establecer como
+                    principal" en el número que corresponda.
+                </div>
+            @endif
             <div class="space-y-3 mb-6">
                 @foreach($accounts as $account)
                     @php
@@ -32,27 +46,88 @@
                             'demo' => 'Demo',
                             'manual' => 'Manual',
                             'embedded_signup' => 'Embedded Signup',
-                            'whatsapp_business_app_coexistence' => 'Coexistencia (WhatsApp Business App)',
-                            default => null,
+                            'whatsapp_business_app_coexistence' => 'WhatsApp Business + Cloud API',
+                            default => 'Desconocido',
                         };
+                        $isConnected = $account->status === 'connected';
                     @endphp
-                    <div class="border border-gray-200 rounded-lg p-4 flex items-start justify-between">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-xs px-2 py-1 rounded-full {{ $badge[1] }}">{{ $badge[0] }}</span>
-                                @if($connectionTypeLabel)
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span class="text-xs px-2 py-1 rounded-full {{ $badge[1] }}">{{ $badge[0] }}</span>
                                     <span class="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700">{{ $connectionTypeLabel }}</span>
+                                    @if($account->is_primary)
+                                        <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
+                                            ⭐ Número principal
+                                        </span>
+                                    @endif
+                                    <span class="font-medium text-gray-900">{{ $account->display_name ?: $account->business_name }}</span>
+                                </div>
+                                <p class="text-sm text-gray-600">{{ $account->phone_number ?: 'Sin número' }}</p>
+                                <p class="text-xs text-gray-400 font-mono mt-1">
+                                    Phone Number ID: {{ $account->phone_number_id ?: '—' }} ·
+                                    WABA ID: {{ $account->whatsapp_business_id ?: '—' }}
+                                </p>
+                                @if($account->connected_at)
+                                    <p class="text-xs text-gray-400 mt-1">Conectado el {{ $account->connected_at->format('d/m/Y H:i') }}</p>
                                 @endif
-                                <span class="font-medium text-gray-900">{{ $account->display_name ?: $account->business_name }}</span>
+                                @if($account->status === 'disconnected' && $account->disconnected_at)
+                                    <p class="text-xs text-gray-400 mt-1">Desconectado el {{ $account->disconnected_at->format('d/m/Y H:i') }}</p>
+                                @endif
+                                @if($account->last_verified_at)
+                                    <p class="text-xs text-gray-400 mt-1">
+                                        Última verificación: {{ $account->last_verified_at->format('d/m/Y H:i') }}
+                                        ({{ $account->last_verification_status === 'ok' ? 'operativa' : 'con problemas' }})
+                                    </p>
+                                @endif
                             </div>
-                            <p class="text-sm text-gray-600">{{ $account->phone_number ?: 'Sin número' }}</p>
-                            <p class="text-xs text-gray-400 font-mono mt-1">
-                                Phone Number ID: {{ $account->phone_number_id ?: '—' }} ·
-                                WABA ID: {{ $account->whatsapp_business_id ?: '—' }}
-                            </p>
-                            @if($account->connected_at)
-                                <p class="text-xs text-gray-400 mt-1">Conectado el {{ $account->connected_at->format('d/m/Y H:i') }}</p>
-                            @endif
+
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button type="button"
+                                    class="js-ver-detalles text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 whitespace-nowrap"
+                                    data-details-url="{{ route('admin.empresas.whatsapp.profile.details', [$company, $account]) }}"
+                                    data-test-url="{{ route('admin.empresas.whatsapp.profile.test', [$company, $account]) }}">
+                                    Ver detalles
+                                </button>
+                                <button type="button"
+                                    class="js-probar-conexion text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 whitespace-nowrap"
+                                    data-test-url="{{ route('admin.empresas.whatsapp.profile.test', [$company, $account]) }}">
+                                    Probar conexión
+                                </button>
+                                <div class="relative js-menu-wrap">
+                                    <button type="button" class="js-menu-toggle w-8 h-8 inline-flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500">
+                                        <i class="fas fa-ellipsis-vertical"></i>
+                                    </button>
+                                    <div class="js-menu-dropdown hidden absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 text-sm">
+                                        @if($account->connection_type === 'manual')
+                                            <a href="#form-conexion-manual" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">
+                                                <i class="fas fa-sliders mr-1 text-gray-400"></i> Configurar
+                                            </a>
+                                        @endif
+                                        @if($isConnected && !$account->is_primary)
+                                            <form action="{{ route('admin.empresas.whatsapp.profile.set-primary', [$company, $account]) }}" method="POST">
+                                                @csrf
+                                                <button type="submit" class="block w-full text-left px-3 py-2 hover:bg-amber-50 text-amber-800">
+                                                    <i class="fas fa-star mr-1"></i> Establecer como principal
+                                                </button>
+                                            </form>
+                                        @endif
+                                        @if($isConnected)
+                                            <button type="button"
+                                                class="js-desconectar block w-full text-left px-3 py-2 hover:bg-red-50 text-red-600"
+                                                data-disconnect-url="{{ route('admin.empresas.whatsapp.profile.disconnect', [$company, $account]) }}"
+                                                data-profile-name="{{ $account->display_name ?: $account->business_name }}"
+                                                data-profile-phone="{{ $account->phone_number ?: 'sin número' }}"
+                                                data-profile-type="{{ $connectionTypeLabel }}">
+                                                <i class="fas fa-plug-circle-xmark mr-1"></i> Desconectar
+                                            </button>
+                                        @else
+                                            <span class="block px-3 py-2 text-gray-400">Ya está desconectado</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 @endforeach
@@ -85,16 +160,20 @@
             </button>
         @endif
 
-        <div class="mt-6 bg-gray-50 p-6 rounded-lg">
-            <h3 class="text-lg font-medium text-gray-900 mb-1">📱 Conexión manual</h3>
+        <details id="form-conexion-manual" class="mt-6 bg-gray-50 rounded-lg group">
+            <summary class="cursor-pointer select-none p-4 text-sm font-medium text-gray-600 hover:text-gray-800 list-none flex items-center gap-2">
+                <i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>
+                Conexión manual (avanzado)
+            </summary>
+            <div class="p-6 pt-0">
             <p class="text-sm text-gray-600 mb-4">
-                Mientras se activa la conexión automática, podés cargar acá las credenciales de WhatsApp Cloud API
-                a mano. Las obtenés en
+                Para cuando Embedded Signup no aplica (por ejemplo, mientras se resuelve la coexistencia con la
+                app de WhatsApp Business): cargá las credenciales de WhatsApp Cloud API a mano. Las obtenés en
                 <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline">developers.facebook.com/apps</a>
                 → tu app → <strong>WhatsApp → Configuración de la API</strong>.
             </p>
 
-            @php($account = $accounts->first())
+            @php($account = $accounts->firstWhere('connection_type', 'manual') ?? $accounts->first())
 
             <form action="{{ route('admin.empresas.whatsapp.update', $company) }}" method="POST" class="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
                 @csrf
@@ -169,9 +248,265 @@
                     </button>
                 </div>
             </form>
+            </div>
+        </details>
+    </div>
+</div>
+
+{{-- Modal compartido: "Ver detalles" / resultado de "Probar conexión". Se
+     popula por JS con fetch() a las rutas de cada tarjeta -- nunca incluye
+     access_token en ningún campo. --}}
+<div id="modal-detalle-conexion" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-semibold text-gray-900">Detalle de la conexión</h3>
+            <button type="button" class="js-cerrar-modal-detalle text-gray-400 hover:text-gray-600">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        <div class="px-5 py-4 text-sm text-gray-700 space-y-2 max-h-[70vh] overflow-y-auto" id="modal-detalle-body">
+            <p class="text-gray-400">Cargando...</p>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button type="button" class="js-probar-desde-modal text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50">
+                Probar conexión
+            </button>
+            <button type="button" class="js-cerrar-modal-detalle text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200">
+                Cerrar
+            </button>
         </div>
     </div>
 </div>
+
+{{-- Modal compartido: confirmación de desconexión LOCAL. No llama a Meta, no
+     borra la fila -- solo cambia status/disconnected_at (ver
+     CompanyWhatsappController::disconnect). --}}
+<div id="modal-desconectar" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-semibold text-gray-900">¿Qué deseas hacer con esta conexión?</h3>
+            <button type="button" class="js-cerrar-modal-desconectar text-gray-400 hover:text-gray-600">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        <div class="px-5 py-4 text-sm text-gray-700 space-y-3">
+            <p class="text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-xs">
+                Esta acción dejará de utilizar este número dentro de esta empresa. <strong>No elimina
+                automáticamente el número de Meta ni de la app de WhatsApp Business.</strong> El registro se
+                conserva (no se borra) por si necesitás volver a activarlo o consultarlo más adelante.
+            </p>
+            <dl class="text-xs text-gray-600 grid grid-cols-3 gap-x-2 gap-y-1">
+                <dt class="font-medium text-gray-500">Empresa</dt>
+                <dd class="col-span-2">{{ $company->name }}</dd>
+                <dt class="font-medium text-gray-500">Número</dt>
+                <dd class="col-span-2" id="modal-desconectar-numero">—</dd>
+                <dt class="font-medium text-gray-500">Tipo</dt>
+                <dd class="col-span-2" id="modal-desconectar-tipo">—</dd>
+            </dl>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">
+                    Escribí <span class="font-mono font-semibold">DESCONECTAR</span> para confirmar
+                </label>
+                <input type="text" id="modal-desconectar-confirm-input" autocomplete="off"
+                    class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-red-500 focus:border-red-500">
+            </div>
+            <p id="modal-desconectar-status" class="text-xs text-gray-500"></p>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button type="button" class="js-cerrar-modal-desconectar text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200">
+                Cancelar
+            </button>
+            <button type="button" id="modal-desconectar-submit" disabled
+                class="text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed">
+                Desconectar
+            </button>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+    (function () {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        function postJson(url) {
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+            }).then((r) => r.json());
+        }
+
+        // El enlace "Configurar" de una conexión manual apunta a
+        // #form-conexion-manual, que vive dentro de un <details> colapsado
+        // por defecto -- sin esto, el ancla no abre el bloque en todos los
+        // navegadores.
+        document.querySelectorAll('a[href="#form-conexion-manual"]').forEach((link) => {
+            link.addEventListener('click', () => {
+                document.getElementById('form-conexion-manual')?.setAttribute('open', '');
+            });
+        });
+
+        // ---- Menús "⋮" por tarjeta ----
+        document.querySelectorAll('.js-menu-toggle').forEach((btn) => {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const dropdown = btn.parentElement.querySelector('.js-menu-dropdown');
+                document.querySelectorAll('.js-menu-dropdown').forEach((d) => {
+                    if (d !== dropdown) d.classList.add('hidden');
+                });
+                dropdown.classList.toggle('hidden');
+            });
+        });
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.js-menu-dropdown').forEach((d) => d.classList.add('hidden'));
+        });
+
+        // ---- Modal "Ver detalles" / "Probar conexión" ----
+        const detalleModal = document.getElementById('modal-detalle-conexion');
+        const detalleBody = document.getElementById('modal-detalle-body');
+        let detalleTestUrl = null;
+        let detalleDetailsUrl = null;
+
+        function fieldLabel(status) {
+            return {
+                connected: 'Conectado', pending: 'Pendiente', disconnected: 'Desconectado',
+                error: 'Error', requires_action: 'Requiere acción',
+            }[status] || (status || '—');
+        }
+
+        function renderDetalle(data) {
+            const rows = [
+                ['Nombre visible', data.display_name || data.business_name || '—'],
+                ['Número', data.phone_number || '—'],
+                ['Phone Number ID', data.phone_number_id || '—'],
+                ['WABA ID', data.whatsapp_business_id || '—'],
+                ['Empresa', data.company?.name || '—'],
+                ['Estado local', fieldLabel(data.status)],
+                ['Número principal', data.is_primary ? '⭐ Sí' : 'No'],
+                ['Conectado el', data.connected_at ? new Date(data.connected_at).toLocaleString() : '—'],
+            ];
+            if (data.status === 'disconnected' && data.disconnected_at) {
+                rows.push(['Desconectado el', new Date(data.disconnected_at).toLocaleString()]);
+            }
+            rows.push(['Última verificación', data.last_verified_at
+                ? `${new Date(data.last_verified_at).toLocaleString()} (${data.last_verification_status === 'ok' ? 'operativa' : 'con problemas'})`
+                : 'Todavía no se probó']);
+
+            if (data.graph) {
+                rows.push(['— Datos en vivo de Meta —', '']);
+                rows.push(['Número verificado por Meta', data.graph.display_phone_number || '—']);
+                rows.push(['Nombre verificado', data.graph.verified_name || '—']);
+                rows.push(['Calidad', data.graph.quality_rating || '—']);
+                rows.push(['Estado de verificación del código', data.graph.code_verification_status || '—']);
+            }
+
+            detalleBody.innerHTML = rows.map(([label, value]) => label.startsWith('—')
+                ? `<p class="pt-2 mt-2 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase">${label.replace(/—/g, '').trim()}</p>`
+                : `<div class="flex justify-between gap-3"><dt class="text-gray-500">${label}</dt><dd class="font-medium text-gray-900 text-right break-all">${value}</dd></div>`
+            ).join('');
+        }
+
+        function openDetalleModal(detailsUrl, testUrl) {
+            detalleTestUrl = testUrl;
+            detalleDetailsUrl = detailsUrl;
+            detalleBody.innerHTML = '<p class="text-gray-400">Cargando...</p>';
+            detalleModal.classList.remove('hidden');
+            detalleModal.classList.add('flex');
+
+            fetch(detailsUrl, { headers: { Accept: 'application/json' } })
+                .then((r) => r.json())
+                .then(renderDetalle)
+                .catch(() => { detalleBody.innerHTML = '<p class="text-red-600">No se pudo cargar el detalle.</p>'; });
+        }
+
+        document.querySelectorAll('.js-ver-detalles').forEach((btn) => {
+            btn.addEventListener('click', () => openDetalleModal(btn.dataset.detailsUrl, btn.dataset.testUrl));
+        });
+
+        document.querySelectorAll('.js-probar-conexion').forEach((btn) => {
+            btn.addEventListener('click', function () {
+                const original = btn.textContent;
+                btn.textContent = 'Probando...';
+                btn.disabled = true;
+                postJson(btn.dataset.testUrl)
+                    .then((data) => {
+                        alert(data.ok ? `✅ ${data.message}` : `⚠️ ${data.message}`);
+                        window.location.reload();
+                    })
+                    .catch(() => { alert('Error de red al probar la conexión.'); })
+                    .finally(() => { btn.textContent = original; btn.disabled = false; });
+            });
+        });
+
+        document.querySelectorAll('.js-cerrar-modal-detalle').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                detalleModal.classList.add('hidden');
+                detalleModal.classList.remove('flex');
+            });
+        });
+
+        document.querySelector('.js-probar-desde-modal')?.addEventListener('click', function () {
+            if (!detalleTestUrl || !detalleDetailsUrl) return;
+            const el = this;
+            const original = el.textContent;
+            el.textContent = 'Probando...';
+            el.disabled = true;
+            postJson(detalleTestUrl)
+                .then((testResult) => fetch(detalleDetailsUrl, { headers: { Accept: 'application/json' } })
+                    .then((r) => r.json())
+                    .then((full) => renderDetalle({ ...full, graph: testResult.graph, _testMessage: testResult.message })))
+                .catch(() => { detalleBody.innerHTML = '<p class="text-red-600">No se pudo probar la conexión.</p>'; })
+                .finally(() => { el.textContent = original; el.disabled = false; });
+        });
+
+        // ---- Modal "Desconectar" ----
+        const desconectarModal = document.getElementById('modal-desconectar');
+        const desconectarInput = document.getElementById('modal-desconectar-confirm-input');
+        const desconectarSubmit = document.getElementById('modal-desconectar-submit');
+        const desconectarStatus = document.getElementById('modal-desconectar-status');
+        let desconectarUrl = null;
+
+        document.querySelectorAll('.js-desconectar').forEach((btn) => {
+            btn.addEventListener('click', function () {
+                desconectarUrl = btn.dataset.disconnectUrl;
+                document.getElementById('modal-desconectar-numero').textContent = btn.dataset.profilePhone || '—';
+                document.getElementById('modal-desconectar-tipo').textContent = btn.dataset.profileType || '—';
+                desconectarInput.value = '';
+                desconectarStatus.textContent = '';
+                desconectarSubmit.disabled = true;
+                desconectarSubmit.className = 'text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed';
+                desconectarModal.classList.remove('hidden');
+                desconectarModal.classList.add('flex');
+            });
+        });
+
+        desconectarInput?.addEventListener('input', function () {
+            const enabled = this.value.trim() === 'DESCONECTAR';
+            desconectarSubmit.disabled = !enabled;
+            desconectarSubmit.className = enabled
+                ? 'text-xs px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700'
+                : 'text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed';
+        });
+
+        desconectarSubmit?.addEventListener('click', function () {
+            if (!desconectarUrl || desconectarInput.value.trim() !== 'DESCONECTAR') return;
+            desconectarStatus.textContent = 'Desconectando...';
+            fetch(desconectarUrl, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+            }).then(() => { window.location.reload(); })
+              .catch(() => { desconectarStatus.textContent = 'Error de red al desconectar.'; });
+        });
+
+        document.querySelectorAll('.js-cerrar-modal-desconectar').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                desconectarModal.classList.add('hidden');
+                desconectarModal.classList.remove('flex');
+            });
+        });
+    })();
+</script>
+@endpush
 
 @if($embeddedSignupReady)
     @push('scripts')

@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Company;
 use App\Models\WhatsappBusinessProfile;
 use App\Services\MetaEmbeddedSignupService;
+use App\Services\MetaGraphService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class CompanyWhatsappController extends Controller
 {
@@ -21,6 +24,17 @@ class CompanyWhatsappController extends Controller
     private function authorizeCompany(Company $company): void
     {
         abort_unless(auth()->user()?->canAccessCompany($company), 403, 'No tenés acceso a esta empresa.');
+    }
+
+    /**
+     * Un $profile se resuelve por su id (route model binding), sin ningún
+     * filtro de empresa en la query -- sin este segundo chequeo,
+     * /admin/empresas/{cualquier-slug-autorizado}/whatsapp/{id-de-otra-empresa}
+     * podría consultar/desconectar un perfil que no pertenece a $company.
+     */
+    private function authorizeProfile(Company $company, WhatsappBusinessProfile $profile): void
+    {
+        abort_unless((int) $profile->company_id === (int) $company->id, 404);
     }
 
     public function index()
@@ -158,5 +172,145 @@ class CompanyWhatsappController extends Controller
 
         return redirect()->route('admin.empresas.whatsapp', $company)
             ->with('success', 'Credenciales de WhatsApp guardadas correctamente.');
+    }
+
+    /**
+     * Datos locales para el modal "Ver detalles". Nunca incluye access_token
+     * (ni siquiera cifrado/parcial) -- eso nunca debe salir hacia el frontend.
+     */
+    public function profileDetails(Company $company, WhatsappBusinessProfile $profile)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        return response()->json($this->serializeProfile($profile, $company));
+    }
+
+    /**
+     * "Probar conexión": solo lectura contra Graph API (un GET al recurso del
+     * número). No llama /register, no toca subscribed_apps, no envía
+     * mensajes, no modifica nada en Meta. Persiste únicamente el resultado
+     * del chequeo (last_verified_at/last_verification_status), nunca la
+     * respuesta cruda de Meta.
+     */
+    public function testConnection(Company $company, WhatsappBusinessProfile $profile, MetaGraphService $graph)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        if (!$profile->phone_number_id || !$profile->access_token) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Esta conexión no tiene Phone Number ID o token guardado; no hay nada que probar.',
+            ], 422);
+        }
+
+        try {
+            $info = $graph->inspectPhoneNumber($profile->phone_number_id, $profile->access_token);
+
+            $profile->forceFill([
+                'last_verified_at' => now(),
+                'last_verification_status' => 'ok',
+            ])->save();
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Conexión operativa.',
+                'checked_at' => $profile->last_verified_at->toIso8601String(),
+                'graph' => [
+                    'display_phone_number' => $info['display_phone_number'] ?? null,
+                    'verified_name' => $info['verified_name'] ?? null,
+                    'quality_rating' => $info['quality_rating'] ?? null,
+                    'code_verification_status' => $info['code_verification_status'] ?? null,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            $profile->forceFill([
+                'last_verified_at' => now(),
+                'last_verification_status' => 'failed',
+            ])->save();
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'Conexión con problemas: ' . $e->getMessage(),
+                'checked_at' => $profile->last_verified_at->toIso8601String(),
+            ]);
+        }
+    }
+
+    /**
+     * Desconexión LOCAL únicamente: no llama a Meta, no borra la fila. El
+     * número sigue existiendo en Meta y en la app de WhatsApp Business tal
+     * cual estaba -- esto solo hace que la plataforma deje de usarlo (ver
+     * WhatsappService::useBusinessProfile/setWebhookPhoneNumberId, que
+     * excluyen cualquier perfil que no esté "connected").
+     */
+    public function disconnect(Company $company, WhatsappBusinessProfile $profile)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        if ($profile->status !== WhatsappBusinessProfile::STATUS_DISCONNECTED) {
+            $profile->forceFill([
+                'status' => WhatsappBusinessProfile::STATUS_DISCONNECTED,
+                'disconnected_at' => now(),
+                // Un perfil desconectado nunca puede seguir siendo el
+                // principal -- si lo era, la empresa vuelve a "requiere
+                // selección" (o al único usable que le quede, si hay uno).
+                'is_primary' => false,
+            ])->save();
+        }
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', 'Conexión desconectada de la plataforma. El número sigue existiendo en Meta/WhatsApp Business -- esto no lo elimina ni lo migra.');
+    }
+
+    /**
+     * Único punto de escritura de is_primary: dentro de una transacción,
+     * desmarca cualquier otro perfil DE LA MISMA EMPRESA y marca el elegido.
+     * Nunca toca perfiles de otra empresa (el UPDATE está acotado por
+     * company_id, no es un flag global).
+     */
+    public function setPrimary(Company $company, WhatsappBusinessProfile $profile)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        abort_unless($profile->isUsable(), 422, 'No se puede marcar como principal una conexión desconectada o con error.');
+
+        DB::transaction(function () use ($company, $profile) {
+            WhatsappBusinessProfile::where('company_id', $company->id)
+                ->where('id', '!=', $profile->id)
+                ->update(['is_primary' => false]);
+
+            $profile->forceFill(['is_primary' => true])->save();
+        });
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', "«{$profile->display_name}» ahora es el número principal de {$company->name}.");
+    }
+
+    private function serializeProfile(WhatsappBusinessProfile $profile, Company $company): array
+    {
+        return [
+            'id' => $profile->id,
+            'business_name' => $profile->business_name,
+            'display_name' => $profile->display_name,
+            'phone_number' => $profile->phone_number,
+            'phone_number_id' => $profile->phone_number_id,
+            'whatsapp_business_id' => $profile->whatsapp_business_id,
+            'connection_type' => $profile->connection_type,
+            'status' => $profile->status,
+            'is_primary' => (bool) $profile->is_primary,
+            'connected_at' => optional($profile->connected_at)->toIso8601String(),
+            'disconnected_at' => optional($profile->disconnected_at)->toIso8601String(),
+            'last_verified_at' => optional($profile->last_verified_at)->toIso8601String(),
+            'last_verification_status' => $profile->last_verification_status,
+            'company' => [
+                'id' => $company->id,
+                'name' => $company->name,
+                'slug' => $company->slug,
+            ],
+        ];
     }
 }

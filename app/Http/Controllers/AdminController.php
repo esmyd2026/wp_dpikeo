@@ -1014,7 +1014,21 @@ class AdminController extends Controller
 
         $contact = WhatsappContact::findOrFail($request->contact_id);
         $whatsappService = new WhatsappService();
-        $whatsappService->useBusinessProfile($contact->businessProfile);
+
+        try {
+            $whatsappService->useBusinessProfile($contact->businessProfile);
+        } catch (\Throwable $e) {
+            Log::error('[typingIndicator] No se pudo resolver el perfil de WhatsApp del contacto', [
+                'contact_id' => $contact->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'typing_available' => false,
+                'message' => 'No se pudo verificar la conexión de WhatsApp de esta empresa.',
+            ], 422);
+        }
 
         $wamid = $request->input('whatsapp_message_id');
         if (!$wamid) {

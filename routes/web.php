@@ -308,6 +308,18 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::post('/{company:slug}/whatsapp/embedded-signup', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'embeddedSignup'])
             ->middleware('permission:chatbot.update')
             ->name('whatsapp.embedded-signup');
+        Route::get('/{company:slug}/whatsapp/{profile}', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'profileDetails'])
+            ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')
+            ->name('whatsapp.profile.details');
+        Route::post('/{company:slug}/whatsapp/{profile}/test', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'testConnection'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.profile.test');
+        Route::post('/{company:slug}/whatsapp/{profile}/disconnect', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'disconnect'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.profile.disconnect');
+        Route::post('/{company:slug}/whatsapp/{profile}/set-primary', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'setPrimary'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.profile.set-primary');
     });
 
     Route::get('/marketing-flow', [App\Http\Controllers\Admin\MarketingFlowController::class, 'edit'])
