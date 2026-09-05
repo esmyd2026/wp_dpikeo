@@ -10,13 +10,20 @@ class WhatsappMediaService
     public function resolveMediaId(WhatsappMessage $message): ?string
     {
         $metadata = $message->metadata ?? [];
-        if (!empty($metadata['media_id'])) {
+        if (! empty($metadata['media_id'])) {
             return (string) $metadata['media_id'];
         }
 
+        if (! empty($metadata['image_id'])) {
+            return (string) $metadata['image_id'];
+        }
+
         $content = json_decode((string) $message->content, true);
-        if (is_array($content) && !empty($content['id'])) {
-            return (string) $content['id'];
+        if (is_array($content)) {
+            $mediaId = $content['id'] ?? $content['media_id'] ?? $content['image_id'] ?? null;
+            if (! empty($mediaId)) {
+                return (string) $mediaId;
+            }
         }
 
         return null;
@@ -25,12 +32,12 @@ class WhatsappMediaService
     public function resolveFilename(WhatsappMessage $message): string
     {
         $metadata = $message->metadata ?? [];
-        if (!empty($metadata['filename'])) {
+        if (! empty($metadata['filename'])) {
             return (string) $metadata['filename'];
         }
 
         $content = json_decode((string) $message->content, true);
-        if (is_array($content) && !empty($content['filename'])) {
+        if (is_array($content) && ! empty($content['filename'])) {
             return (string) $content['filename'];
         }
 
@@ -41,7 +48,7 @@ class WhatsappMediaService
     public function fetchMedia(WhatsappMessage $message): ?array
     {
         $mediaId = $this->resolveMediaId($message);
-        if (!$mediaId) {
+        if (! $mediaId) {
             return null;
         }
 
@@ -52,12 +59,12 @@ class WhatsappMediaService
             ->timeout(10)
             ->get("https://graph.facebook.com/{$apiVersion}/{$mediaId}");
 
-        if (!$metaResponse->successful()) {
+        if (! $metaResponse->successful()) {
             return null;
         }
 
         $mediaUrl = $metaResponse->json('url');
-        if (!$mediaUrl) {
+        if (! $mediaUrl) {
             return null;
         }
 
@@ -65,7 +72,7 @@ class WhatsappMediaService
             ->timeout(15)
             ->get($mediaUrl);
 
-        if (!$fileResponse->successful()) {
+        if (! $fileResponse->successful()) {
             return null;
         }
 

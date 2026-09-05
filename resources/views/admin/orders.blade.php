@@ -17,6 +17,16 @@
         'paid' => 'Pago recibido',
     ];
     $statusOptions = ['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'];
+    $statusMeta = [
+        'pending' => ['icon' => 'fa-inbox', 'description' => 'Pedido recién recibido; todavía debe revisarse.'],
+        'confirmed' => ['icon' => 'fa-circle-check', 'description' => 'El pedido fue revisado y aceptado.'],
+        'payment_pending' => ['icon' => 'fa-clock', 'description' => 'Falta recibir o validar el pago del cliente.'],
+        'paid' => ['icon' => 'fa-receipt', 'description' => 'El pago fue confirmado y el pedido puede continuar.'],
+        'preparing' => ['icon' => 'fa-utensils', 'description' => 'El pedido se encuentra en preparación.'],
+        'ready' => ['icon' => 'fa-bag-shopping', 'description' => 'El pedido está listo para servir, retirar o despachar.'],
+        'completed' => ['icon' => 'fa-check-double', 'description' => 'El pedido ya fue entregado al cliente.'],
+        'cancelled' => ['icon' => 'fa-ban', 'description' => 'El pedido no continuará con su preparación o entrega.'],
+    ];
     $invoiceLabels = OrderAdminService::INVOICE_STATUSES;
     $canUpdate = auth()->user()?->hasPermission('orders.update') ?? false;
     $canBulkCreate = auth()->user()?->hasPermission('bulk_orders.create') ?? false;
@@ -172,25 +182,72 @@
         transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; pointer-events: auto;
     }
 
-    .order-status-select {
-        appearance: none; border: 1.5px solid transparent; border-radius: 20px;
-        padding: .4rem 1.9rem .4rem .85rem; font-size: .74rem; font-weight: 700; cursor: pointer;
-        letter-spacing: .01em;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right .6rem center;
-        box-shadow: 0 1px 2px rgba(15,23,42,.06);
-        transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+    .order-stage-button {
+        width: 100%; min-width: 185px; border: 1px solid #dbe3ea; border-radius: 11px;
+        padding: .5rem .6rem .5rem .7rem; display: flex; align-items: center; gap: .5rem;
+        background: #fff; color: #334155; cursor: pointer; text-align: left;
+        box-shadow: 0 1px 3px rgba(15,23,42,.06);
+        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
     }
-    .order-status-select:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(15,23,42,.12); }
-    .order-status-select:focus { outline: none; border-color: currentColor; box-shadow: 0 0 0 3px rgba(15,23,42,.08); }
-    .order-status-select.status-pending { background-color: #fff8e6; color: #b8860b; }
-    .order-status-select.status-confirmed { background-color: #e7f1ff; color: #0d6efd; }
-    .order-status-select.status-completed { background-color: #e8f8ef; color: #198754; }
-    .order-status-select.status-cancelled { background-color: #fdecea; color: #dc3545; }
-    .order-status-select.status-payment_pending { background-color: #fff3e0; color: #e65100; }
-    .order-status-select.status-paid { background-color: #ede7f6; color: #6f42c1; }
-    .order-status-select.status-preparing { background-color: #fff7ed; color: #c2410c; }
-    .order-status-select.status-ready { background-color: #dcfce7; color: #15803d; }
+    .order-stage-button:hover { border-color: #0f766e; box-shadow: 0 4px 12px rgba(15,118,110,.12); transform: translateY(-1px); }
+    .order-stage-button:focus-visible { outline: 3px solid rgba(15,118,110,.18); border-color: #0f766e; }
+    .order-stage-icon {
+        width: 28px; height: 28px; border-radius: 8px; display: inline-flex;
+        align-items: center; justify-content: center; flex: 0 0 auto; background: #e2e8f0; color: #475569;
+    }
+    .order-stage-value { flex: 1; min-width: 0; font-size: .75rem; font-weight: 800; line-height: 1.2; }
+    .order-stage-action { display: inline-flex; align-items: center; gap: .25rem; color: #64748b; font-size: .65rem; font-weight: 700; }
+    .order-stage-button.status-pending .order-stage-icon,
+    .order-stage-button.status-payment_pending .order-stage-icon { background: #fef3c7; color: #a16207; }
+    .order-stage-button.status-confirmed .order-stage-icon,
+    .order-stage-button.status-paid .order-stage-icon,
+    .order-stage-button.status-preparing .order-stage-icon { background: #dbeafe; color: #1d4ed8; }
+    .order-stage-button.status-ready .order-stage-icon,
+    .order-stage-button.status-completed .order-stage-icon { background: #dcfce7; color: #15803d; }
+    .order-stage-button.status-cancelled .order-stage-icon { background: #fee2e2; color: #b91c1c; }
+
+    #statusModal { z-index: 1070; }
+    .status-modal-panel { max-width: 650px; }
+    .status-modal-body { background: #f8fafc; }
+    .status-current {
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        padding: .7rem .8rem; margin-bottom: .8rem; border: 1px solid #e2e8f0;
+        border-radius: 10px; background: #fff; color: #475569; font-size: .78rem;
+    }
+    .status-current strong { color: #0f172a; }
+    .status-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
+    .status-option {
+        position: relative; width: 100%; min-height: 78px; padding: .7rem .75rem;
+        display: grid; grid-template-columns: 34px minmax(0,1fr) 20px; gap: .65rem;
+        align-items: center; border: 1px solid #dfe5ec; border-radius: 11px;
+        background: #fff; color: #334155; cursor: pointer; text-align: left;
+        transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .status-option:hover:not(:disabled) { border-color: #0f766e; box-shadow: 0 3px 10px rgba(15,118,110,.1); }
+    .status-option:focus-visible { outline: 3px solid rgba(15,118,110,.16); }
+    .status-option.is-selected { border-color: #0f766e; background: #f0fdfa; box-shadow: 0 0 0 2px rgba(15,118,110,.1); }
+    .status-option.is-current { cursor: default; background: #f1f5f9; border-color: #cbd5e1; opacity: .72; }
+    .status-option.is-danger:not(.is-current) { border-color: #fecaca; }
+    .status-option.is-danger.is-selected { border-color: #dc2626; background: #fef2f2; box-shadow: 0 0 0 2px rgba(220,38,38,.08); }
+    .status-option-icon {
+        width: 34px; height: 34px; border-radius: 9px; background: #e2e8f0; color: #475569;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .status-option.is-selected .status-option-icon { background: #ccfbf1; color: #0f766e; }
+    .status-option.is-danger.is-selected .status-option-icon { background: #fee2e2; color: #b91c1c; }
+    .status-option-copy strong { display: block; color: #0f172a; font-size: .8rem; }
+    .status-option-copy small { display: block; margin-top: .15rem; color: #64748b; font-size: .69rem; line-height: 1.25; }
+    .status-option-check { color: #0f766e; opacity: 0; }
+    .status-option.is-selected .status-option-check { opacity: 1; }
+    .status-option-current { position: absolute; right: .55rem; top: .4rem; color: #64748b; font-size: .58rem; font-weight: 800; text-transform: uppercase; }
+    .status-confirmation {
+        margin-top: .8rem; padding: .7rem .8rem; border-radius: 10px;
+        background: #fffbeb; border: 1px solid #fde68a; color: #854d0e; font-size: .76rem;
+    }
+    .status-confirmation strong { color: #713f12; }
+    .status-confirm-button { min-width: 175px; justify-content: center; }
+    .status-confirm-button:disabled { opacity: .5; cursor: not-allowed; }
+    .status-confirm-button.is-danger { background: #b91c1c; }
 
     .order-row-actions { display: flex; gap: .3rem; align-items: center; justify-content: flex-end; white-space: nowrap; }
     .o-btn {
@@ -619,7 +676,8 @@
         .order-card { grid-template-columns: 1fr; gap: .7rem; padding: .85rem; }
         .order-card-side { align-items: stretch; }
         .order-stage { align-items: stretch; }
-        .order-status-select { width: 100%; }
+        .order-stage-button { min-width: 0; }
+        .status-options { grid-template-columns: 1fr; }
         .order-card-actions { display: grid; grid-template-columns: 1fr 1fr; }
         .order-card-actions .o-btn { justify-content: center; }
         .order-card-actions .primary { grid-column: 1 / -1; grid-row: 1; }
@@ -783,15 +841,16 @@
                                 <div class="order-stage">
                                 <span class="order-stage-label">Etapa del pedido</span>
                                 @if($canUpdate)
-                                    <select class="order-status-select status-{{ $order->status }}"
-                                        id="status-select-{{ $order->id }}"
+                                    <button type="button" class="order-stage-button status-{{ $order->status }}"
+                                        id="status-button-{{ $order->id }}"
                                         data-current-status="{{ $order->status }}"
-                                        onchange="changeOrderStatus({{ $order->id }}, this)"
-                                        aria-label="Estado">
-                                        @foreach($statusOptions as $status)
-                                            <option value="{{ $status }}" @selected($order->status === $status)>{{ $statusLabels[$status] }}</option>
-                                        @endforeach
-                                    </select>
+                                        data-order-number="{{ $order->getOrderNumber() }}"
+                                        onclick="openStatusModal({{ $order->id }}, this)"
+                                        aria-haspopup="dialog" aria-label="Cambiar etapa de {{ $order->getOrderNumber() }}">
+                                        <span class="order-stage-icon"><i class="fas {{ $statusMeta[$order->status]['icon'] ?? 'fa-circle' }}"></i></span>
+                                        <span class="order-stage-value">{{ $statusLabels[$order->status] ?? $order->status }}</span>
+                                        <span class="order-stage-action">Cambiar <i class="fas fa-chevron-right"></i></span>
+                                    </button>
                                 @else
                                     <span class="o-tag">{{ $statusLabels[$order->status] ?? $order->status }}</span>
                                 @endif
@@ -818,6 +877,52 @@
         <div class="mt-3">{{ $orders->links() }}</div>
     @endif
 </div>
+
+@if($canUpdate)
+<div class="modal-overlay" id="statusModal" role="dialog" aria-modal="true" aria-labelledby="statusModalTitle" aria-describedby="statusModalSubtitle">
+    <div class="modal-panel status-modal-panel">
+        <div class="modal-header">
+            <div class="modal-heading">
+                <h3 id="statusModalTitle">Cambiar etapa del pedido</h3>
+                <p class="sub mb-0" id="statusModalSubtitle">Selecciona la nueva etapa y confirma el cambio.</p>
+            </div>
+            <button type="button" class="modal-close" onclick="closeStatusModal()" aria-label="Cerrar"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body status-modal-body">
+            <div class="status-current">
+                <span><i class="fas fa-receipt me-1"></i> <strong id="statusModalOrder">Pedido</strong></span>
+                <span>Etapa actual: <strong id="statusModalCurrent">—</strong></span>
+            </div>
+            <div class="status-options" id="statusOptions" role="radiogroup" aria-label="Etapas disponibles">
+                @foreach($statusOptions as $status)
+                    <button type="button"
+                        class="status-option {{ $status === 'cancelled' ? 'is-danger' : '' }}"
+                        data-status="{{ $status }}" role="radio" aria-checked="false"
+                        onclick="selectOrderStatus('{{ $status }}', this)">
+                        <span class="status-option-icon"><i class="fas {{ $statusMeta[$status]['icon'] }}"></i></span>
+                        <span class="status-option-copy">
+                            <strong>{{ $statusLabels[$status] }}</strong>
+                            <small>{{ $statusMeta[$status]['description'] }}</small>
+                        </span>
+                        <i class="fas fa-circle-check status-option-check"></i>
+                    </button>
+                @endforeach
+            </div>
+            <div class="status-confirmation" id="statusConfirmation" hidden>
+                <i class="fas fa-triangle-exclamation me-1"></i>
+                Vas a cambiar el pedido de <strong id="statusFromLabel"></strong> a <strong id="statusToLabel"></strong>.
+                Revisa la selección antes de confirmar; el cambio puede activar acciones automáticas del pedido.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="o-btn" onclick="closeStatusModal()">Volver sin cambiar</button>
+            <button type="button" class="o-btn primary status-confirm-button" id="confirmStatusButton" onclick="confirmOrderStatusChange()" disabled>
+                <i class="fas fa-check"></i> Confirmar cambio
+            </button>
+        </div>
+    </div>
+</div>
+@endif
 
 <div class="modal-overlay" id="orderModal" role="dialog" aria-modal="true">
     <div class="modal-panel">
@@ -850,6 +955,7 @@
 
 <script>
 const STATUS_LABELS = @json($statusLabels);
+const STATUS_META = @json($statusMeta);
 const INVOICE_LABELS = @json($invoiceLabels);
 const SECTION_HINTS = @json($sectionHints);
 const FIELD_HINTS = @json($fieldHints);
@@ -862,6 +968,8 @@ const CSRF = @json(csrf_token());
 const FULFILLMENT_COSTS_URL_TEMPLATE = @json(url('/admin/orders/__ID__/fulfillment-costs'));
 let currentOrderId = null;
 let currentOrderData = null;
+let pendingStatusChange = null;
+let statusChangeInProgress = false;
 
 function infoBtn(hint, ariaLabel, btnClass = 'section-info-btn') {
     if (!hint) return '';
@@ -1372,19 +1480,101 @@ function addOrderNote(e, type) {
     .catch(() => showToast('Error', 'error'));
 }
 
-function changeOrderStatus(orderId, selectEl) {
-    const newStatus = selectEl.value;
-    const prev = selectEl.getAttribute('data-current-status');
+function openStatusModal(orderId, triggerEl) {
+    const currentStatus = triggerEl.getAttribute('data-current-status');
+    pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null };
+
+    document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);
+    document.getElementById('statusModalCurrent').textContent = STATUS_LABELS[currentStatus] || currentStatus;
+    document.getElementById('statusConfirmation').hidden = true;
+
+    const confirmButton = document.getElementById('confirmStatusButton');
+    confirmButton.disabled = true;
+    confirmButton.classList.remove('is-danger');
+    confirmButton.innerHTML = '<i class="fas fa-check"></i> Confirmar cambio';
+
+    document.querySelectorAll('#statusOptions .status-option').forEach(option => {
+        const isCurrent = option.dataset.status === currentStatus;
+        option.disabled = isCurrent;
+        option.classList.remove('is-selected');
+        option.classList.toggle('is-current', isCurrent);
+        option.setAttribute('aria-checked', 'false');
+        option.querySelector('.status-option-current')?.remove();
+
+        if (isCurrent) {
+            const badge = document.createElement('span');
+            badge.className = 'status-option-current';
+            badge.textContent = 'Actual';
+            option.appendChild(badge);
+        }
+    });
+
+    const modal = document.getElementById('statusModal');
+    modal.classList.add('is-open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => modal.querySelector('.status-option:not(:disabled)')?.focus(), 80);
+}
+
+function selectOrderStatus(status, optionEl) {
+    if (!pendingStatusChange || status === pendingStatusChange.currentStatus || statusChangeInProgress) return;
+
+    pendingStatusChange.newStatus = status;
+    document.querySelectorAll('#statusOptions .status-option').forEach(option => {
+        const selected = option === optionEl;
+        option.classList.toggle('is-selected', selected);
+        option.setAttribute('aria-checked', selected ? 'true' : 'false');
+    });
+
+    document.getElementById('statusFromLabel').textContent = STATUS_LABELS[pendingStatusChange.currentStatus] || pendingStatusChange.currentStatus;
+    document.getElementById('statusToLabel').textContent = STATUS_LABELS[status] || status;
+    document.getElementById('statusConfirmation').hidden = false;
+
+    const confirmButton = document.getElementById('confirmStatusButton');
+    confirmButton.disabled = false;
+    confirmButton.classList.toggle('is-danger', status === 'cancelled');
+    confirmButton.innerHTML = `<i class="fas ${status === 'cancelled' ? 'fa-ban' : 'fa-check'}"></i> Confirmar: ${esc(STATUS_LABELS[status] || status)}`;
+}
+
+function closeStatusModal(force = false) {
+    if (statusChangeInProgress && !force) return;
+    const modal = document.getElementById('statusModal');
+    if (!modal) return;
+
+    modal.classList.remove('is-open');
+    if (!document.getElementById('orderModal')?.classList.contains('is-open')) {
+        document.body.style.overflow = '';
+    }
+
+    const triggerEl = pendingStatusChange?.triggerEl;
+    pendingStatusChange = null;
+    if (triggerEl && document.body.contains(triggerEl)) setTimeout(() => triggerEl.focus(), 50);
+}
+
+function confirmOrderStatusChange() {
+    if (!pendingStatusChange?.newStatus || statusChangeInProgress) return;
+
+    const { orderId, triggerEl, newStatus } = pendingStatusChange;
+    const confirmButton = document.getElementById('confirmStatusButton');
+    statusChangeInProgress = true;
+    confirmButton.disabled = true;
+    confirmButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
     fetch(`/admin/orders/${orderId}/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
     })
-    .then(r => r.json())
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || 'No se pudo actualizar la etapa');
+        return data;
+    })
     .then(data => {
         if (data.success) {
-            selectEl.className = 'order-status-select status-' + newStatus;
-            selectEl.setAttribute('data-current-status', newStatus);
+            triggerEl.className = 'order-stage-button status-' + newStatus;
+            triggerEl.setAttribute('data-current-status', newStatus);
+            triggerEl.querySelector('.order-stage-value').textContent = STATUS_LABELS[newStatus] || newStatus;
+            triggerEl.querySelector('.order-stage-icon').innerHTML = `<i class="fas ${STATUS_META[newStatus]?.icon || 'fa-circle'}"></i>`;
             const card = document.getElementById('order-row-' + orderId);
             if (card) {
                 Array.from(card.classList)
@@ -1392,10 +1582,19 @@ function changeOrderStatus(orderId, selectEl) {
                     .forEach(className => card.classList.remove(className));
                 card.classList.add('status-' + newStatus);
             }
-            showToast('Etapa del pedido actualizada');
-        } else { selectEl.value = prev; showToast('Error', 'error'); }
+            statusChangeInProgress = false;
+            closeStatusModal(true);
+            showToast(`Pedido actualizado a “${STATUS_LABELS[newStatus] || newStatus}”`);
+        } else {
+            throw new Error(data.message || 'No se pudo actualizar la etapa');
+        }
     })
-    .catch(() => { selectEl.value = prev; showToast('Error', 'error'); });
+    .catch(error => {
+        statusChangeInProgress = false;
+        confirmButton.disabled = false;
+        confirmButton.innerHTML = `<i class="fas ${newStatus === 'cancelled' ? 'fa-ban' : 'fa-check'}"></i> Confirmar: ${esc(STATUS_LABELS[newStatus] || newStatus)}`;
+        showToast(error.message || 'No se pudo actualizar la etapa', 'error');
+    });
 }
 
 /**
@@ -1440,7 +1639,14 @@ document.getElementById('orders-export-form')?.addEventListener('submit', functi
 document.getElementById('orderModal')?.addEventListener('click', e => {
     if (e.target.id === 'orderModal') closeOrderModal();
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOrderModal(); });
+document.getElementById('statusModal')?.addEventListener('click', e => {
+    if (e.target.id === 'statusModal') closeStatusModal();
+});
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('statusModal')?.classList.contains('is-open')) closeStatusModal();
+    else if (document.getElementById('orderModal')?.classList.contains('is-open')) closeOrderModal();
+});
 
 // --- Aviso de pedidos nuevos ---
 // El sondeo en sí vive en admin-order-alerts.js (timbre global del panel,
@@ -1465,9 +1671,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOrderMo
 
         // Auto-actualiza solo si nadie está a mitad de una acción
         // (modal de detalle abierto o un select de estado enfocado).
-        const modalOpen = document.getElementById('orderModal')?.classList.contains('is-open');
-        const selectFocused = document.activeElement?.classList?.contains('order-status-select');
-        if (!modalOpen && !selectFocused) {
+        const modalOpen = document.getElementById('orderModal')?.classList.contains('is-open')
+            || document.getElementById('statusModal')?.classList.contains('is-open');
+        if (!modalOpen) {
             setTimeout(() => window.location.reload(), 2500);
         }
     });

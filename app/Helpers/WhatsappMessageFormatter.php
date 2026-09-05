@@ -2,18 +2,19 @@
 
 namespace App\Helpers;
 
+use Carbon\Carbon;
+
 class WhatsappMessageFormatter
 {
     // WhatsApp API limits
     const BUTTON_TITLE_MAX_LENGTH = 20;
+
     const BUTTON_DESCRIPTION_MAX_LENGTH = 72;
+
     const BODY_TEXT_MAX_LENGTH = 1024;
 
     /**
      * Format a button title to meet WhatsApp's length requirements
-     *
-     * @param string $title
-     * @return string
      */
     public static function formatButtonTitle(string $title): string
     {
@@ -22,14 +23,11 @@ class WhatsappMessageFormatter
         }
 
         // If the title is too long, truncate it and add ellipsis
-        return substr($title, 0, self::BUTTON_TITLE_MAX_LENGTH - 3) . '...';
+        return substr($title, 0, self::BUTTON_TITLE_MAX_LENGTH - 3).'...';
     }
 
     /**
      * Format a button description to meet WhatsApp's length requirements
-     *
-     * @param string $description
-     * @return string
      */
     public static function formatButtonDescription(string $description): string
     {
@@ -38,14 +36,11 @@ class WhatsappMessageFormatter
         }
 
         // If the description is too long, truncate it and add ellipsis
-        return substr($description, 0, self::BUTTON_DESCRIPTION_MAX_LENGTH - 3) . '...';
+        return substr($description, 0, self::BUTTON_DESCRIPTION_MAX_LENGTH - 3).'...';
     }
 
     /**
      * Format body text to meet WhatsApp's length requirements
-     *
-     * @param string $text
-     * @return string
      */
     public static function formatBodyText(string $text): string
     {
@@ -54,14 +49,11 @@ class WhatsappMessageFormatter
         }
 
         // If the text is too long, truncate it and add ellipsis
-        return substr($text, 0, self::BODY_TEXT_MAX_LENGTH - 3) . '...';
+        return substr($text, 0, self::BODY_TEXT_MAX_LENGTH - 3).'...';
     }
 
     /**
      * Format an interactive message to ensure all components meet WhatsApp's requirements
-     *
-     * @param array $message
-     * @return array
      */
     public static function formatInteractiveMessage(array $message): array
     {
@@ -90,7 +82,7 @@ class WhatsappMessageFormatter
         }
 
         $content = trim($content);
-        if ($content === '' || !in_array($content[0], ['{', '['], true)) {
+        if ($content === '' || ! in_array($content[0], ['{', '['], true)) {
             return null;
         }
 
@@ -104,40 +96,44 @@ class WhatsappMessageFormatter
      */
     public static function displayText(?string $content, ?string $type = null, ?array $metadata = null): string
     {
+        if ($type === 'image') {
+            return self::mediaCaption($content, $metadata) ?: 'Imagen';
+        }
+
         if ($content === null || $content === '') {
             return '';
         }
 
-        if (!empty($metadata['interactive']) && is_array($metadata['interactive'])) {
+        if (! empty($metadata['interactive']) && is_array($metadata['interactive'])) {
             $interactive = $metadata['interactive'];
-            if (!empty($interactive['button_reply']['title'])) {
+            if (! empty($interactive['button_reply']['title'])) {
                 return (string) $interactive['button_reply']['title'];
             }
-            if (!empty($interactive['list_reply']['title'])) {
+            if (! empty($interactive['list_reply']['title'])) {
                 return (string) $interactive['list_reply']['title'];
             }
         }
 
         $parsed = self::parseJsonContent($content);
         if ($parsed) {
-            if (($parsed['type'] ?? null) === 'button_reply' && !empty($parsed['button_reply']['title'])) {
+            if (($parsed['type'] ?? null) === 'button_reply' && ! empty($parsed['button_reply']['title'])) {
                 return (string) $parsed['button_reply']['title'];
             }
-            if (($parsed['type'] ?? null) === 'list_reply' && !empty($parsed['list_reply']['title'])) {
+            if (($parsed['type'] ?? null) === 'list_reply' && ! empty($parsed['list_reply']['title'])) {
                 return (string) $parsed['list_reply']['title'];
             }
-            if (!empty($parsed['button_reply']['title'])) {
+            if (! empty($parsed['button_reply']['title'])) {
                 return (string) $parsed['button_reply']['title'];
             }
-            if (!empty($parsed['list_reply']['title'])) {
+            if (! empty($parsed['list_reply']['title'])) {
                 return (string) $parsed['list_reply']['title'];
             }
-            if (!empty($parsed['title'])) {
+            if (! empty($parsed['title'])) {
                 return (string) $parsed['title'];
             }
         }
 
-        if ($type === 'interactive' && !str_starts_with(trim($content), '{')) {
+        if ($type === 'interactive' && ! str_starts_with(trim($content), '{')) {
             return $content;
         }
 
@@ -149,29 +145,48 @@ class WhatsappMessageFormatter
      */
     public static function displayDescription(?string $content, ?array $metadata = null): ?string
     {
-        if (!empty($metadata['interactive']['list_reply']['description'])) {
+        if (! empty($metadata['interactive']['list_reply']['description'])) {
             return (string) $metadata['interactive']['list_reply']['description'];
         }
-        if (!empty($metadata['interactive']['button_reply']['description'])) {
+        if (! empty($metadata['interactive']['button_reply']['description'])) {
             return (string) $metadata['interactive']['button_reply']['description'];
         }
 
         $parsed = self::parseJsonContent($content);
-        if (!$parsed) {
+        if (! $parsed) {
             return null;
         }
 
-        if (!empty($parsed['list_reply']['description'])) {
+        if (! empty($parsed['list_reply']['description'])) {
             return (string) $parsed['list_reply']['description'];
         }
-        if (!empty($parsed['button_reply']['description'])) {
+        if (! empty($parsed['button_reply']['description'])) {
             return (string) $parsed['button_reply']['description'];
         }
-        if (!empty($parsed['description'])) {
+        if (! empty($parsed['description'])) {
             return (string) $parsed['description'];
         }
 
         return null;
+    }
+
+    /**
+     * Devuelve únicamente el pie de foto visible de un archivo multimedia.
+     * Los IDs, hashes y URLs que Meta envía como JSON son datos técnicos y
+     * nunca deben imprimirse como texto dentro de la conversación.
+     */
+    public static function mediaCaption(?string $content, ?array $metadata = null): string
+    {
+        if (! empty($metadata['caption'])) {
+            return (string) $metadata['caption'];
+        }
+
+        $parsed = self::parseJsonContent($content);
+        if ($parsed !== null) {
+            return ! empty($parsed['caption']) ? (string) $parsed['caption'] : '';
+        }
+
+        return trim((string) $content);
     }
 
     /**
@@ -183,7 +198,7 @@ class WhatsappMessageFormatter
             return true;
         }
 
-        if (!empty($metadata['interactive'])) {
+        if (! empty($metadata['interactive'])) {
             return true;
         }
 
@@ -199,9 +214,9 @@ class WhatsappMessageFormatter
     /**
      * Fecha/hora compacta para la lista de chats (estilo WhatsApp).
      */
-    public static function formatSidebarDateTime(?\Carbon\Carbon $date): string
+    public static function formatSidebarDateTime(?Carbon $date): string
     {
-        if (!$date) {
+        if (! $date) {
             return '';
         }
 
@@ -210,7 +225,7 @@ class WhatsappMessageFormatter
         }
 
         if ($date->isYesterday()) {
-            return 'Ayer ' . $date->format('H:i');
+            return 'Ayer '.$date->format('H:i');
         }
 
         if ($date->isSameYear(now())) {

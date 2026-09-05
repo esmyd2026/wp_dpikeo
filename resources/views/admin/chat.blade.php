@@ -1586,6 +1586,646 @@
             padding: 6px 8px !important;
         }
     }
+
+    /* Refinamiento operativo: jerarquía clara para atención de clientes. */
+    .wa-sidebar {
+        background: #0f1a20;
+        border-right-color: #26343c;
+    }
+
+    .wa-sidebar-header {
+        min-height: 74px;
+        padding: 12px 16px;
+        background: #132129;
+        border-bottom-color: #26343c;
+    }
+
+    .wa-sidebar-header-title {
+        display: block;
+        font-size: 17px;
+        font-weight: 750;
+        line-height: 1.2;
+    }
+
+    .wa-sidebar-title-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .wa-sidebar-subtitle {
+        display: block;
+        margin-top: 4px;
+        color: #8fa1ab;
+        font-size: 11.5px;
+        font-weight: 400;
+    }
+
+    .wa-conversations-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 20px;
+        padding: 0 7px;
+        border-radius: 999px;
+        background: rgba(var(--bot-primary-rgb), .28);
+        color: #dff8ef;
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    .wa-sidebar-search {
+        padding: 11px 12px;
+        background: #0f1a20;
+        border-bottom-color: #26343c;
+    }
+
+    .wa-sidebar-search input {
+        min-height: 42px;
+        padding-left: 39px;
+        background: #1c2a32;
+        border: 1px solid transparent;
+        border-radius: 10px;
+    }
+
+    .wa-sidebar-search input:focus {
+        border-color: rgba(37, 211, 102, .65);
+        box-shadow: 0 0 0 3px rgba(37, 211, 102, .09);
+    }
+
+    .wa-sidebar-contacts {
+        padding: 7px;
+        background: #0f1a20;
+    }
+
+    .wa-sidebar-contact {
+        min-height: 72px;
+        margin-bottom: 3px;
+        padding: 10px 11px;
+        border: 1px solid transparent;
+        border-radius: 11px;
+    }
+
+    .wa-sidebar-contact:hover { background: #18272f; }
+    .wa-sidebar-contact.active {
+        background: linear-gradient(90deg, rgba(var(--bot-primary-rgb), .25), #1b2b33 72%);
+        border-color: rgba(37, 211, 102, .18);
+    }
+    .wa-sidebar-contact.active::before {
+        top: 12px;
+        bottom: 12px;
+        left: 0;
+        width: 3px;
+        border-radius: 0 4px 4px 0;
+    }
+
+    .wa-sidebar-avatar {
+        width: 46px;
+        height: 46px;
+        background: linear-gradient(145deg, #52636c, #34434b);
+        border: 1px solid rgba(255,255,255,.08);
+        font-size: 17px;
+        font-weight: 750;
+    }
+
+    .wa-sidebar-name { font-size: 14.5px; font-weight: 700; }
+    .wa-sidebar-last-message { margin-top: 5px; font-size: 12.5px; }
+    .wa-sidebar-time { color: #8fa1ab; font-size: 10.5px; }
+
+    .wa-chat-header {
+        min-height: 74px;
+        padding: 11px 18px;
+        background: #132129;
+        border-bottom-color: #26343c;
+        box-shadow: 0 2px 12px rgba(0,0,0,.13);
+    }
+
+    .wa-chat-avatar {
+        width: 43px;
+        height: 43px;
+        background: linear-gradient(145deg, #52636c, #34434b);
+        border: 1px solid rgba(255,255,255,.1);
+        font-weight: 750;
+    }
+
+    .wa-chat-header-name { font-size: 15.5px; font-weight: 750; }
+    .wa-chat-header-status {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 2px;
+        color: #94a5ae;
+        font-size: 11.5px;
+    }
+
+    .wa-header-actions { gap: 7px; }
+    .wa-header-action-btn {
+        width: auto;
+        height: 36px;
+        padding: 0 11px;
+        gap: 6px;
+        border: 1px solid #31414a;
+        border-radius: 9px;
+        background: #192830;
+        font-size: 11.5px;
+        font-weight: 650;
+    }
+    .wa-header-action-btn:hover,
+    .wa-header-action-btn.is-active { border-color: rgba(37,211,102,.35); background: #20343c; }
+
+    .wa-chat-bot-control {
+        min-height: 48px;
+        padding: 7px 9px;
+        gap: 9px;
+        border: 1px solid #31414a;
+        border-radius: 11px;
+        background: #192830;
+    }
+
+    .wa-bot-control-icon {
+        width: 31px;
+        height: 31px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border-radius: 8px;
+        background: rgba(var(--bot-primary-rgb), .28);
+        color: #53df9d;
+    }
+
+    .wa-bot-control-copy { min-width: 106px; }
+    .wa-bot-control-title {
+        display: block;
+        color: #e9edef;
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.15;
+    }
+    #bot-status-text {
+        display: block;
+        margin-top: 3px;
+        min-width: 0 !important;
+        color: #8fa1ab !important;
+        font-size: 10px !important;
+        line-height: 1;
+    }
+
+    .wa-chat-messages {
+        padding: 24px clamp(18px, 4vw, 58px);
+        gap: 6px;
+    }
+
+    .wa-empty-state {
+        width: min(390px, calc(100% - 32px));
+        margin: auto;
+        padding: 30px 26px;
+        border: 1px solid rgba(255,255,255,.07);
+        border-radius: 16px;
+        background: rgba(19,33,41,.82);
+        box-shadow: 0 18px 45px rgba(0,0,0,.16);
+        color: #e9edef;
+        text-align: center;
+    }
+    .wa-empty-state-icon {
+        width: 54px;
+        height: 54px;
+        margin: 0 auto 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 15px;
+        background: rgba(var(--bot-primary-rgb), .3);
+        color: #53df9d;
+        font-size: 21px;
+    }
+    .wa-empty-state strong { display: block; font-size: 15px; }
+    .wa-empty-state span {
+        display: block;
+        max-width: 295px;
+        margin: 7px auto 0;
+        color: #91a1aa;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .wa-input-container {
+        padding: 10px 18px 12px;
+        background: #132129;
+        border-top-color: #26343c;
+        box-shadow: 0 -3px 14px rgba(0,0,0,.12);
+    }
+    .wa-input-wrapper {
+        min-height: 45px;
+        padding-left: 14px;
+        border: 1px solid #34454f;
+        border-radius: 11px;
+        background: #1c2b33;
+    }
+    .wa-input-wrapper:focus-within {
+        border-color: rgba(37,211,102,.55);
+        box-shadow: 0 0 0 3px rgba(37,211,102,.07);
+    }
+    .wa-send-button.has-text { background: var(--bot-primary); }
+    .wa-composer-hint {
+        margin: 6px 52px 0;
+        color: #758892;
+        font-size: 10px;
+        text-align: right;
+    }
+    #typing-unavailable-hint {
+        margin: 0 0 8px !important;
+        padding: 7px 10px !important;
+        border: 1px solid #725b22;
+        border-radius: 8px;
+        background: #2b281d !important;
+        color: #e8cf86 !important;
+        font-size: 11px !important;
+    }
+
+    @media (min-width: 992px) {
+        .wa-sidebar { min-width: 360px; max-width: 360px; width: 360px; }
+    }
+
+    @media (max-width: 991.98px) {
+        .wa-chat-header-main { grid-template-columns: 38px 38px minmax(0,1fr) auto; }
+        .wa-header-action-label { display: none; }
+        .wa-header-action-btn { width: 36px; padding: 0; justify-content: center; border-color: transparent; }
+        .wa-chat-header-bot { padding: 6px 10px 7px; }
+        .wa-chat-bot-control { width: 100%; min-height: 43px; }
+        .wa-bot-control-copy { flex: 1; }
+    }
+
+    @media (max-width: 767.98px) {
+        .wa-sidebar-header { min-height: 66px; }
+        .wa-sidebar-contact { min-height: 68px; }
+        .wa-chat-messages { padding: 16px 9px; }
+        .wa-empty-state { padding: 24px 18px; }
+        .wa-input-container { padding: 8px 9px max(9px, env(safe-area-inset-bottom, 9px)); }
+        .wa-composer-hint { display: none; }
+    }
+
+    /* Menús del compositor: compactos, sin solaparse ni generar scroll horizontal. */
+    .wa-composer-popover {
+        position: absolute;
+        z-index: 120;
+        overflow: hidden;
+        border: 1px solid #34454f;
+        border-radius: 14px;
+        background: #17262e;
+        box-shadow: 0 18px 48px rgba(0,0,0,.38);
+    }
+    .wa-composer-popover.hidden { display: none !important; }
+    .wa-popover-header {
+        min-height: 50px;
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px solid #30414a;
+        background: #1b2c34;
+    }
+    .wa-popover-title { display: block; color: #edf3f5; font-size: 12.5px; font-weight: 750; }
+    .wa-popover-subtitle { display: block; margin-top: 2px; color: #82949e; font-size: 9.5px; }
+    .wa-popover-close {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #9aabb4;
+        cursor: pointer;
+    }
+    .wa-popover-close:hover { background: #293b44; color: #fff; }
+
+    #emoji-picker {
+        left: 64px;
+        bottom: calc(100% + 10px);
+        width: 360px;
+        max-width: calc(100vw - 32px);
+        max-height: min(350px, 52vh);
+        padding: 0;
+    }
+    #emoji-picker:not(.hidden) { display: flex !important; flex-direction: column; }
+    .wa-emoji-scroll {
+        flex: 1;
+        min-height: 0;
+        padding: 10px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #53656f transparent;
+    }
+    .wa-emoji-grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 4px;
+        width: 100%;
+    }
+    .wa-emoji-grid .emoji-btn {
+        width: 100%;
+        min-width: 0;
+        height: 36px;
+        min-height: 36px;
+        padding: 0 !important;
+        border: 0;
+        border-radius: 8px;
+        background: transparent !important;
+        font-size: 20px;
+        line-height: 1;
+    }
+    .wa-emoji-grid .emoji-btn:hover,
+    .wa-emoji-grid .emoji-btn:focus-visible {
+        background: #2a3d46 !important;
+        outline: none;
+        transform: scale(1.06);
+    }
+
+    .wa-attach-menu {
+        left: 0;
+        bottom: calc(100% + 12px);
+        width: 285px;
+        padding: 7px;
+    }
+    .wa-attach-heading {
+        padding: 7px 8px 8px;
+        color: #8497a1;
+        font-size: 10px;
+        font-weight: 750;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    .wa-attach-option {
+        width: 100%;
+        padding: 9px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        border-radius: 10px;
+        background: transparent !important;
+        color: #e9edef;
+        cursor: pointer;
+        text-align: left;
+    }
+    .wa-attach-option:hover,
+    .wa-attach-option:focus-visible { background: #263943 !important; outline: none; }
+    .wa-attach-icon {
+        width: 38px;
+        height: 38px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        border-radius: 10px;
+        background: rgba(var(--bot-primary-rgb), .28);
+        color: #62e2a7;
+        font-size: 16px;
+    }
+    .wa-attach-icon.document { background: #263b52; color: #8fc5ff; }
+    .wa-attach-copy strong { display: block; color: #edf3f5; font-size: 12.5px; font-weight: 700; }
+    .wa-attach-copy small { display: block; margin-top: 2px; color: #8497a1; font-size: 10px; }
+
+    .wa-input-attach-outside,
+    .wa-input-button {
+        border-radius: 10px;
+    }
+    .wa-input-attach-outside.is-open,
+    .wa-input-button.is-open {
+        background: rgba(var(--bot-primary-rgb), .28);
+        color: #64e5ac;
+    }
+
+    /* Mensajes: el color de marca identifica al remitente sin dominar la lectura. */
+    .wa-chat-panel::before { opacity: .2; }
+    .wa-chat-messages {
+        background: linear-gradient(180deg, rgba(8,17,22,.76), rgba(11,20,26,.92));
+    }
+    .wa-message-wrapper {
+        margin-bottom: 11px;
+        padding: 0 10px;
+    }
+    .wa-msg-col {
+        width: fit-content;
+        max-width: min(650px, 74%);
+        gap: 5px;
+    }
+    .wa-msg-badge {
+        padding: 0 3px;
+        gap: 4px;
+        border: 0;
+        border-radius: 0;
+        background: transparent !important;
+        font-size: 9.5px;
+        font-weight: 700;
+        letter-spacing: .015em;
+        opacity: .82;
+    }
+    .wa-msg-badge i { font-size: 8.5px; }
+    .wa-msg-badge-client { color: #9aabb4; }
+    .wa-msg-badge-bot { color: #e7b26f; }
+    .wa-msg-badge-agent { color: #65d8b3; }
+
+    .wa-msg-col .wa-bubble-in,
+    .wa-msg-col .wa-bubble-out {
+        min-width: 86px;
+        padding: 9px 11px 8px;
+        border: 1px solid #30414a;
+        border-radius: 12px;
+        color: #edf3f5;
+        box-shadow: 0 3px 10px rgba(0,0,0,.13);
+    }
+    .wa-bubble-in {
+        background: #1a2931;
+        border-left: 3px solid #687b85 !important;
+        border-top-left-radius: 5px !important;
+    }
+    .wa-bubble-out.wa-bubble-bot {
+        background: #2b2b27;
+        border-color: #4b4234;
+        border-right: 3px solid var(--bot-primary) !important;
+        border-top-right-radius: 5px !important;
+    }
+    .wa-bubble-out.wa-bubble-agent {
+        background: #17302e;
+        border-color: #285049;
+        border-right: 3px solid #25b98a !important;
+        border-top-right-radius: 5px !important;
+    }
+    .wa-bubble-in::before,
+    .wa-bubble-out::after { display: none; }
+    .wa-bubble-content,
+    .wa-bubble-content-block {
+        color: #edf3f5;
+        font-size: 13px;
+        line-height: 1.48;
+    }
+    .wa-bubble-content-block {
+        margin-top: 5px !important;
+        color: #9aabb4 !important;
+        font-size: 11px !important;
+        line-height: 1.4;
+    }
+    .wa-message-time {
+        top: 2px;
+        margin: 5px 0 -2px 10px;
+        color: #8b9aa2 !important;
+        font-size: 9.5px;
+        line-height: 13px;
+    }
+    .wa-message-status svg { width: 14px; }
+    .wa-msg-col img {
+        display: block;
+        max-width: 100%;
+        border-radius: 9px !important;
+    }
+    .wa-image-card {
+        width: min(360px, 100%);
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.08);
+        border-radius: 10px;
+        background: #111d23;
+    }
+    .wa-image-preview-button {
+        position: relative;
+        display: block;
+        width: 100%;
+        padding: 0;
+        overflow: hidden;
+        border: 0;
+        border-radius: 9px;
+        background: #111d23;
+        cursor: zoom-in;
+    }
+    .wa-image-preview-button[hidden] { display: none; }
+    .wa-image-preview-button img {
+        width: 100%;
+        max-height: 360px;
+        object-fit: cover;
+        transition: transform .2s ease, filter .2s ease;
+    }
+    .wa-image-preview-action {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: rgba(8,17,22,.82);
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity .2s ease, transform .2s ease;
+        backdrop-filter: blur(5px);
+    }
+    .wa-image-preview-button:hover img { transform: scale(1.015); filter: brightness(.82); }
+    .wa-image-preview-button:hover .wa-image-preview-action,
+    .wa-image-preview-button:focus-visible .wa-image-preview-action { opacity: 1; transform: translateY(0); }
+    .wa-image-caption {
+        padding: 9px 10px 2px;
+        overflow-wrap: anywhere;
+    }
+    .wa-image-placeholder {
+        display: none;
+        min-height: 180px;
+        padding: 24px 18px;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 7px;
+        text-align: center;
+        color: #91a2ab;
+    }
+    .wa-image-placeholder.is-visible { display: flex; }
+    .wa-image-placeholder-icon {
+        width: 46px;
+        height: 46px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 3px;
+        border-radius: 13px;
+        background: #20323b;
+        color: #8fa5af;
+        font-size: 19px;
+    }
+    .wa-image-placeholder strong { color: #e1e9ec; font-size: 12.5px; }
+    .wa-image-placeholder small { max-width: 235px; font-size: 10.5px; line-height: 1.45; }
+    .wa-image-retry {
+        margin-top: 5px;
+        padding: 7px 11px;
+        border: 1px solid #38505b;
+        border-radius: 8px;
+        background: #1b2c34;
+        color: #dce8ec;
+        font-size: 10.5px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .wa-image-retry:hover { border-color: rgba(37,211,102,.55); color: #72e7b2; }
+    .wa-image-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 28px;
+        background: rgba(3,9,12,.9);
+        backdrop-filter: blur(8px);
+    }
+    .wa-image-lightbox.is-open { display: flex; }
+    .wa-image-lightbox img {
+        max-width: min(1100px, 94vw);
+        max-height: 88vh;
+        object-fit: contain;
+        border-radius: 12px !important;
+        box-shadow: 0 24px 70px rgba(0,0,0,.5);
+    }
+    .wa-image-lightbox-close {
+        position: absolute;
+        top: 18px;
+        right: 20px;
+        width: 42px;
+        height: 42px;
+        border: 1px solid rgba(255,255,255,.18);
+        border-radius: 50%;
+        background: rgba(21,34,41,.9);
+        color: #fff;
+        cursor: pointer;
+    }
+
+    @supports (background: color-mix(in srgb, #fff 50%, #000)) {
+        .wa-bubble-out.wa-bubble-bot {
+            background: color-mix(in srgb, var(--bot-primary) 18%, #17242b);
+            border-color: color-mix(in srgb, var(--bot-primary) 34%, #30414a);
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        #emoji-picker {
+            right: 8px;
+            left: 8px;
+            bottom: calc(100% + 8px);
+            width: auto;
+            max-width: none;
+            max-height: 46vh;
+        }
+        .wa-emoji-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        .wa-attach-menu { width: min(285px, calc(100vw - 18px)); }
+        .wa-message-wrapper { margin-bottom: 10px; padding: 0 3px; }
+        .wa-msg-col { max-width: 91%; }
+        .wa-msg-col .wa-bubble-in,
+        .wa-msg-col .wa-bubble-out { padding: 8px 9px 7px; }
+        .wa-bubble-content,
+        .wa-bubble-content-block { font-size: 12.5px; line-height: 1.46; }
+    }
     </style>
 
 <div class="wa-main-bg">
@@ -1600,18 +2240,22 @@
                     <i class="fas fa-times"></i>
                 </button>
                 <div class="wa-sidebar-header-title">
-                    Chats
-                    @php $agentRequestsCount = $contacts->filter(fn($c) => $c->needsAgent())->count(); @endphp
-                    <span id="agent-requests-count" class="wa-agent-requests-count{{ $agentRequestsCount > 0 ? '' : ' hidden' }}">{{ $agentRequestsCount > 0 ? $agentRequestsCount : '' }}</span>
+                    <div class="wa-sidebar-title-row">
+                        <span>Conversaciones</span>
+                        <span class="wa-conversations-count">{{ $contacts->count() }}</span>
+                        @php $agentRequestsCount = $contacts->filter(fn($c) => $c->needsAgent())->count(); @endphp
+                        <span id="agent-requests-count" class="wa-agent-requests-count{{ $agentRequestsCount > 0 ? '' : ' hidden' }}">{{ $agentRequestsCount > 0 ? $agentRequestsCount : '' }}</span>
+                    </div>
+                    <span class="wa-sidebar-subtitle">Selecciona un cliente para atenderlo</span>
                 </div>
             </div>
             <div class="wa-sidebar-search">
                 <i class="fas fa-search"></i>
-                <input type="text" id="contact-search" placeholder="Buscar o iniciar chat" autocomplete="off">
+                <input type="text" id="contact-search" placeholder="Buscar cliente o número" autocomplete="off" aria-label="Buscar conversación">
             </div>
             <div class="wa-sidebar-contacts" id="wa-sidebar-contacts">
             @foreach($contacts as $c)
-                <a href="javascript:void(0)" data-contact-id="{{ $c->id }}" class="wa-sidebar-contact{{ $contact->id === $c->id ? ' active' : '' }}{{ $c->needsAgent() ? ' has-agent-request' : '' }}">
+                <a href="javascript:void(0)" data-contact-id="{{ $c->id }}" class="wa-sidebar-contact{{ $contact->id === $c->id ? ' active' : '' }}{{ $c->needsAgent() ? ' has-agent-request' : '' }}" @if($contact->id === $c->id) aria-current="true" @endif>
                     <div class="wa-sidebar-avatar">{{ strtoupper(mb_substr($c->name ?? 'C', 0, 1)) }}</div>
                         <div class="wa-sidebar-contact-info">
                             <div class="wa-sidebar-top">
@@ -1654,33 +2298,30 @@
                     <div class="wa-chat-avatar" id="waChatAvatarToggle" title="Ver contactos">{{ strtoupper(mb_substr($contact->name ?? 'C', 0, 1)) }}</div>
                     <div class="wa-chat-header-info">
                         <div class="wa-chat-header-name">{{ $contact->name ?? 'Cliente' }}</div>
-                        <div class="wa-chat-header-status">{{ $contact->phone_number }}</div>
+                        <div class="wa-chat-header-status"><i class="fab fa-whatsapp"></i><span>{{ $contact->phone_number }}</span></div>
                     </div>
                     <div class="wa-header-actions">
-                        <button type="button" id="reset-conversation-btn" class="wa-header-action-btn" title="Cancelar pedido a medias y reiniciar conversación">
-                            <i class="fas fa-rotate-left"></i>
+                        <button type="button" id="reset-conversation-btn" class="wa-header-action-btn" title="Reiniciar conversación y cancelar el pedido incompleto">
+                            <i class="fas fa-rotate-left"></i><span class="wa-header-action-label">Reiniciar</span>
                         </button>
-                        <button type="button" id="stats-toggle-btn" class="wa-header-action-btn" title="Ver estadísticas">
-                            <i class="fas fa-chart-line"></i>
+                        <button type="button" id="stats-toggle-btn" class="wa-header-action-btn" title="Ver resumen de actividad">
+                            <i class="fas fa-chart-line"></i><span class="wa-header-action-label">Actividad</span>
                         </button>
                     </div>
                 </div>
                 <div class="wa-chat-header-bot">
                     <div class="wa-chat-bot-control">
-                        @if($chatbotConfig?->bot_avatar_url)
-                            <img src="{{ $chatbotConfig->bot_avatar_url }}" alt="{{ $chatbotConfig->bot_name ?? 'Bot' }}" title="{{ $chatbotConfig->bot_name ?? 'Bot' }}" class="wa-bot-avatar-inline" style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
-                        @endif
-                        <span class="wa-bot-name-label" style="font-size: 12px; color: #8696a0;">{{ $chatbotConfig?->bot_name ?? 'Bot' }}</span>
-                        <span class="wa-bot-toggle-label">Bot</span>
-                        <label class="bot-toggle-switch">
+                        <span class="wa-bot-control-icon"><i class="fas fa-robot"></i></span>
+                        <span class="wa-bot-control-copy">
+                            <span class="wa-bot-control-title">Atención automática</span>
+                            <span id="bot-status-text">{{ ($contact->bot_enabled ?? true) ? 'Activada' : 'Pausada' }}</span>
+                        </span>
+                        <label class="bot-toggle-switch" title="Activar o pausar las respuestas automáticas">
                             <input type="checkbox" id="bot-enabled-toggle"
                                    {{ ($contact->bot_enabled ?? true) ? 'checked' : '' }}
-                                   data-contact-id="{{ $contact->id }}">
+                                   data-contact-id="{{ $contact->id }}" aria-label="Atención automática">
                             <span class="bot-toggle-slider"></span>
                         </label>
-                        <span id="bot-status-text" style="font-size: 12px; color: #8696a0; min-width: 52px;">
-                            {{ ($contact->bot_enabled ?? true) ? 'Activo' : 'Inactivo' }}
-                        </span>
                     </div>
                 </div>
             </div>
@@ -1719,29 +2360,24 @@
                         <div class="{{ $bubbleClass }}">
                             @if($msg->type === 'image')
                                 @php
-                                    $metadata = $msg->metadata ?? [];
-                                    $imageId = $metadata['media_id'] ?? null;
-                                    $imageUrl = null;
-                                    if ($imageId) {
-                                        // Usar el endpoint del servidor para servir la imagen
-                                        $imageUrl = route('admin.message.image', $msg->id);
-                                    }
+                                    $imageUrl = route('admin.message.image', $msg->id);
+                                    $imageCaption = \App\Helpers\WhatsappMessageFormatter::mediaCaption($content, $metadata);
                                 @endphp
-                                @if($imageUrl)
-                                    <img src="{{ $imageUrl }}" alt="Imagen" class="max-w-full h-auto rounded-lg mb-2" style="max-height: 300px; cursor: pointer;" onclick="window.open(this.src, '_blank')" onerror="handleImageError(this, {{ $msg->id }})">
-                                @else
-                                    <div style="background: #202c33; border-radius: 8px; padding: 16px; margin-bottom: 8px; text-align: center;">
-                                        <div style="width: 64px; height: 64px; border-radius: 12px; background: #37a9fe; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-                                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="white"/>
-                                        </svg>
-                                        </div>
-                                        <span style="font-size: 14px; color: #e9edef; font-weight: 500;">Imagen</span>
+                                <div class="wa-image-card" data-image-message-id="{{ $msg->id }}">
+                                    <button type="button" class="wa-image-preview-button" onclick="openImageViewer(this)" aria-label="Ampliar imagen">
+                                        <img src="{{ $imageUrl }}" alt="Imagen enviada por {{ $senderLabel }}" loading="lazy" onload="handleImageLoad(this)" onerror="handleImageError(this, {{ $msg->id }})">
+                                        <span class="wa-image-preview-action"><i class="fas fa-expand"></i> Ver imagen</span>
+                                    </button>
+                                    <div class="wa-image-placeholder" role="status">
+                                        <span class="wa-image-placeholder-icon"><i class="far fa-image"></i></span>
+                                        <strong>No se pudo cargar la imagen</strong>
+                                        <small>El archivo puede haber expirado en WhatsApp o la conexión puede estar temporalmente interrumpida.</small>
+                                        <button type="button" class="wa-image-retry" onclick="retryImageMessage(this, {{ $msg->id }})"><i class="fas fa-redo-alt"></i> Reintentar</button>
                                     </div>
-                                @endif
-                                @if(!empty($content))
-                                    <div class="wa-bubble-content break-all mt-2">{{ $content }}</div>
-                                @endif
+                                    @if($imageCaption !== '')
+                                        <div class="wa-bubble-content wa-image-caption">{{ $imageCaption }}</div>
+                                    @endif
+                                </div>
                             @elseif($msg->type === 'document')
                                 @php
                                     $metadata = $msg->metadata ?? [];
@@ -1792,7 +2428,11 @@
                         </div>
                     </div>
                 @empty
-                    <div class="text-center text-gray-400">No hay mensajes en este chat</div>
+                    <div class="wa-empty-state">
+                        <span class="wa-empty-state-icon"><i class="far fa-comments"></i></span>
+                        <strong>Aún no hay mensajes</strong>
+                        <span>Cuando el cliente escriba, la conversación aparecerá aquí y podrás responderle desde este panel.</span>
+                    </div>
                 @endforelse
             </div>
             <!-- Formulario de envío de mensajes -->
@@ -1842,10 +2482,17 @@
                         </button>
                     </div>
                 </div>
-                <!-- Selector de emojis (fuera del formulario para mejor posicionamiento) -->
-                <div id="emoji-picker" class="absolute bottom-full left-4 mb-2 rounded-lg shadow-2xl p-2 w-80 max-h-64 overflow-hidden z-[100] hidden" style="background: #202c33; border: 1px solid #313d45;">
-                    <div class="overflow-y-auto max-h-60" style="scrollbar-width: thin;">
-                        <div class="grid grid-cols-9 gap-0.5 text-xl">
+                <!-- Panel de emojis: fuera del formulario para posicionarlo sobre el compositor. -->
+                <div id="emoji-picker" class="wa-composer-popover hidden" role="dialog" aria-label="Seleccionar emoji">
+                    <div class="wa-popover-header">
+                        <div>
+                            <span class="wa-popover-title"><i class="far fa-face-smile me-1"></i> Emojis</span>
+                            <span class="wa-popover-subtitle">Puedes agregar varios antes de cerrar</span>
+                        </div>
+                        <button type="button" id="emoji-picker-close" class="wa-popover-close" aria-label="Cerrar emojis"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="wa-emoji-scroll">
+                        <div class="wa-emoji-grid">
                                 <button type="button" class="emoji-btn rounded p-1" data-emoji="😀" style="transition: background 0.15s; cursor: pointer;" onmouseover="this.style.background='#313d45'" onmouseout="this.style.background='transparent'">😀</button>
                                 <button type="button" class="emoji-btn rounded p-1" data-emoji="😃" style="transition: background 0.15s; cursor: pointer;" onmouseover="this.style.background='#313d45'" onmouseout="this.style.background='transparent'">😃</button>
                                 <button type="button" class="emoji-btn rounded p-1" data-emoji="😄" style="transition: background 0.15s; cursor: pointer;" onmouseover="this.style.background='#313d45'" onmouseout="this.style.background='transparent'">😄</button>
@@ -1982,36 +2629,37 @@
                     <input type="hidden" id="current-contact-name" value="{{ $contact->name ?: 'Cliente' }}">
                     <input type="hidden" id="last-inbound-wamid" value="{{ $lastInboundWamid ?? '' }}">
                     @if(empty($typingAvailable))
-                    <p id="typing-unavailable-hint" class="text-xs text-amber-600 px-3 py-1 text-center" style="background:#fff8e6;">
-                        Para ver "escribiendo..." en el WhatsApp del cliente, él debe enviar un mensaje primero (últimas 24 h).
+                    <p id="typing-unavailable-hint" class="text-center">
+                        <i class="fas fa-circle-info me-1"></i> El indicador “escribiendo…” se habilitará cuando el cliente envíe un mensaje dentro de la ventana de 24 horas.
                     </p>
                     @endif
 
                     <div class="wa-chat-input-area">
                         <!-- Botón adjuntar (fuera del campo, estilo WhatsApp) -->
-                        <button type="button" id="attach-button" class="wa-input-attach-outside" title="Adjuntar">
+                        <button type="button" id="attach-button" class="wa-input-attach-outside" title="Adjuntar archivo" aria-label="Adjuntar archivo" aria-expanded="false" aria-controls="attach-menu">
                             <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
                                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z" fill="currentColor"/>
                             </svg>
                         </button>
 
                         <!-- Menú de adjuntar -->
-                        <div id="attach-menu" class="hidden absolute bottom-full mb-2 rounded-lg shadow-xl p-2 z-50" style="min-width: 240px; left: 0; background: #233138; border: 1px solid #313d45;">
-                            <button type="button" id="image-button" class="w-full text-left px-4 py-3 text-sm rounded flex items-center gap-3" style="color: #e9edef; transition: background 0.15s;" onmouseover="this.style.background='#313d45'" onmouseout="this.style.background='transparent'">
-                                <div style="width: 40px; height: 40px; border-radius: 10px; background: #37a9fe; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <div id="attach-menu" class="wa-composer-popover wa-attach-menu hidden" role="menu" aria-label="Adjuntar al mensaje">
+                            <div class="wa-attach-heading">Adjuntar al mensaje</div>
+                            <button type="button" id="image-button" class="wa-attach-option" role="menuitem">
+                                <div class="wa-attach-icon">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                                         <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="white"/>
                         </svg>
                                 </div>
-                                <span style="font-size: 14.5px;">Fotos y videos</span>
+                                <span class="wa-attach-copy"><strong>Fotos y videos</strong><small>Imágenes de hasta 5 MB</small></span>
                     </button>
-                            <button type="button" id="document-button" class="w-full text-left px-4 py-3 text-sm rounded flex items-center gap-3" style="color: #e9edef; transition: background 0.15s;" onmouseover="this.style.background='#313d45'" onmouseout="this.style.background='transparent'">
-                                <div style="width: 40px; height: 40px; border-radius: 10px; background: #8b5cf6; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <button type="button" id="document-button" class="wa-attach-option" role="menuitem">
+                                <div class="wa-attach-icon document">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                                         <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="white"/>
                         </svg>
                                 </div>
-                                <span style="font-size: 14.5px;">Documento</span>
+                                <span class="wa-attach-copy"><strong>Documento</strong><small>PDF, Word, Excel y otros archivos</small></span>
                     </button>
                         </div>
 
@@ -2020,10 +2668,11 @@
                                 id="message-input"
                                 name="message"
                                 rows="1"
-                                placeholder="Escribe un mensaje"
+                                placeholder="Escribe una respuesta..."
                                 class="wa-input-textarea"
+                                aria-label="Mensaje para el cliente"
                             ></textarea>
-                            <button type="button" id="emoji-button" class="wa-input-button" title="Agregar emoji">
+                            <button type="button" id="emoji-button" class="wa-input-button" title="Agregar emoji" aria-label="Agregar emoji" aria-expanded="false" aria-controls="emoji-picker">
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                                     <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z" fill="currentColor"/>
                                     <path d="M8.5 10.5c-.828 0-1.5-.895-1.5-2s.672-2 1.5-2 1.5.895 1.5 2-.672 2-1.5 2zm7 0c-.828 0-1.5-.895-1.5-2s.672-2 1.5-2 1.5.895 1.5 2-.672 2-1.5 2zM12 18c2.28 0 4.22-1.66 5-4H7c.78 2.34 2.72 4 5 4z" fill="currentColor"/>
@@ -2031,12 +2680,13 @@
                             </button>
                         </div>
 
-                        <button type="submit" id="send-button" class="wa-send-button" title="Enviar">
+                        <button type="submit" id="send-button" class="wa-send-button" title="Enviar mensaje" aria-label="Enviar mensaje">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                                 <path d="M1.101 21.757L23.8 12.028 1.101 2.3l.011 7.912 13.623 1.816-13.623 1.817-.011 7.912z" fill="currentColor"/>
                             </svg>
                         </button>
                     </div>
+                    <div class="wa-composer-hint"><strong>Enter</strong> envía · <strong>Shift + Enter</strong> agrega otra línea</div>
                     <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 </form>
             </div>
@@ -2432,6 +3082,119 @@
         return `<div class="wa-msg-badge wa-msg-badge-${meta.kind}"><i class="fas fa-${meta.icon}"></i><span>${escapeHtmlGlobal(meta.label)}</span></div>`;
     }
 
+    function parseStructuredMessageContent(content) {
+        if (!content || typeof content !== 'string') return null;
+        const trimmed = content.trim();
+        if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return null;
+        try {
+            const parsed = JSON.parse(trimmed);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function getVisibleMediaCaption(messageData) {
+        const metadata = messageData.metadata || {};
+        if (metadata.caption) return String(metadata.caption).trim();
+
+        const parsed = parseStructuredMessageContent(messageData.content);
+        if (parsed) return parsed.caption ? String(parsed.caption).trim() : '';
+
+        return typeof messageData.content === 'string' ? messageData.content.trim() : '';
+    }
+
+    function buildImageMessageHtml(messageData) {
+        const messageId = Number.parseInt(messageData.id, 10);
+        if (!Number.isFinite(messageId)) return '';
+
+        const imageUrl = `/admin/messages/${messageId}/image`;
+        const caption = getVisibleMediaCaption(messageData);
+        return `<div class="wa-image-card" data-image-message-id="${messageId}">
+            <button type="button" class="wa-image-preview-button" onclick="openImageViewer(this)" aria-label="Ampliar imagen">
+                <img src="${imageUrl}" alt="Imagen enviada en el chat" loading="lazy" onload="handleImageLoad(this)" onerror="handleImageError(this, ${messageId})">
+                <span class="wa-image-preview-action"><i class="fas fa-expand"></i> Ver imagen</span>
+            </button>
+            <div class="wa-image-placeholder" role="status">
+                <span class="wa-image-placeholder-icon"><i class="far fa-image"></i></span>
+                <strong>No se pudo cargar la imagen</strong>
+                <small>El archivo puede haber expirado en WhatsApp o la conexión puede estar temporalmente interrumpida.</small>
+                <button type="button" class="wa-image-retry" onclick="retryImageMessage(this, ${messageId})"><i class="fas fa-redo-alt"></i> Reintentar</button>
+            </div>
+            ${caption ? `<div class="wa-bubble-content wa-image-caption">${escapeHtmlGlobal(caption)}</div>` : ''}
+        </div>`;
+    }
+
+    window.handleImageError = function(imgElement) {
+        const card = imgElement?.closest('.wa-image-card');
+        if (!card) return;
+        card.querySelector('.wa-image-preview-button')?.setAttribute('hidden', 'hidden');
+        card.querySelector('.wa-image-placeholder')?.classList.add('is-visible');
+    };
+
+    window.handleImageLoad = function(imgElement) {
+        const card = imgElement?.closest('.wa-image-card');
+        if (!card) return;
+        card.querySelector('.wa-image-preview-button')?.removeAttribute('hidden');
+        card.querySelector('.wa-image-placeholder')?.classList.remove('is-visible');
+    };
+
+    window.retryImageMessage = function(button, messageId) {
+        const card = button?.closest('.wa-image-card');
+        const image = card?.querySelector('.wa-image-preview-button img');
+        if (!card || !image) return;
+
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cargando';
+        image.src = `/admin/messages/${Number.parseInt(messageId, 10)}/image?retry=${Date.now()}`;
+        setTimeout(() => {
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-redo-alt"></i> Reintentar';
+        }, 1200);
+    };
+
+    function ensureImageLightbox() {
+        let lightbox = document.getElementById('wa-image-lightbox');
+        if (lightbox) return lightbox;
+
+        lightbox = document.createElement('div');
+        lightbox.id = 'wa-image-lightbox';
+        lightbox.className = 'wa-image-lightbox';
+        lightbox.setAttribute('role', 'dialog');
+        lightbox.setAttribute('aria-modal', 'true');
+        lightbox.setAttribute('aria-label', 'Vista ampliada de imagen');
+        lightbox.innerHTML = '<button type="button" class="wa-image-lightbox-close" aria-label="Cerrar"><i class="fas fa-times"></i></button><img src="" alt="Imagen ampliada">';
+        lightbox.addEventListener('click', (event) => {
+            if (event.target === lightbox || event.target.closest('.wa-image-lightbox-close')) {
+                window.closeImageViewer();
+            }
+        });
+        document.body.appendChild(lightbox);
+        return lightbox;
+    }
+
+    window.openImageViewer = function(button) {
+        const source = button?.querySelector('img');
+        if (!source?.src) return;
+        const lightbox = ensureImageLightbox();
+        lightbox.querySelector('img').src = source.src;
+        lightbox.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+        lightbox.querySelector('.wa-image-lightbox-close')?.focus();
+    };
+
+    window.closeImageViewer = function() {
+        const lightbox = document.getElementById('wa-image-lightbox');
+        if (!lightbox) return;
+        lightbox.classList.remove('is-open');
+        lightbox.querySelector('img').src = '';
+        document.body.style.overflow = '';
+    };
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') window.closeImageViewer();
+    });
+
     // Función para agregar mensajes a la vista (debe estar fuera de DOMContentLoaded para ser accesible globalmente)
     function addMessageToView(messageData, isIncoming = false) {
         const chatMessages = document.getElementById('chat-messages');
@@ -2468,8 +3231,7 @@
 
         // Si tiene imagen
         if (messageData.type === 'image' && messageData.id) {
-            const imageUrl = `/admin/messages/${messageData.id}/image`;
-            contentHtml += `<img src="${imageUrl}" alt="Imagen" class="max-w-full h-auto rounded-lg mb-2" style="max-height: 300px; cursor: pointer;" onclick="window.open(this.src, '_blank')" onerror="handleImageError(this, ${messageData.id})">`;
+            contentHtml += buildImageMessageHtml(messageData);
         } else if (messageData.image_url || messageData.image_data) {
             const imageUrl = messageData.image_url || (messageData.image_data ? 'data:image/jpeg;base64,' + messageData.image_data : '');
             if (imageUrl) {
@@ -2489,7 +3251,7 @@
         }
 
         // Si tiene mensaje de texto
-        if (messageData.content) {
+        if (messageData.content && messageData.type !== 'image') {
             contentHtml += `<span class="wa-bubble-content break-all">${escapeHtmlGlobal(messageData.content)}</span>`;
         }
 
@@ -2884,6 +3646,7 @@
 
         const emojiButton = document.getElementById('emoji-button');
         const emojiPicker = document.getElementById('emoji-picker');
+        const emojiPickerClose = document.getElementById('emoji-picker-close');
         const attachButton = document.getElementById('attach-button');
         const attachMenu = document.getElementById('attach-menu');
         const imageButton = document.getElementById('image-button');
@@ -2904,12 +3667,23 @@
             if (emojiPicker) {
                 emojiPicker.classList.add('hidden');
             }
+            emojiButton?.classList.remove('is-open');
+            emojiButton?.setAttribute('aria-expanded', 'false');
+        }
+
+        function closeAttachMenu() {
+            attachMenu?.classList.add('hidden');
+            attachButton?.classList.remove('is-open');
+            attachButton?.setAttribute('aria-expanded', 'false');
         }
 
         // Función para abrir/cerrar el selector de emojis
         function toggleEmojiPicker() {
             if (emojiPicker && emojiPicker.classList.contains('hidden')) {
+                closeAttachMenu();
                 emojiPicker.classList.remove('hidden');
+                emojiButton?.classList.add('is-open');
+                emojiButton?.setAttribute('aria-expanded', 'true');
             } else {
                 closeEmojiPicker();
             }
@@ -2923,13 +3697,21 @@
                 toggleEmojiPicker();
             });
         }
+        emojiPickerClose?.addEventListener('click', function() {
+            closeEmojiPicker();
+            emojiButton?.focus();
+        });
 
         // Manejar menú de adjuntar
         if (attachButton && attachMenu) {
             attachButton.addEventListener('click', function(e) {
                 e.stopPropagation();
-                attachMenu.classList.toggle('hidden');
                 closeEmojiPicker();
+                const shouldOpen = attachMenu.classList.contains('hidden');
+                attachMenu.classList.toggle('hidden', !shouldOpen);
+                attachButton.classList.toggle('is-open', shouldOpen);
+                attachButton.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                if (shouldOpen) attachMenu.querySelector('[role="menuitem"]')?.focus();
             });
         }
 
@@ -2939,15 +3721,19 @@
                 closeEmojiPicker();
             }
             if (attachButton && attachMenu && !attachButton.contains(e.target) && !attachMenu.contains(e.target)) {
-                attachMenu.classList.add('hidden');
+                closeAttachMenu();
             }
         });
 
-        // Cerrar selector al presionar Escape
+        // Cerrar cualquiera de los paneles del compositor al presionar Escape.
         document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && emojiPicker && !emojiPicker.classList.contains('hidden')) {
-                closeEmojiPicker();
-            }
+            if (e.key !== 'Escape') return;
+            const emojiWasOpen = emojiPicker && !emojiPicker.classList.contains('hidden');
+            const attachWasOpen = attachMenu && !attachMenu.classList.contains('hidden');
+            closeEmojiPicker();
+            closeAttachMenu();
+            if (emojiWasOpen) emojiButton?.focus();
+            else if (attachWasOpen) attachButton?.focus();
         });
 
         // Insertar emoji al hacer clic
@@ -2975,7 +3761,7 @@
         // Manejar selección de imagen
         if (imageButton && imageInput) {
             imageButton.addEventListener('click', function() {
-                if (attachMenu) attachMenu.classList.add('hidden');
+                closeAttachMenu();
                 // Limpiar otros archivos seleccionados
                 selectedDocumentFile = null;
                 if (documentInput) documentInput.value = '';
@@ -3018,7 +3804,7 @@
         // Manejar selección de documento
         if (documentButton && documentInput && imageInput && imagePreviewContainer) {
             documentButton.addEventListener('click', function() {
-                if (attachMenu) attachMenu.classList.add('hidden');
+                closeAttachMenu();
                 // Limpiar otros archivos seleccionados
                 selectedImageFile = null;
                 imageInput.value = '';
@@ -3113,7 +3899,7 @@
 
                 // Actualizar texto inmediatamente
                 if (statusText) {
-                    statusText.textContent = enabled ? 'Activo' : 'Inactivo';
+                    statusText.textContent = enabled ? 'Activada' : 'Pausada';
                 }
 
                 // Enviar petición al servidor
@@ -3132,12 +3918,12 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        console.log('Estado del bot actualizado:', enabled ? 'Activo' : 'Inactivo');
+                        console.log('Estado del bot actualizado:', enabled ? 'Activada' : 'Pausada');
                     } else {
                         // Revertir si falla
                         this.checked = !enabled;
                         if (statusText) {
-                            statusText.textContent = !enabled ? 'Activo' : 'Inactivo';
+                            statusText.textContent = !enabled ? 'Activada' : 'Pausada';
                         }
                         alert('Error al actualizar el estado del bot: ' + (data.message || 'Error desconocido'));
                     }
@@ -3147,7 +3933,7 @@
                     // Revertir si falla
                     this.checked = !enabled;
                     if (statusText) {
-                        statusText.textContent = !enabled ? 'Activo' : 'Inactivo';
+                        statusText.textContent = !enabled ? 'Activada' : 'Pausada';
                     }
                     alert('Error al actualizar el estado del bot. Por favor, intenta nuevamente.');
                 });
@@ -3188,7 +3974,7 @@
             // Mostrar indicador de carga
             const chatMessages = document.getElementById('chat-messages');
             const chatHeader = document.querySelector('.wa-chat-header');
-            chatMessages.innerHTML = '<div class="text-center text-gray-400 py-8">Cargando mensajes...</div>';
+            chatMessages.innerHTML = '<div class="wa-empty-state"><span class="wa-empty-state-icon"><i class="fas fa-spinner fa-spin"></i></span><strong>Cargando conversación</strong><span>Estamos recuperando los mensajes de este cliente.</span></div>';
 
             // Cargar mensajes del contacto
             fetch(`/admin/chats/${contactId}/messages`, {
@@ -3207,7 +3993,10 @@
                     const headerAvatar = chatHeader.querySelector('.wa-chat-avatar');
 
                     if (headerName) headerName.textContent = data.contact.name || 'Cliente';
-                    if (headerStatus) headerStatus.textContent = data.contact.phone_number || '';
+                    if (headerStatus) {
+                        const phoneText = headerStatus.querySelector('span');
+                        if (phoneText) phoneText.textContent = data.contact.phone_number || '';
+                    }
                     if (headerAvatar) {
                         headerAvatar.textContent = (data.contact.name || 'C').charAt(0).toUpperCase();
                         // Asegurar que el avatar tenga el ID para el toggle
@@ -3224,7 +4013,7 @@
                         botToggle.setAttribute('data-contact-id', contactId);
                     }
                     if (botStatusText && data.contact.bot_enabled !== undefined) {
-                        botStatusText.textContent = data.contact.bot_enabled ? 'Activo' : 'Inactivo';
+                        botStatusText.textContent = data.contact.bot_enabled ? 'Activada' : 'Pausada';
                     }
 
                     updateAgentHandoffBanner(!!data.contact.needs_agent);
@@ -3259,7 +4048,7 @@
                             chatMessages.scrollTop = chatMessages.scrollHeight;
                         }, 100);
                     } else {
-                        chatMessages.innerHTML = '<div class="text-center py-8" style="color: #8696a0;">No hay mensajes en este chat</div>';
+                        chatMessages.innerHTML = '<div class="wa-empty-state"><span class="wa-empty-state-icon"><i class="far fa-comments"></i></span><strong>Aún no hay mensajes</strong><span>Cuando el cliente escriba, la conversación aparecerá aquí y podrás responderle desde este panel.</span></div>';
                         lastMessageId = 0;
                         lastMessageTimestamp = null;
                     }
@@ -3270,8 +4059,11 @@
                     // Actualizar estado activo en sidebar
                     document.querySelectorAll('.wa-sidebar-contact').forEach(contact => {
                         contact.classList.remove('active');
+                        contact.removeAttribute('aria-current');
                     });
-                    document.querySelector(`.wa-sidebar-contact[data-contact-id="${contactId}"]`)?.classList.add('active');
+                    const selectedContact = document.querySelector(`.wa-sidebar-contact[data-contact-id="${contactId}"]`);
+                    selectedContact?.classList.add('active');
+                    selectedContact?.setAttribute('aria-current', 'true');
 
                     // Guardar el último mensaje visto para este contacto
                     if (data.messages && data.messages.length > 0) {
@@ -3446,11 +4238,7 @@
             const display = formatMessageDisplay(msg);
 
             if (msg.type === 'image') {
-                const imageUrl = `/admin/messages/${msg.id}/image`;
-                contentHtml += `<img src="${imageUrl}" alt="Imagen" class="max-w-full h-auto rounded-lg mb-2" style="max-height: 300px; cursor: pointer;" onclick="window.open(this.src, '_blank')" onerror="handleImageError(this, ${msg.id})">`;
-                if (display.text && !parseMessageJson(display.text)) {
-                    contentHtml += `<div class="wa-bubble-content break-all mt-2">${escapeHtml(display.text)}</div>`;
-                }
+                contentHtml += buildImageMessageHtml(msg);
             } else if (msg.type === 'document') {
                 const metadata = msg.metadata || {};
                 const filename = metadata.filename || 'documento';
@@ -3878,49 +4666,6 @@
             });
         }
 
-        // Función para manejar errores al cargar imágenes
-        function handleImageError(imgElement, messageId) {
-            // Verificar si ya se mostró el placeholder para evitar loops
-            if (imgElement.parentElement && imgElement.parentElement.querySelector('.image-placeholder')) {
-                return;
-            }
-
-            // Verificar el tipo de error haciendo una petición al servidor
-            fetch(`/admin/messages/${messageId}/image`)
-                .then(response => {
-                    if (response.status === 410) {
-                        // Imagen expirada
-                        showImagePlaceholder(imgElement, 'La imagen ya no está disponible (puede haber expirado)');
-                    } else {
-                        // Otro tipo de error
-                        showImagePlaceholder(imgElement, 'Imagen no disponible');
-                    }
-                })
-                .catch(() => {
-                    // Error de red o servidor
-                    showImagePlaceholder(imgElement, 'Imagen no disponible');
-                });
-        }
-
-        // Función para mostrar placeholder de imagen
-        function showImagePlaceholder(imgElement, message) {
-            if (!imgElement || !imgElement.parentElement) return;
-
-            imgElement.style.display = 'none';
-            const placeholder = document.createElement('div');
-            placeholder.className = 'image-placeholder';
-            placeholder.style.cssText = 'background: #202c33; border-radius: 8px; padding: 16px; margin-bottom: 8px; text-align: center;';
-            placeholder.innerHTML = `
-                <div style="width: 64px; height: 64px; border-radius: 12px; background: #37a9fe; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" fill="white"/>
-                    </svg>
-                </div>
-                <span style="font-size: 14px; color: #e9edef; font-weight: 500;">${escapeHtml(message)}</span>
-            `;
-            imgElement.parentElement.insertBefore(placeholder, imgElement);
-        }
-
         // Menú principal del admin (móvil, desde vista de chat)
         (function() {
             const adminSidebar = document.getElementById('sidebar');
@@ -4170,6 +4915,9 @@
                         return timeB - timeA;
                     });
 
+                    const conversationsCount = document.querySelector('.wa-conversations-count');
+                    if (conversationsCount) conversationsCount.textContent = sortedContacts.length;
+
                     const activeContactData = sortedContacts.find(c => c.id == actualCurrentContactId);
                     if (activeContactData) {
                         updateAgentHandoffBanner(!!activeContactData.needs_agent);
@@ -4181,6 +4929,7 @@
                         contactElement.href = 'javascript:void(0)';
                         contactElement.setAttribute('data-contact-id', contact.id);
                         contactElement.className = `wa-sidebar-contact${isActive ? ' active' : ''}${contact.needs_agent ? ' has-agent-request' : ''}`;
+                        if (isActive) contactElement.setAttribute('aria-current', 'true');
 
                         // Avatar
                         const avatar = document.createElement('div');
@@ -4312,4 +5061,3 @@
         }
 </script>
 @endsection
-

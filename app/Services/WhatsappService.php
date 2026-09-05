@@ -4,38 +4,35 @@ namespace App\Services;
 
 use App\Enums\MarketingButtonAction;
 use App\Enums\MarketingStepKey;
+use App\Exceptions\WhatsappBusinessProfileUnavailableException;
+use App\Mail\MonitoringNotification;
+use App\Models\BusinessBranch;
+use App\Models\DeliveryDriver;
+use App\Models\MarketingFlowStep;
 use App\Models\MessageTemplate;
 use App\Models\WhatsappBusinessProfile;
-use App\Services\Concerns\UsesMarketingFlow;
-use App\Services\Concerns\UsesMarketingFlowGraph;
-use App\Services\MarketingCatalogBuilder;
-use App\Models\WhatsappContact;
-use App\Models\WhatsappMessage;
-use App\Models\WhatsappMessageFailure;
-use App\Models\WhatsappTemplate;
-use App\Models\WhatsappChatbotResponse;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
-use App\Models\Product;
-use App\Models\WhatsappConversation;
+use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
+use App\Models\WhatsappChatbotResponse;
+use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappMessage;
+use App\Models\WhatsappMessageFailure;
 use App\Models\WhatsappPrice;
-use App\Models\DeliveryDriver;
-use App\Models\WhatsappCart;
-use App\Models\BusinessBranch;
-use App\Models\MarketingFlowStep;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
-use App\Models\WhatsappButton;
-use App\Mail\MonitoringNotification;
-use Illuminate\Support\Facades\Mail;
+use App\Models\WhatsappTemplate;
+use App\Services\Concerns\UsesMarketingFlow;
+use App\Services\Concerns\UsesMarketingFlowGraph;
+use App\Services\Whatsapp\WhatsappMessagePayload;
 use Carbon\Carbon;
-use App\Exceptions\WhatsappBusinessProfileUnavailableException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class WhatsappService
 {
@@ -43,14 +40,22 @@ class WhatsappService
     use UsesMarketingFlowGraph;
 
     protected $baseUrl;
+
     protected $apiVersion;
+
     protected $businessPhone;
+
     protected $businessProfile;
+
     protected $lastMessage;
+
     /** @var string|null Phone Number ID del webhook actual (prioridad sobre BD) */
     protected $webhookPhoneNumberId = null;
+
     protected bool $webhookProfileKnown = true;
+
     protected bool $inboundMarkedRead = false;
+
     /**
      * true en cuanto alguien intentó explícitamente resolver un tenant para
      * esta instancia (useBusinessProfile() o setWebhookPhoneNumberId()), sin
@@ -63,7 +68,7 @@ class WhatsappService
 
     protected function humanTrackingPayload(bool $humanSent): array
     {
-        if (!$humanSent) {
+        if (! $humanSent) {
             return ['admin_user_id' => null, 'metadata_extra' => []];
         }
 
@@ -115,7 +120,7 @@ class WhatsappService
             Log::error('WhatsApp phone number is not configured');
         }
 
-        if (!$this->businessProfile) {
+        if (! $this->businessProfile) {
             Log::warning('No business profile found in database');
         }
     }
@@ -211,7 +216,7 @@ class WhatsappService
      * para que un admin lo pueda revisar y resolver. Nunca debe tumbar el
      * flujo de envío — si falla el registro, solo se loguea.
      *
-     * @param WhatsappContact|string|null $contactOrPhone Contacto o número (para cuando aún no se resolvió el contacto).
+     * @param  WhatsappContact|string|null  $contactOrPhone  Contacto o número (para cuando aún no se resolvió el contacto).
      */
     private function recordSendFailure($contactOrPhone, string $type, string $errorMessage, array $context = [], ?string $source = null): void
     {
@@ -247,10 +252,10 @@ class WhatsappService
                     'template' => [
                         'name' => $template->name,
                         'language' => [
-                            'code' => $template->language
+                            'code' => $template->language,
                         ],
-                        'components' => $this->prepareTemplateComponents($template, $variables)
-                    ]
+                        'components' => $this->prepareTemplateComponents($template, $variables),
+                    ],
                 ]);
 
             if ($response->successful()) {
@@ -266,8 +271,8 @@ class WhatsappService
                     'status' => 'sent',
                     'metadata' => [
                         'template_name' => $template->name,
-                        'variables' => $variables
-                    ]
+                        'variables' => $variables,
+                    ],
                 ]);
 
                 return true;
@@ -282,7 +287,7 @@ class WhatsappService
             Log::error('WhatsApp API Error', [
                 'response' => $errorData,
                 'contact' => $contact->phone_number,
-                'template' => $template->name
+                'template' => $template->name,
             ]);
 
             $this->recordSendFailure($contact, 'template', $fullError, ['template' => $template->name], 'sendTemplateMessage');
@@ -293,13 +298,13 @@ class WhatsappService
                 'error' => $fullError,
                 'error_code' => $errorCode,
                 'error_type' => $errorType,
-                'boolean' => false
+                'boolean' => false,
             ];
         } catch (\Exception $e) {
             Log::error('WhatsApp Service Error', [
                 'error' => $e->getMessage(),
                 'contact' => $contact->phone_number,
-                'template' => $template->name
+                'template' => $template->name,
             ]);
 
             $this->recordSendFailure($contact, 'template', $e->getMessage(), ['template' => $template->name], 'sendTemplateMessage');
@@ -307,7 +312,7 @@ class WhatsappService
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
-                'boolean' => false
+                'boolean' => false,
             ];
         }
     }
@@ -315,8 +320,9 @@ class WhatsappService
     public function sendTextMessage(WhatsappContact $contact, string $message, bool $humanSent = false)
     {
         try {
-            if (!$this->businessProfile || !$this->businessProfile->phone_number_id) {
+            if (! $this->businessProfile || ! $this->businessProfile->phone_number_id) {
                 Log::error('No business profile or phone_number_id found');
+
                 return [
                     'success' => false,
                     'error' => 'Perfil de negocio o phone_number_id no configurado',
@@ -334,7 +340,7 @@ class WhatsappService
                 'url' => $url,
                 'to' => $contact->phone_number,
                 'message_length' => strlen($message),
-                'human_sent' => $humanSent
+                'human_sent' => $humanSent,
             ]);
 
             $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
@@ -343,8 +349,8 @@ class WhatsappService
                     'to' => $contact->phone_number,
                     'type' => 'text',
                     'text' => [
-                        'body' => $message
-                    ]
+                        'body' => $message,
+                    ],
                 ]);
 
             if ($response->successful()) {
@@ -364,12 +370,12 @@ class WhatsappService
                         'status' => 'sent',
                         'sender_type' => $humanSent ? 'humano' : 'system',
                         'receiver_type' => 'client',
-                        'metadata' => !empty($tracking['metadata_extra']) ? $tracking['metadata_extra'] : null,
+                        'metadata' => ! empty($tracking['metadata_extra']) ? $tracking['metadata_extra'] : null,
                     ]);
 
                     Log::info('Mensaje de texto guardado en BD', [
                         'message_id' => $messageId,
-                        'contact_id' => $contact->id
+                        'contact_id' => $contact->id,
                     ]);
                 }
 
@@ -385,7 +391,7 @@ class WhatsappService
             Log::error('WhatsApp API Error al enviar texto', [
                 'status' => $response->status(),
                 'response' => $errorData,
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
             $this->recordSendFailure($contact, 'text', $fullError, ['preview' => Str::limit($message, 200)], 'sendTextMessage');
@@ -396,13 +402,13 @@ class WhatsappService
                 'error' => $fullError,
                 'error_code' => $errorCode,
                 'error_type' => $errorType,
-                'boolean' => false
+                'boolean' => false,
             ];
         } catch (\Exception $e) {
             Log::error('WhatsApp Service Error al enviar texto', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
             $this->recordSendFailure($contact, 'text', $e->getMessage(), ['preview' => Str::limit($message, 200)], 'sendTextMessage');
@@ -410,7 +416,7 @@ class WhatsappService
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
-                'boolean' => false
+                'boolean' => false,
             ];
         }
     }
@@ -418,8 +424,9 @@ class WhatsappService
     public function sendImageMessage(WhatsappContact $contact, $imagePath, ?string $caption = null, bool $humanSent = false)
     {
         try {
-            if (!$this->businessProfile) {
+            if (! $this->businessProfile) {
                 Log::error('No business profile found');
+
                 return false;
             }
 
@@ -432,15 +439,16 @@ class WhatsappService
                 ->attach('file', file_get_contents($imagePath), basename($imagePath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
-                    'type' => mime_content_type($imagePath)
+                    'type' => mime_content_type($imagePath),
                 ]);
 
-            if (!$uploadResponse->successful()) {
+            if (! $uploadResponse->successful()) {
                 Log::error('WhatsApp Media Upload Error', [
                     'response' => $uploadResponse->json(),
-                    'contact' => $contact->phone_number
+                    'contact' => $contact->phone_number,
                 ]);
-                $this->recordSendFailure($contact, 'image', 'Error al subir la imagen a WhatsApp: ' . json_encode($uploadResponse->json()), [], 'sendImageMessage');
+                $this->recordSendFailure($contact, 'image', 'Error al subir la imagen a WhatsApp: '.json_encode($uploadResponse->json()), [], 'sendImageMessage');
+
                 return false;
             }
 
@@ -452,8 +460,8 @@ class WhatsappService
                 'to' => $contact->phone_number,
                 'type' => 'image',
                 'image' => [
-                    'id' => $mediaId
-                ]
+                    'id' => $mediaId,
+                ],
             ];
 
             if ($caption) {
@@ -469,7 +477,7 @@ class WhatsappService
                 $tracking = $this->humanTrackingPayload($humanSent);
                 $metadata = array_merge([
                     'media_id' => $mediaId,
-                    'has_caption' => !empty($caption),
+                    'has_caption' => ! empty($caption),
                 ], $tracking['metadata_extra']);
 
                 WhatsappMessage::create([
@@ -490,16 +498,16 @@ class WhatsappService
 
             Log::error('WhatsApp API Error', [
                 'response' => $response->json(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
-            $this->recordSendFailure($contact, 'image', 'Error al enviar imagen: ' . json_encode($response->json()), [], 'sendImageMessage');
+            $this->recordSendFailure($contact, 'image', 'Error al enviar imagen: '.json_encode($response->json()), [], 'sendImageMessage');
 
             return false;
         } catch (\Exception $e) {
             Log::error('WhatsApp Service Error', [
                 'error' => $e->getMessage(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
             $this->recordSendFailure($contact, 'image', $e->getMessage(), [], 'sendImageMessage');
@@ -527,8 +535,9 @@ class WhatsappService
         string $buttonTitle
     ) {
         try {
-            if (!$this->businessProfile || !$this->businessProfile->phone_number_id) {
+            if (! $this->businessProfile || ! $this->businessProfile->phone_number_id) {
                 Log::error('No business profile or phone_number_id found');
+
                 return ['success' => false, 'error' => 'Perfil de negocio o phone_number_id no configurado', 'boolean' => false];
             }
 
@@ -548,7 +557,7 @@ class WhatsappService
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'producto_' . $productId,
+                                    'id' => 'producto_'.$productId,
                                     'title' => Str::limit($buttonTitle, 20, ''),
                                 ],
                             ],
@@ -621,20 +630,23 @@ class WhatsappService
             ]);
 
             $entry = $payload['entry'][0] ?? null;
-            if (!$entry) {
+            if (! $entry) {
                 Log::error('❌ Webhook inválido: No se encontró entry');
+
                 return;
             }
 
             $changes = $entry['changes'][0] ?? null;
-            if (!$changes) {
+            if (! $changes) {
                 Log::error('❌ Webhook inválido: No se encontraron cambios');
+
                 return;
             }
 
             $value = $changes['value'] ?? null;
-            if (!$value) {
+            if (! $value) {
                 Log::error('❌ Webhook inválido: No se encontró value');
+
                 return;
             }
 
@@ -646,12 +658,13 @@ class WhatsappService
                 foreach ($value['messages'] as $message) {
                     try {
                         // Validar estructura del mensaje
-                        if (!isset($message['from']) || !isset($message['id'])) {
+                        if (! isset($message['from']) || ! isset($message['id'])) {
                             Log::warning('⚠️ Estructura de mensaje inválida', [
                                 'tiene_from' => isset($message['from']),
                                 'tiene_id' => isset($message['id']),
-                                'mensaje' => $message
+                                'mensaje' => $message,
                             ]);
+
                             continue;
                         }
 
@@ -662,7 +675,7 @@ class WhatsappService
                             'type' => $message['type'] ?? 'text',
                             'timestamp' => $message['timestamp'] ?? null,
                             'text' => $message['text']['body'] ?? null,
-                            'contacts' => $value['contacts'] ?? []
+                            'contacts' => $value['contacts'] ?? [],
                         ];
 
                         // Si es una imagen, procesar los datos de la imagen
@@ -671,23 +684,24 @@ class WhatsappService
                                 'id' => $message['image']['id'] ?? null,
                                 'mime_type' => $message['image']['mime_type'] ?? null,
                                 'sha256' => $message['image']['sha256'] ?? null,
-                                'caption' => $message['image']['caption'] ?? null
+                                'caption' => $message['image']['caption'] ?? null,
                             ];
 
                             // Verificar que tenemos los datos mínimos necesarios de la imagen
                             if (empty($messageData['image']['id']) || empty($messageData['image']['mime_type'])) {
                                 Log::warning('⚠️ Datos de imagen incompletos', [
-                                    'tiene_id' => !empty($messageData['image']['id']),
-                                    'tiene_mime_type' => !empty($messageData['image']['mime_type']),
-                                    'mensaje' => $message
+                                    'tiene_id' => ! empty($messageData['image']['id']),
+                                    'tiene_mime_type' => ! empty($messageData['image']['mime_type']),
+                                    'mensaje' => $message,
                                 ]);
+
                                 continue;
                             }
 
                             Log::info('📸 Datos de imagen recibidos', [
                                 'id' => $messageData['image']['id'],
                                 'mime_type' => $messageData['image']['mime_type'],
-                                'sha256' => $messageData['image']['sha256']
+                                'sha256' => $messageData['image']['sha256'],
                             ]);
                         }
 
@@ -696,7 +710,7 @@ class WhatsappService
                         Log::error('❌ Error procesando mensaje individual', [
                             'error' => $e->getMessage(),
                             'linea' => $e->getLine(),
-                            'mensaje' => $message
+                            'mensaje' => $message,
                         ]);
                     }
                 }
@@ -713,31 +727,32 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error en webhook', [
                 'error' => $e->getMessage(),
-                'linea' => $e->getLine()
+                'linea' => $e->getLine(),
             ]);
         }
     }
 
-    public function processIncomingMessage(array $message) //principal
+    public function processIncomingMessage(array $message) // principal
     {
         Log::info('[inicio] processIncomingMessage');
         try {
             // Validar datos requeridos
             if (empty($message['from']) || empty($message['id'])) {
                 Log::warning('⚠️ Datos de mensaje incompletos', [
-                    'tiene_from' => !empty($message['from']),
-                    'tiene_id' => !empty($message['id'])
+                    'tiene_from' => ! empty($message['from']),
+                    'tiene_id' => ! empty($message['id']),
                 ]);
+
                 return;
             }
 
             // Siempre actualizar wamid entrante (también en reintentos del webhook)
             $this->rememberInboundFromWebhook($message);
 
-            if ($this->webhookPhoneNumberId && !$this->webhookProfileKnown) {
+            if ($this->webhookPhoneNumberId && ! $this->webhookProfileKnown) {
                 Log::warning('[processIncomingMessage] Mensaje ignorado: línea WhatsApp no registrada en la app', [
                     'phone_number_id' => $this->webhookPhoneNumberId,
-                    'from' => substr($message['from'], 0, 4) . '****' . substr($message['from'], -4),
+                    'from' => substr($message['from'], 0, 4).'****'.substr($message['from'], -4),
                 ]);
 
                 return;
@@ -748,11 +763,12 @@ class WhatsappService
             // procesos pasaban la verificación de "¿ya existe?" antes de que
             // cualquiera guardara el mensaje, duplicando efectos secundarios
             // (doble alta al carrito, doble consulta a ChatGPT, doble envío).
-            $lock = Cache::lock('wa-inbound-message:' . $message['id'], 30);
-            if (!$lock->get()) {
+            $lock = Cache::lock('wa-inbound-message:'.$message['id'], 30);
+            if (! $lock->get()) {
                 Log::info('[processIncomingMessage] ⏭️ Mensaje en procesamiento simultáneo, se omite duplicado', [
                     'message_id' => $message['id'],
                 ]);
+
                 return;
             }
 
@@ -763,12 +779,12 @@ class WhatsappService
                     return;
                 }
 
-                //Log::info('[processIncomingMessage] 📥 Mensaje recibido', [
+                // Log::info('[processIncomingMessage] 📥 Mensaje recibido', [
                 //    'de' => substr($message['from'], 0, 4) . '****' . substr($message['from'], -4),
                 //    'tipo' => $message['type'],
                 //    'id' => $message['id'],
                 //    'contenido' => $message['text'] ?? ($message['interactive'] ?? null)
-                //]);
+                // ]);
 
                 // Procesar según el tipo de mensaje
                 if ($message['type'] === 'text') {
@@ -779,22 +795,22 @@ class WhatsappService
                     $this->handleNativeCatalogOrder($message);
                 } elseif ($message['type'] === 'image') {
                     $this->handleImageMessage($message);
-                }elseif ($message['type'] === 'audio') {
+                } elseif ($message['type'] === 'audio') {
                     $this->handleAudioMessage($message);
-                }elseif ($message['type'] === 'video') {
+                } elseif ($message['type'] === 'video') {
                     $this->handleVideoMessage($message);
-                }elseif ($message['type'] === 'document') {
+                } elseif ($message['type'] === 'document') {
                     $this->handleDocumentMessage($message);
-                }elseif ($message['type'] === 'location') {
+                } elseif ($message['type'] === 'location') {
                     $this->handleLocationMessage($message);
-                }elseif ($message['type'] === 'sticker') {
+                } elseif ($message['type'] === 'sticker') {
                     $this->handleStickerMessage($message);
-                }elseif ($message['type'] === 'button') {
+                } elseif ($message['type'] === 'button') {
                     $this->handleButtonMessage($message);
                 }
 
                 // Marcar como leído (si el typing no lo hizo ya)
-                if (!$this->inboundMarkedRead && !empty($message['id']) && !empty($message['from'])) {
+                if (! $this->inboundMarkedRead && ! empty($message['id']) && ! empty($message['from'])) {
                     $this->markMessageAsRead($message['id'], $message['from']);
                 }
 
@@ -807,7 +823,7 @@ class WhatsappService
             Log::error('❌ Error procesando mensaje', [
                 'error' => $e->getMessage(),
                 'linea' => $e->getLine(),
-                'mensaje' => $message
+                'mensaje' => $message,
             ]);
         }
     }
@@ -816,8 +832,8 @@ class WhatsappService
     {
         try {
             Log::info('[handleButtonMessage] 🔘 Button message received', [
-                'from' => substr($message['from'], 0, 4) . '****' . substr($message['from'], -4),
-                'message_id' => $message['id']
+                'from' => substr($message['from'], 0, 4).'****'.substr($message['from'], -4),
+                'message_id' => $message['id'],
             ]);
 
             // Marcar el mensaje como leído
@@ -833,7 +849,7 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "¿En qué más puedo ayudarte?"
+                        'text' => '¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -841,26 +857,26 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_pedido',
-                                    'title' => $pedidosMenu ? $pedidosMenu->button_text : '📦 Ver Pedidos'
-                                ]
+                                    'title' => $pedidosMenu ? $pedidosMenu->button_text : '📦 Ver Pedidos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $contact = WhatsappContact::where('phone_number', $message['from'])->first();
@@ -870,7 +886,7 @@ class WhatsappService
             Log::error('Error al manejar mensaje de botón', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -882,8 +898,8 @@ class WhatsappService
             $messageId = $message['id'];
 
             Log::info('[handleAudioMessage] 🎵 Audio message received', [
-                'from' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'message_id' => $messageId
+                'from' => substr($from, 0, 4).'****'.substr($from, -4),
+                'message_id' => $messageId,
             ]);
 
             // Marcar como leído
@@ -894,7 +910,7 @@ class WhatsappService
                 ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
                     'name' => 'Contacto sin nombre',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]
             );
 
@@ -908,8 +924,8 @@ class WhatsappService
                 'sender_type' => 'client',
                 'receiver_type' => 'system',
                 'metadata' => [
-                    'timestamp' => $message['timestamp'] ?? null
-                ]
+                    'timestamp' => $message['timestamp'] ?? null,
+                ],
             ]);
 
             // Obtener los menús desde la base de datos
@@ -922,8 +938,8 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "🎵 *Mensaje de audio recibido*\n\n" .
-                            "Gracias por tu mensaje de audio. ¿En qué más puedo ayudarte?"
+                        'text' => "🎵 *Mensaje de audio recibido*\n\n".
+                            'Gracias por tu mensaje de audio. ¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -931,19 +947,19 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $this->sendMessage($from, $response);
@@ -951,7 +967,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error processing audio message', [
                 'error' => $e->getMessage(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -963,8 +979,8 @@ class WhatsappService
             $messageId = $message['id'];
 
             Log::info('[handleVideoMessage] 🎥 Video message received', [
-                'from' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'message_id' => $messageId
+                'from' => substr($from, 0, 4).'****'.substr($from, -4),
+                'message_id' => $messageId,
             ]);
 
             // Marcar como leído
@@ -975,7 +991,7 @@ class WhatsappService
                 ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
                     'name' => 'Contacto sin nombre',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]
             );
 
@@ -989,8 +1005,8 @@ class WhatsappService
                 'sender_type' => 'client',
                 'receiver_type' => 'system',
                 'metadata' => [
-                    'timestamp' => $message['timestamp'] ?? null
-                ]
+                    'timestamp' => $message['timestamp'] ?? null,
+                ],
             ]);
 
             // Obtener los menús desde la base de datos
@@ -1003,8 +1019,8 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "🎥 *Video recibido*\n\n" .
-                            "Gracias por compartir el video. ¿En qué más puedo ayudarte?"
+                        'text' => "🎥 *Video recibido*\n\n".
+                            'Gracias por compartir el video. ¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -1012,19 +1028,19 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $this->sendMessage($from, $response);
@@ -1032,7 +1048,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error processing video message', [
                 'error' => $e->getMessage(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -1044,8 +1060,8 @@ class WhatsappService
             $messageId = $message['id'];
 
             Log::info('[handleDocumentMessage] 📄 Document message received', [
-                'from' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'message_id' => $messageId
+                'from' => substr($from, 0, 4).'****'.substr($from, -4),
+                'message_id' => $messageId,
             ]);
 
             // Marcar como leído
@@ -1056,7 +1072,7 @@ class WhatsappService
                 ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
                     'name' => 'Contacto sin nombre',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]
             );
 
@@ -1073,8 +1089,8 @@ class WhatsappService
                 'metadata' => [
                     'filename' => $message['document']['filename'] ?? null,
                     'mime_type' => $message['document']['mime_type'] ?? null,
-                    'timestamp' => $message['timestamp'] ?? null
-                ]
+                    'timestamp' => $message['timestamp'] ?? null,
+                ],
             ]);
 
             $proofCart = $this->findCartPendingProofUpload($contact);
@@ -1083,6 +1099,7 @@ class WhatsappService
                 if ($response) {
                     $this->sendMessage($from, $response);
                 }
+
                 return;
             }
 
@@ -1096,8 +1113,8 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "📄 *Documento recibido*\n\n" .
-                            "Gracias por compartir el documento. ¿En qué más puedo ayudarte?"
+                        'text' => "📄 *Documento recibido*\n\n".
+                            'Gracias por compartir el documento. ¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -1105,19 +1122,19 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $this->sendMessage($from, $response);
@@ -1125,7 +1142,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error processing document message', [
                 'error' => $e->getMessage(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -1137,8 +1154,8 @@ class WhatsappService
             $messageId = $message['id'];
 
             Log::info('[handleLocationMessage] 📍 Location message received', [
-                'from' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'message_id' => $messageId
+                'from' => substr($from, 0, 4).'****'.substr($from, -4),
+                'message_id' => $messageId,
             ]);
 
             // Marcar como leído
@@ -1149,7 +1166,7 @@ class WhatsappService
                 ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
                     'name' => 'Contacto sin nombre',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]
             );
 
@@ -1166,8 +1183,8 @@ class WhatsappService
                 'metadata' => [
                     'latitude' => $message['location']['latitude'] ?? null,
                     'longitude' => $message['location']['longitude'] ?? null,
-                    'timestamp' => $message['timestamp'] ?? null
-                ]
+                    'timestamp' => $message['timestamp'] ?? null,
+                ],
             ]);
 
             // Si el cliente comparte su ubicación por su cuenta mientras
@@ -1180,7 +1197,7 @@ class WhatsappService
                 ->where('status', 'active')
                 ->first();
 
-            if ($cart && !empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
+            if ($cart && ! empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
                 $lat = $message['location']['latitude'] ?? null;
                 $lon = $message['location']['longitude'] ?? null;
 
@@ -1231,8 +1248,8 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "📍 *Ubicación recibida*\n\n" .
-                            "Gracias por compartir tu ubicación. ¿En qué más puedo ayudarte?"
+                        'text' => "📍 *Ubicación recibida*\n\n".
+                            'Gracias por compartir tu ubicación. ¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -1240,19 +1257,19 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $this->sendMessage($from, $response);
@@ -1260,7 +1277,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error processing location message', [
                 'error' => $e->getMessage(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -1272,8 +1289,8 @@ class WhatsappService
             $messageId = $message['id'];
 
             Log::info('[handleStickerMessage] 🎯 Sticker message received', [
-                'from' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'message_id' => $messageId
+                'from' => substr($from, 0, 4).'****'.substr($from, -4),
+                'message_id' => $messageId,
             ]);
 
             // Marcar como leído
@@ -1284,7 +1301,7 @@ class WhatsappService
                 ['phone_number' => $from, 'business_profile_id' => $this->businessProfile->id],
                 [
                     'name' => 'Contacto sin nombre',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]
             );
 
@@ -1299,8 +1316,8 @@ class WhatsappService
                 'receiver_type' => 'system',
                 'content' => json_encode($message['text'] ?? $message['sticker'] ?? 'Sticker recibido'),
                 'metadata' => [
-                    'timestamp' => $message['timestamp'] ?? null
-                ]
+                    'timestamp' => $message['timestamp'] ?? null,
+                ],
             ]);
 
             // Obtener los menús desde la base de datos
@@ -1313,8 +1330,8 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "🎯 *Sticker recibido*\n\n" .
-                            "Gracias por compartir el sticker. ¿En qué más puedo ayudarte?"
+                        'text' => "🎯 *Sticker recibido*\n\n".
+                            'Gracias por compartir el sticker. ¿En qué más puedo ayudarte?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -1322,19 +1339,19 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                                ]
+                                    'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_info',
-                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
             $this->sendMessage($from, $response);
@@ -1342,7 +1359,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error processing sticker message', [
                 'error' => $e->getMessage(),
-                'message' => $message
+                'message' => $message,
             ]);
         }
     }
@@ -1354,14 +1371,16 @@ class WhatsappService
             $newStatus = $status['status'] ?? null;
             $timestamp = $status['timestamp'] ?? null;
 
-            if (!$messageId || !$newStatus) {
+            if (! $messageId || ! $newStatus) {
                 Log::error('❌ Estado inválido', ['status' => $status]);
+
                 return;
             }
 
             $message = WhatsappMessage::where('message_id', $messageId)->first();
-            if (!$message) {
+            if (! $message) {
                 Log::warning('⚠️ Mensaje no encontrado', ['id' => $messageId]);
+
                 return;
             }
 
@@ -1370,8 +1389,9 @@ class WhatsappService
                 Log::info('[updateMessageStatus] ⏭️ Estado obsoleto ignorado', [
                     'message_id' => $status['id'],
                     'estado_actual' => $message->status,
-                    'nuevo_estado' => $status['status']
+                    'nuevo_estado' => $status['status'],
                 ]);
+
                 return;
             }
 
@@ -1380,12 +1400,12 @@ class WhatsappService
 
             Log::info('[updateMessageStatus] ✅ Estado actualizado', [
                 'message_id' => $status['id'],
-                'estado' => $status['status']
+                'estado' => $status['status'],
             ]);
         } catch (\Exception $e) {
             Log::error('❌ Error actualizando estado', [
                 'error' => $e->getMessage(),
-                'linea' => $e->getLine()
+                'linea' => $e->getLine(),
             ]);
         }
     }
@@ -1412,15 +1432,17 @@ class WhatsappService
                 'contact_id' => $contact->id,
                 'last_human_message_id' => $lastHumanMessage->id,
                 'last_human_message_at' => $lastHumanMessage->created_at,
-                'hours_ago' => now()->diffInHours($lastHumanMessage->created_at)
+                'hours_ago' => now()->diffInHours($lastHumanMessage->created_at),
             ]);
+
             return true;
         }
 
         Log::debug('[hasRecentHumanActivity] ❌ No hay actividad humana reciente', [
             'contact_id' => $contact->id,
-            'threshold_hours' => $hoursThreshold
+            'threshold_hours' => $hoursThreshold,
         ]);
+
         return false;
     }
 
@@ -1430,9 +1452,10 @@ class WhatsappService
     protected function hasRecentHumanActivityByPhone(string $phoneNumber, int $hoursThreshold = 2): bool
     {
         $contact = WhatsappContact::where('phone_number', $phoneNumber)->first();
-        if (!$contact) {
+        if (! $contact) {
             return false;
         }
+
         return $this->hasRecentHumanActivity($contact, $hoursThreshold);
     }
 
@@ -1443,24 +1466,25 @@ class WhatsappService
             $contact->refresh();
 
             // Verificar si el bot está habilitado para este contacto
-            if (!$this->botMayRespondToContact($contact)) {
+            if (! $this->botMayRespondToContact($contact)) {
                 $this->logBotBlocked('handleChatbotResponse', $contact, [
                     'message_id' => $message->id,
                     'message_content' => substr($message->content, 0, 100),
                 ]);
+
                 return null; // No enviar respuesta automática
             }
 
             // Si el bot está activado manualmente, NO verificar actividad humana reciente
             // El bot funcionará inmediatamente cuando esté activado
 
-            if (!empty($message->message_id)) {
+            if (! empty($message->message_id)) {
                 $this->sendTypingIndicator($message->message_id);
             }
 
             $response = $this->generateChatbotResponse($message->content, $message->contact->phone_number);
 
-            if ($response && !empty($message->message_id)) {
+            if ($response && ! empty($message->message_id)) {
                 $this->prepareBotReply($contact, $message->message_id);
             }
 
@@ -1486,13 +1510,13 @@ class WhatsappService
                     'status' => 'sent',
                     'metadata' => [
                         'is_bot_response' => true,
-                        'interactive_data' => $response['type'] === 'interactive' ? $response['interactive'] : null
-                    ]
+                        'interactive_data' => $response['type'] === 'interactive' ? $response['interactive'] : null,
+                    ],
                 ]);
 
                 Log::info('[handleChatbotResponse] Chatbot response handled successfully', [
                     'contact_id' => $contact->id,
-                    'message' => $message
+                    'message' => $message,
                 ]);
 
                 return $responseMessage;
@@ -1500,7 +1524,7 @@ class WhatsappService
 
             Log::error('Failed to send chatbot response', [
                 'contact_id' => $contact->id,
-                'response' => $response
+                'response' => $response,
             ]);
 
             return null;
@@ -1508,8 +1532,9 @@ class WhatsappService
             Log::error('Error handling chatbot response', [
                 'error' => $e->getMessage(),
                 'contact_id' => $contact->id,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return null;
         }
     }
@@ -1517,8 +1542,9 @@ class WhatsappService
     public function sendAudioMessage(WhatsappContact $contact, $audioPath, ?string $caption = null, bool $humanSent = false)
     {
         try {
-            if (!$this->businessProfile) {
+            if (! $this->businessProfile) {
                 Log::error('No business profile found');
+
                 return false;
             }
 
@@ -1543,7 +1569,7 @@ class WhatsappService
                         // Mejor convertir a OGG o rechazar
                         Log::warning('WhatsApp Audio: WebM detectado, puede no ser compatible', [
                             'path' => $audioPath,
-                            'extension' => $extension
+                            'extension' => $extension,
                         ]);
                         $mimeType = 'audio/webm'; // Intentar de todas formas
                         break;
@@ -1563,8 +1589,9 @@ class WhatsappService
                         Log::error('WhatsApp Audio Error: No se pudo determinar el tipo MIME', [
                             'path' => $audioPath,
                             'detected_mime' => mime_content_type($audioPath),
-                            'extension' => $extension
+                            'extension' => $extension,
                         ]);
+
                         return false;
                 }
             }
@@ -1573,20 +1600,21 @@ class WhatsappService
             // WhatsApp acepta: audio/aac, audio/mp4, audio/mpeg, audio/amr, audio/ogg, audio/opus
             // NO acepta audio/webm directamente, pero lo intentaremos
             $allowedAudioTypes = ['audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/opus', 'audio/wav'];
-            if (!in_array($mimeType, $allowedAudioTypes) && $mimeType !== 'audio/webm') {
+            if (! in_array($mimeType, $allowedAudioTypes) && $mimeType !== 'audio/webm') {
                 Log::error('WhatsApp Audio Error: Tipo MIME no compatible', [
                     'mime_type' => $mimeType,
                     'allowed_types' => $allowedAudioTypes,
                     'path' => $audioPath,
-                    'extension' => $extension
+                    'extension' => $extension,
                 ]);
+
                 return false;
             }
 
             // Si es webm, advertir que puede fallar
             if ($mimeType === 'audio/webm') {
                 Log::warning('WhatsApp Audio: Enviando WebM, puede no ser compatible con WhatsApp', [
-                    'path' => $audioPath
+                    'path' => $audioPath,
                 ]);
             }
 
@@ -1595,15 +1623,16 @@ class WhatsappService
                 ->attach('file', file_get_contents($audioPath), basename($audioPath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
-                    'type' => $mimeType
+                    'type' => $mimeType,
                 ]);
 
-            if (!$uploadResponse->successful()) {
+            if (! $uploadResponse->successful()) {
                 Log::error('WhatsApp Media Upload Error (Audio)', [
                     'response' => $uploadResponse->json(),
-                    'contact' => $contact->phone_number
+                    'contact' => $contact->phone_number,
                 ]);
-                $this->recordSendFailure($contact, 'audio', 'Error al subir el audio a WhatsApp: ' . json_encode($uploadResponse->json()), [], 'sendAudioMessage');
+                $this->recordSendFailure($contact, 'audio', 'Error al subir el audio a WhatsApp: '.json_encode($uploadResponse->json()), [], 'sendAudioMessage');
+
                 return false;
             }
 
@@ -1615,8 +1644,8 @@ class WhatsappService
                 'to' => $contact->phone_number,
                 'type' => 'audio',
                 'audio' => [
-                    'id' => $mediaId
-                ]
+                    'id' => $mediaId,
+                ],
             ];
 
             $response = Http::withToken($this->apiToken())->timeout(10)->retry(2, 1500)
@@ -1649,16 +1678,16 @@ class WhatsappService
 
             Log::error('WhatsApp API Error (Audio)', [
                 'response' => $response->json(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
-            $this->recordSendFailure($contact, 'audio', 'Error al enviar audio: ' . json_encode($response->json()), [], 'sendAudioMessage');
+            $this->recordSendFailure($contact, 'audio', 'Error al enviar audio: '.json_encode($response->json()), [], 'sendAudioMessage');
 
             return false;
         } catch (\Exception $e) {
             Log::error('WhatsApp Service Error (Audio)', [
                 'error' => $e->getMessage(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
             $this->recordSendFailure($contact, 'audio', $e->getMessage(), [], 'sendAudioMessage');
@@ -1670,8 +1699,9 @@ class WhatsappService
     public function sendDocumentMessage(WhatsappContact $contact, $documentPath, ?string $filename = null, ?string $caption = null, bool $humanSent = false)
     {
         try {
-            if (!$this->businessProfile) {
+            if (! $this->businessProfile) {
                 Log::error('No business profile found');
+
                 return false;
             }
 
@@ -1687,15 +1717,16 @@ class WhatsappService
                 ->attach('file', file_get_contents($documentPath), basename($documentPath))
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$this->businessProfile->phone_number_id}/media", [
                     'messaging_product' => 'whatsapp',
-                    'type' => mime_content_type($documentPath)
+                    'type' => mime_content_type($documentPath),
                 ]);
 
-            if (!$uploadResponse->successful()) {
+            if (! $uploadResponse->successful()) {
                 Log::error('WhatsApp Media Upload Error (Document)', [
                     'response' => $uploadResponse->json(),
-                    'contact' => $contact->phone_number
+                    'contact' => $contact->phone_number,
                 ]);
-                $this->recordSendFailure($contact, 'document', 'Error al subir el documento a WhatsApp: ' . json_encode($uploadResponse->json()), ['filename' => $documentFilename], 'sendDocumentMessage');
+                $this->recordSendFailure($contact, 'document', 'Error al subir el documento a WhatsApp: '.json_encode($uploadResponse->json()), ['filename' => $documentFilename], 'sendDocumentMessage');
+
                 return false;
             }
 
@@ -1708,8 +1739,8 @@ class WhatsappService
                 'type' => 'document',
                 'document' => [
                     'id' => $mediaId,
-                    'filename' => $documentFilename
-                ]
+                    'filename' => $documentFilename,
+                ],
             ];
 
             if ($caption) {
@@ -1747,16 +1778,16 @@ class WhatsappService
 
             Log::error('WhatsApp API Error (Document)', [
                 'response' => $response->json(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
-            $this->recordSendFailure($contact, 'document', 'Error al enviar documento: ' . json_encode($response->json()), ['filename' => $documentFilename], 'sendDocumentMessage');
+            $this->recordSendFailure($contact, 'document', 'Error al enviar documento: '.json_encode($response->json()), ['filename' => $documentFilename], 'sendDocumentMessage');
 
             return false;
         } catch (\Exception $e) {
             Log::error('WhatsApp Service Error (Document)', [
                 'error' => $e->getMessage(),
-                'contact' => $contact->phone_number
+                'contact' => $contact->phone_number,
             ]);
 
             $this->recordSendFailure($contact, 'document', $e->getMessage(), ['filename' => $documentFilename ?? null], 'sendDocumentMessage');
@@ -1769,20 +1800,21 @@ class WhatsappService
     {
         try {
             $phoneNumberId = $this->resolvePhoneNumberId();
-            if (!$phoneNumberId) {
+            if (! $phoneNumberId) {
                 Log::error('No phone_number_id found for outbound message');
+
                 return false;
             }
 
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $to,
-                'type' => $message['type'] ?? 'text'
+                'type' => $message['type'] ?? 'text',
             ];
 
             if ($payload['type'] === 'text') {
                 $payload['text'] = [
-                    'body' => $message['text']['body']
+                    'body' => $message['text']['body'],
                 ];
             } elseif ($payload['type'] === 'image') {
                 $payload['image'] = $message['image'] ?? [];
@@ -1794,9 +1826,10 @@ class WhatsappService
                 } else {
                     Log::error('Error sending message', [
                         'error' => 'Contacts data not found in message',
-                        'to' => substr($to, 0, 4) . '****' . substr($to, -4),
-                        'type' => $payload['type']
+                        'to' => substr($to, 0, 4).'****'.substr($to, -4),
+                        'type' => $payload['type'],
                     ]);
+
                     return false;
                 }
             }
@@ -1809,7 +1842,7 @@ class WhatsappService
                 $messageId = $data['messages'][0]['id'] ?? null;
 
                 Log::info('[sendMessageToWhatsApp] Message sent successfully', [
-                    'to' => substr($to, 0, 4) . '****' . substr($to, -4),
+                    'to' => substr($to, 0, 4).'****'.substr($to, -4),
                     'message_id' => $messageId,
                     'type' => $payload['type'],
                     'phone_number_id' => $phoneNumberId,
@@ -1818,24 +1851,24 @@ class WhatsappService
 
                 return [
                     'success' => true,
-                    'message_id' => $messageId
+                    'message_id' => $messageId,
                 ];
             }
 
             Log::error('Failed to send message', [
                 'response' => $response->json(),
-                'to' => substr($to, 0, 4) . '****' . substr($to, -4),
-                'type' => $payload['type']
+                'to' => substr($to, 0, 4).'****'.substr($to, -4),
+                'type' => $payload['type'],
             ]);
 
-            $this->recordSendFailure($to, $payload['type'], 'Meta respondió con error: ' . json_encode($response->json()), [], 'sendMessageToWhatsApp');
+            $this->recordSendFailure($to, $payload['type'], 'Meta respondió con error: '.json_encode($response->json()), [], 'sendMessageToWhatsApp');
 
             return false;
         } catch (\Exception $e) {
             Log::error('Error sending message', [
                 'error' => $e->getMessage(),
-                'to' => substr($to, 0, 4) . '****' . substr($to, -4),
-                'type' => $payload['type'] ?? 'text'
+                'to' => substr($to, 0, 4).'****'.substr($to, -4),
+                'type' => $payload['type'] ?? 'text',
             ]);
 
             $this->recordSendFailure($to, $payload['type'] ?? 'text', $e->getMessage(), [], 'sendMessageToWhatsApp');
@@ -1863,7 +1896,7 @@ class WhatsappService
                 Log::info('[generateChatbotResponse] 🤖 Respuesta del chatbot encontrada', [
                     'keyword' => $response->keyword,
                     'tipo' => $response->type,
-                    'show_menu' => $response->show_menu
+                    'show_menu' => $response->show_menu,
                 ]);
 
                 // Si la respuesta es de tipo contacts, enviar primero el contacto
@@ -1872,7 +1905,7 @@ class WhatsappService
                     $contactData = $this->getContactFromDatabase($response->keyword);
 
                     // Si no se encuentra en BD, usar el campo contacts del chatbot response como fallback
-                    if (!$contactData && $response->contacts) {
+                    if (! $contactData && $response->contacts) {
                         $contactData = is_string($response->contacts)
                             ? $response->contacts
                             : (is_array($response->contacts) ? json_encode($response->contacts) : null);
@@ -1883,16 +1916,16 @@ class WhatsappService
                             'type' => 'contacts',
                             'contacts' => $contactData,
                             'text' => [
-                                'body' => $response->response
-                            ]
+                                'body' => $response->response,
+                            ],
                         ]);
                     } else {
                         // Si no hay contacto disponible, enviar solo el mensaje de texto
                         $this->sendMessageToWhatsApp($from, [
                             'type' => 'text',
                             'text' => [
-                                'body' => $response->response . "\n\n⚠️ Contacto no disponible en este momento."
-                            ]
+                                'body' => $response->response."\n\n⚠️ Contacto no disponible en este momento.",
+                            ],
                         ]);
                     }
 
@@ -1912,7 +1945,7 @@ class WhatsappService
 
                 return [
                     'type' => 'text',
-                    'text' => ['body' => $response->response]
+                    'text' => ['body' => $response->response],
                 ];
             }
 
@@ -1927,12 +1960,12 @@ class WhatsappService
                     // calzan ninguna respuesta fija y disparar una consulta a la
                     // API de OpenAI por cada uno. Se limita por contacto para
                     // evitar una factura de IA sin control.
-                    $burstKey = 'chatgpt-burst:' . $from;
-                    $dailyKey = 'chatgpt-daily:' . $from;
+                    $burstKey = 'chatgpt-burst:'.$from;
+                    $dailyKey = 'chatgpt-daily:'.$from;
 
                     if (RateLimiter::tooManyAttempts($burstKey, 6) || RateLimiter::tooManyAttempts($dailyKey, 60)) {
                         Log::warning('[generateChatbotResponse] ⏳ Límite de consultas a ChatGPT alcanzado, se omite la llamada', [
-                            'from' => substr($from, 0, 4) . '****' . substr($from, -4),
+                            'from' => substr($from, 0, 4).'****'.substr($from, -4),
                         ]);
                     } else {
                         RateLimiter::hit($burstKey, 300);
@@ -1944,7 +1977,7 @@ class WhatsappService
                             if ($aiResponse) {
                                 Log::info('[generateChatbotResponse] 🤖 Respuesta de ChatGPT', [
                                     'message' => $message,
-                                    'response' => $aiResponse
+                                    'response' => $aiResponse,
                                 ]);
 
                                 // Enviar el menú principal con la respuesta de ChatGPT como encabezado
@@ -1952,7 +1985,7 @@ class WhatsappService
                             }
                         } catch (\Exception $e) {
                             Log::error('[generateChatbotResponse] ❌ Error al consultar ChatGPT', [
-                                'error' => $e->getMessage()
+                                'error' => $e->getMessage(),
                             ]);
                         }
                     }
@@ -1964,18 +1997,21 @@ class WhatsappService
             $fallbackPayload = $this->buildMarketingStepPayload(MarketingStepKey::FALLBACK_MESSAGE);
             if ($fallbackPayload) {
                 Log::info('[generateChatbotResponse] ℹ️ Enviando mensaje fallback del flujo');
+
                 return $fallbackPayload;
             }
 
             $fallbackText = $chatbotConfig?->default_response;
             Log::info('[generateChatbotResponse] ℹ️ No se encontró respuesta específica, enviando menú principal');
+
             return $this->getMainMenu($fallbackText ?: null);
 
         } catch (\Exception $e) {
             Log::error('[generateChatbotResponse] ❌ Error', [
                 'error' => $e->getMessage(),
-                'linea' => $e->getLine()
+                'linea' => $e->getLine(),
             ]);
+
             return $this->getMainMenu();
         }
     }
@@ -2052,7 +2088,7 @@ class WhatsappService
         $config = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first()
             ?? WhatsappChatbotConfig::first();
 
-        if (!($config?->metadata['privacy_notice_enabled'] ?? false)) {
+        if (! ($config?->metadata['privacy_notice_enabled'] ?? false)) {
             return;
         }
 
@@ -2062,7 +2098,7 @@ class WhatsappService
         }
 
         $link = trim((string) ($config->metadata['privacy_notice_link'] ?? ''));
-        $body = $text . ($link !== '' ? "\n\n🔗 {$link}" : '');
+        $body = $text.($link !== '' ? "\n\n🔗 {$link}" : '');
 
         $this->sendBotPayload($contact, [
             'type' => 'text',
@@ -2091,7 +2127,7 @@ class WhatsappService
 
         $menu = $this->getMainMenu($welcomeBody !== '' ? $welcomeBody : null, $contact);
 
-        if (($menu['type'] ?? '') !== 'interactive' || !$welcomeStep?->is_enabled) {
+        if (($menu['type'] ?? '') !== 'interactive' || ! $welcomeStep?->is_enabled) {
             return $menu;
         }
 
@@ -2123,14 +2159,14 @@ class WhatsappService
 
     private function resolveInteractiveHeader(array $header): array
     {
-        if (($header['type'] ?? '') === 'image' && !empty($header['_image_path'])) {
+        if (($header['type'] ?? '') === 'image' && ! empty($header['_image_path'])) {
             return [
                 'type' => 'image',
-                'image' => ['link' => asset('storage/' . ltrim($header['_image_path'], '/'))],
+                'image' => ['link' => asset('storage/'.ltrim($header['_image_path'], '/'))],
             ];
         }
 
-        if (($header['type'] ?? '') === 'text' && !empty($header['text'])) {
+        if (($header['type'] ?? '') === 'text' && ! empty($header['text'])) {
             return ['type' => 'text', 'text' => $header['text']];
         }
 
@@ -2163,7 +2199,7 @@ class WhatsappService
             'interactive' => [
                 'type' => 'button',
                 'body' => [
-                    'text' => $headerText ?? "¿En qué más puedo ayudarte?"
+                    'text' => $headerText ?? '¿En qué más puedo ayudarte?',
                 ],
                 'action' => [
                     'buttons' => [
@@ -2171,26 +2207,26 @@ class WhatsappService
                             'type' => 'reply',
                             'reply' => [
                                 'id' => 'menu_productos',
-                                'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos'
-                            ]
+                                'title' => $productosMenu ? $productosMenu->button_text : '🛍️ Productos',
+                            ],
                         ],
                         [
                             'type' => 'reply',
                             'reply' => [
                                 'id' => 'menu_pedido',
-                                'title' => $pedidosMenu ? $pedidosMenu->button_text : '📦 Ver Pedidos'
-                            ]
+                                'title' => $pedidosMenu ? $pedidosMenu->button_text : '📦 Ver Pedidos',
+                            ],
                         ],
                         [
                             'type' => 'reply',
                             'reply' => [
                                 'id' => 'menu_info',
-                                'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información'
-                            ]
-                        ]
-                    ]
-                ]
-            ]
+                                'title' => $infoMenu ? $infoMenu->button_text : 'ℹ️ Información',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
         ];
     }
 
@@ -2209,19 +2245,20 @@ class WhatsappService
                     for ($i = 0; $i < $varCount; $i++) {
                         $params[] = [
                             'type' => 'text',
-                            'text' => $variables[$varIndex] ?? ''
+                            'text' => $variables[$varIndex] ?? '',
                         ];
                         $varIndex++;
                     }
                     if ($varCount > 0) {
                         $components[] = [
                             'type' => $type,
-                            'parameters' => $params
+                            'parameters' => $params,
                         ];
                     }
                 }
             }
         }
+
         return $components;
     }
 
@@ -2281,7 +2318,7 @@ class WhatsappService
     {
         $this->tenantResolutionAttempted = true;
 
-        if (!$profile || !$profile->isUsable()) {
+        if (! $profile || ! $profile->isUsable()) {
             $this->businessProfile = null;
             $this->webhookProfileKnown = false;
 
@@ -2306,7 +2343,7 @@ class WhatsappService
         $this->webhookPhoneNumberId = $phoneNumberId ?: null;
         $this->inboundMarkedRead = false;
 
-        if (!$phoneNumberId) {
+        if (! $phoneNumberId) {
             return;
         }
 
@@ -2338,7 +2375,7 @@ class WhatsappService
     {
         $contact = $this->findContactByPhone($message['from']);
 
-        if ($contact && !empty($message['id'])) {
+        if ($contact && ! empty($message['id'])) {
             $this->rememberInboundMessage($contact, $message['id']);
         }
     }
@@ -2346,16 +2383,17 @@ class WhatsappService
     protected function markMessageAsRead($messageId, $to)
     {
         try {
-            if (!$messageId || !$to) {
+            if (! $messageId || ! $to) {
                 Log::warning('⚠️ No se puede marcar como leído', [
-                    'tiene_id' => !empty($messageId),
-                    'tiene_destino' => !empty($to)
+                    'tiene_id' => ! empty($messageId),
+                    'tiene_destino' => ! empty($to),
                 ]);
+
                 return false;
             }
 
             $phoneNumberId = $this->resolvePhoneNumberId();
-            if (!$phoneNumberId) {
+            if (! $phoneNumberId) {
                 return false;
             }
 
@@ -2363,27 +2401,30 @@ class WhatsappService
                 ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
-                    'message_id' => $messageId
+                    'message_id' => $messageId,
                 ]);
 
             if ($response->successful()) {
                 Log::info('[markMessageAsRead] ✅ Mensaje marcado como leído', [
                     'id' => $messageId,
-                    'para' => substr($to, 0, 4) . '****' . substr($to, -4)
+                    'para' => substr($to, 0, 4).'****'.substr($to, -4),
                 ]);
+
                 return true;
             }
 
             Log::error('❌ Error al marcar como leído', [
                 'id' => $messageId,
-                'error' => $response->json()
+                'error' => $response->json(),
             ]);
+
             return false;
         } catch (\Exception $e) {
             Log::error('❌ Error en markMessageAsRead', [
                 'error' => $e->getMessage(),
-                'linea' => $e->getLine()
+                'linea' => $e->getLine(),
             ]);
+
             return false;
         }
     }
@@ -2395,12 +2436,12 @@ class WhatsappService
     public function sendTypingIndicator(string $whatsappMessageId): bool
     {
         try {
-            if (!config('whatsapp.typing_indicator_enabled', true)) {
+            if (! config('whatsapp.typing_indicator_enabled', true)) {
                 return false;
             }
 
             $phoneNumberId = $this->resolvePhoneNumberId();
-            if (!$whatsappMessageId || !$phoneNumberId) {
+            if (! $whatsappMessageId || ! $phoneNumberId) {
                 return false;
             }
 
@@ -2417,9 +2458,10 @@ class WhatsappService
             if ($response->successful()) {
                 $this->inboundMarkedRead = true;
                 Log::info('[sendTypingIndicator] Indicador de escritura enviado', [
-                    'message_id' => substr($whatsappMessageId, 0, 24) . '...',
+                    'message_id' => substr($whatsappMessageId, 0, 24).'...',
                     'phone_number_id' => $phoneNumberId,
                 ]);
+
                 return true;
             }
 
@@ -2433,6 +2475,7 @@ class WhatsappService
             Log::error('[sendTypingIndicator] Error', [
                 'error' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -2442,7 +2485,7 @@ class WhatsappService
      */
     public function rememberInboundMessage(WhatsappContact $contact, string $whatsappMessageId): void
     {
-        if (!$whatsappMessageId) {
+        if (! $whatsappMessageId) {
             return;
         }
 
@@ -2505,10 +2548,11 @@ class WhatsappService
     {
         $messageId = $this->syncContactLastInbound($contact);
 
-        if (!$messageId) {
+        if (! $messageId) {
             Log::debug('[sendTypingIndicatorForContact] Sin mensaje entrante reciente (<24h)', [
                 'contact_id' => $contact->id,
             ]);
+
             return false;
         }
 
@@ -2522,23 +2566,25 @@ class WhatsappService
     {
         $contact->refresh();
 
-        if (!$this->botMayRespondToContact($contact)) {
+        if (! $this->botMayRespondToContact($contact)) {
             return;
         }
 
         $messageId = $inboundMessageId ?: $this->resolveInboundMessageId($contact);
-        if (!$messageId) {
+        if (! $messageId) {
             Log::warning('[prepareBotReply] Sin wamid entrante reciente para typing', [
                 'contact_id' => $contact->id,
             ]);
+
             return;
         }
 
         // Siempre enviar typing aquí (no omitir si ya se marcó como leído)
-        if (!$this->sendTypingIndicator($messageId)) {
+        if (! $this->sendTypingIndicator($messageId)) {
             Log::warning('[prepareBotReply] No se pudo mostrar typing antes de responder', [
                 'contact_id' => $contact->id,
             ]);
+
             return;
         }
 
@@ -2567,14 +2613,14 @@ class WhatsappService
             $messageId = $data['id'];
 
             Log::info('[handleInteractiveMessage] 📥 Mensaje interactivo recibido', [
-                'de' => substr($from, 0, 4) . '****' . substr($from, -4),
+                'de' => substr($from, 0, 4).'****'.substr($from, -4),
                 'tipo' => 'interactive',
                 'id' => $messageId,
-                'contenido' => $interactive
+                'contenido' => $interactive,
             ]);
 
             $contact = WhatsappContact::where('phone_number', $from)->first();
-            if (!$contact) {
+            if (! $contact) {
                 // Obtener datos del contacto del webhook
                 $contactData = $message['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
@@ -2585,15 +2631,15 @@ class WhatsappService
                     'business_profile_id' => $this->businessProfile->id,
                     'phone_number' => $from,
                     'name' => $contactName,
-                    'status' => 'active'
+                    'status' => 'active',
                 ]);
 
                 Log::info('✅ Nuevo contacto creado', [
                     'phone' => $from,
                     'contact_id' => $contact->id,
-                    'name' => $contactName
+                    'name' => $contactName,
                 ]);
-            } else if ($contact->name === 'Contacto sin nombre') {
+            } elseif ($contact->name === 'Contacto sin nombre') {
                 // Si el contacto existe pero tiene nombre genérico, intentar actualizarlo
                 $contactData = $message['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
@@ -2607,7 +2653,7 @@ class WhatsappService
                         'phone' => $from,
                         'contact_id' => $contact->id,
                         'old_name' => 'Contacto sin nombre',
-                        'new_name' => $contactName
+                        'new_name' => $contactName,
                     ]);
                 }
             }
@@ -2623,7 +2669,7 @@ class WhatsappService
             $whatsappMessage = WhatsappMessage::create([
                 'contact_id' => $contact->id,
                 'business_profile_id' => $this->businessProfile->id,
-                    'message_id' => $messageId,
+                'message_id' => $messageId,
                 'content' => $buttonTitle,
                 'type' => 'interactive',
                 'status' => 'received',
@@ -2643,11 +2689,12 @@ class WhatsappService
             $contact->refresh();
 
             // Verificar si el bot está habilitado para este contacto ANTES de procesar cualquier respuesta
-            if (!$this->botMayRespondToContact($contact)) {
+            if (! $this->botMayRespondToContact($contact)) {
                 $this->markMessageAsRead($messageId, $from);
                 $this->logBotBlocked('handleInteractiveMessage', $contact, [
-                    'phone' => substr($from, 0, 4) . '****' . substr($from, -4),
+                    'phone' => substr($from, 0, 4).'****'.substr($from, -4),
                 ]);
+
                 return; // No procesar ninguna respuesta automática
             }
 
@@ -2655,6 +2702,7 @@ class WhatsappService
             // botones/listas, su respuesta es un JSON con los datos del pedido.
             if ($type === 'nfm_reply') {
                 $this->handleNativeFlowReply($contact, $from, $interactive, $messageId);
+
                 return;
             }
 
@@ -2671,7 +2719,7 @@ class WhatsappService
 
             Log::info('[handleInteractiveMessage] Botón presionado', [
                 'id' => $buttonId,
-                'titulo' => $buttonTitle
+                'titulo' => $buttonTitle,
             ]);
 
             if ($buttonId && $this->tryHandleGraphButton($buttonId, $contact, $from, $messageId)) {
@@ -2689,7 +2737,8 @@ class WhatsappService
 
             $flowAction = $this->resolveFlowButtonAction($buttonId);
             if ($flowAction === MarketingButtonAction::AGENT || $this->isAgentRequestButton($buttonId, $buttonTitle)) {
-                $this->triggerAgentHandoff($contact, $from, 'button:' . $buttonId);
+                $this->triggerAgentHandoff($contact, $from, 'button:'.$buttonId);
+
                 return;
             }
 
@@ -2723,7 +2772,7 @@ class WhatsappService
                     $response = $this->getMainMenu(null, $contact);
                     break;
 
-                // Información
+                    // Información
                 case 'horarios':
                 case 'contacto':
                 case 'envios':
@@ -2741,7 +2790,7 @@ class WhatsappService
                             $contactData = $this->getContactFromDatabase($buttonId);
 
                             // Si no se encuentra en BD, usar el campo contacts del chatbot response como fallback
-                            if (!$contactData && $chatbotResponse->contacts) {
+                            if (! $contactData && $chatbotResponse->contacts) {
                                 $contactData = is_string($chatbotResponse->contacts)
                                     ? $chatbotResponse->contacts
                                     : (is_array($chatbotResponse->contacts) ? json_encode($chatbotResponse->contacts) : null);
@@ -2752,19 +2801,19 @@ class WhatsappService
                                 $this->sendMessage($from, [
                                     'type' => 'contacts',
                                     'contacts' => $contactData,
-                                    'text' => ['body' => $chatbotResponse->response]
+                                    'text' => ['body' => $chatbotResponse->response],
                                 ]);
                             } else {
                                 // Si no hay contacto disponible, enviar solo el mensaje de texto
                                 $this->sendMessage($from, [
                                     'type' => 'text',
-                                    'text' => ['body' => $chatbotResponse->response . "\n\n⚠️ Contacto no disponible en este momento."]
+                                    'text' => ['body' => $chatbotResponse->response."\n\n⚠️ Contacto no disponible en este momento."],
                                 ]);
                             }
                         } else {
                             $this->sendMessage($from, [
                                 'type' => 'text',
-                                'text' => ['body' => $chatbotResponse->response]
+                                'text' => ['body' => $chatbotResponse->response],
                             ]);
                         }
 
@@ -2773,7 +2822,7 @@ class WhatsappService
                     } else {
                         $response = [
                             'type' => 'text',
-                            'text' => ['body' => 'Lo siento, esta información no está disponible en este momento.']
+                            'text' => ['body' => 'Lo siento, esta información no está disponible en este momento.'],
                         ];
                     }
                     break;
@@ -2790,7 +2839,7 @@ class WhatsappService
                             $contactData = $this->getContactFromDatabase($buttonId);
 
                             // Si no se encuentra en BD, usar el campo contacts del chatbot response como fallback
-                            if (!$contactData && $chatbotResponse->contacts) {
+                            if (! $contactData && $chatbotResponse->contacts) {
                                 $contactData = is_string($chatbotResponse->contacts)
                                     ? $chatbotResponse->contacts
                                     : (is_array($chatbotResponse->contacts) ? json_encode($chatbotResponse->contacts) : null);
@@ -2801,13 +2850,13 @@ class WhatsappService
                                 $this->sendMessage($from, [
                                     'type' => 'contacts',
                                     'contacts' => $contactData,
-                                    'text' => ['body' => $chatbotResponse->response]
+                                    'text' => ['body' => $chatbotResponse->response],
                                 ]);
                             } else {
                                 // Si no hay contacto disponible, enviar solo el mensaje de texto
                                 $this->sendMessage($from, [
                                     'type' => 'text',
-                                    'text' => ['body' => $chatbotResponse->response . "\n\n⚠️ Contacto no disponible en este momento."]
+                                    'text' => ['body' => $chatbotResponse->response."\n\n⚠️ Contacto no disponible en este momento."],
                                 ]);
                             }
 
@@ -2818,7 +2867,7 @@ class WhatsappService
                         } else {
                             $this->sendMessage($from, [
                                 'type' => 'text',
-                                'text' => ['body' => $chatbotResponse->response]
+                                'text' => ['body' => $chatbotResponse->response],
                             ]);
                         }
                     }
@@ -2828,7 +2877,7 @@ class WhatsappService
                     if ($response && $response->type === 'contacts') {
                         $this->sendMessageToWhatsApp($from, [
                             'type' => 'contacts',
-                            'contacts' => $response->contacts // <-- Solo el string plano
+                            'contacts' => $response->contacts, // <-- Solo el string plano
                         ]);
                     }
                     // Obtener opciones del menú
@@ -2848,7 +2897,7 @@ class WhatsappService
                         // Enviar la respuesta de texto
                         $this->sendMessage($from, [
                             'type' => 'text',
-                            'text' => ['body' => $chatbotResponse->response]
+                            'text' => ['body' => $chatbotResponse->response],
                         ]);
 
                         usleep(500000);
@@ -2856,12 +2905,12 @@ class WhatsappService
                     } else {
                         $response = [
                             'type' => 'text',
-                            'text' => ['body' => 'Lo siento, esta información no está disponible en este momento.']
+                            'text' => ['body' => 'Lo siento, esta información no está disponible en este momento.'],
                         ];
                     }
                     break;
 
-                // Navegación de productos
+                    // Navegación de productos
                 case 'ver_mas_precios':
                     // Nunca enviamos al cliente un listado técnico con SKU.
                     // Las categorías hacen el menú más corto, visual y fácil de recorrer.
@@ -2877,7 +2926,7 @@ class WhatsappService
                     $response = $this->getProductsMenu($contact);
                     break;
 
-                // Carrito y compras
+                    // Carrito y compras
                 case 'ver_carrito':
                     $response = $this->getCartContents($contact);
                     break;
@@ -2892,7 +2941,7 @@ class WhatsappService
                     $response = $this->sendNativeCatalogMenu($contact);
                     break;
 
-                // Procesamiento de imagen
+                    // Procesamiento de imagen
                 case 'cancelar_proceso_imagen':
                     $response = $this->processImageMessage($contact);
                     break;
@@ -2900,7 +2949,7 @@ class WhatsappService
                     $response = $this->resumeActiveProcessPrompt($contact);
                     break;
 
-                // Acciones de productos
+                    // Acciones de productos
                 default:
                     if (preg_match('/^ver_mas_cat_(\d+)_(\d+)$/', (string) $buttonId, $verMasMatch)) {
                         // La lista nativa de WhatsApp permite un máximo de 10 filas.
@@ -2989,7 +3038,7 @@ class WhatsappService
                         $contact->save();
                         $response = [
                             'type' => 'text',
-                            'text' => ['body' => "✍️ Escribe la cantidad que deseas agregar (entre 1 y 49)."],
+                            'text' => ['body' => '✍️ Escribe la cantidad que deseas agregar (entre 1 y 49).'],
                         ];
                     } elseif (strpos($buttonId, 'cantidad_') === 0) {
                         $parts = explode('_', $buttonId);
@@ -3056,7 +3105,7 @@ class WhatsappService
                             ->where('status', 'active')
                             ->first();
 
-                        if (!$cartForRecipient || empty($cartForRecipient->metadata['awaiting_delivery_recipient_name'] ?? false)) {
+                        if (! $cartForRecipient || empty($cartForRecipient->metadata['awaiting_delivery_recipient_name'] ?? false)) {
                             $response = $this->getMainMenu(null, $contact);
                         } elseif ($buttonId === 'recipient_name_self') {
                             $selfName = trim((string) $contact->name) !== '' ? $contact->name : 'Cliente';
@@ -3085,7 +3134,7 @@ class WhatsappService
                 $this->markMessageAsRead($messageId, $from);
                 Log::warning('⚠️ No se encontró respuesta para el botón', [
                     'button_id' => $buttonId,
-                    'button_title' => $buttonTitle
+                    'button_title' => $buttonTitle,
                 ]);
             }
 
@@ -3093,7 +3142,7 @@ class WhatsappService
             Log::error('❌ Error al procesar mensaje interactivo', [
                 'error' => $e->getMessage(),
                 'linea' => $e->getLine(),
-                'mensaje' => $data
+                'mensaje' => $data,
             ]);
         }
     }
@@ -3107,12 +3156,12 @@ class WhatsappService
                 ->latest()
                 ->first();
 
-            if (!$lastImageMessage) {
+            if (! $lastImageMessage) {
                 return [
                     'type' => 'text',
                     'text' => [
-                        'body' => "❌ No se encontró ninguna imagen para procesar. Por favor, envía una imagen primero."
-                    ]
+                        'body' => '❌ No se encontró ninguna imagen para procesar. Por favor, envía una imagen primero.',
+                    ],
                 ];
             }
 
@@ -3125,17 +3174,18 @@ class WhatsappService
             return [
                 'type' => 'text',
                 'text' => [
-                    'body' => "✅ Imagen procesada correctamente. ¿Qué más puedo hacer por ti?"
-                ]
+                    'body' => '✅ Imagen procesada correctamente. ¿Qué más puedo hacer por ti?',
+                ],
             ];
 
         } catch (\Exception $e) {
-            Log::error('Error al procesar imagen: ' . $e->getMessage());
+            Log::error('Error al procesar imagen: '.$e->getMessage());
+
             return [
                 'type' => 'text',
                 'text' => [
-                    'body' => "❌ Lo siento, hubo un error al procesar la imagen. Por favor, intenta de nuevo."
-                ]
+                    'body' => '❌ Lo siento, hubo un error al procesar la imagen. Por favor, intenta de nuevo.',
+                ],
             ];
         }
     }
@@ -3161,6 +3211,7 @@ class WhatsappService
         $proofCart = $this->findCartPendingProofUpload($contact);
         if ($proofCart) {
             $orderNumber = $proofCart->getOrderNumber();
+
             return [
                 'type' => 'text',
                 'text' => ['body' => "🕐 Seguimos esperando el comprobante de pago de tu pedido *{$orderNumber}*. Envía la imagen o PDF cuando lo tengas."],
@@ -3169,7 +3220,7 @@ class WhatsappService
 
         return [
             'type' => 'text',
-            'text' => ['body' => "👍 Perfecto, continúa cuando quieras."],
+            'text' => ['body' => '👍 Perfecto, continúa cuando quieras.'],
         ];
     }
 
@@ -3199,31 +3250,31 @@ class WhatsappService
     private function getCartContents($contact)
     {
         $cart = WhatsappCart::where('contact_id', $contact->id)
-                ->where('status', 'active')
-                ->first();
+            ->where('status', 'active')
+            ->first();
 
-        if (!$cart || $cart->items->isEmpty()) {
+        if (! $cart || $cart->items->isEmpty()) {
             return [
                 'type' => 'interactive',
                 'interactive' => [
                     'type' => 'button',
                     'body' => ['text' => 'Tu carrito está vacío. ¿Qué te gustaría comprar?'],
                     'action' => ['buttons' => [
-                            [
-                                'type' => 'reply',
-                                'reply' => [
-                            'id' => 'productos',
-                            'title' => '🛍️ Ver productos'
-                                ]
+                        [
+                            'type' => 'reply',
+                            'reply' => [
+                                'id' => 'productos',
+                                'title' => '🛍️ Ver productos',
                             ],
-                            [
-                                'type' => 'reply',
-                                'reply' => [
-                            'id' => 'menu_principal',
-                            'title' => '🏠 Menú principal'
-                                ]
-                            ]
-                        ]],
+                        ],
+                        [
+                            'type' => 'reply',
+                            'reply' => [
+                                'id' => 'menu_principal',
+                                'title' => '🏠 Menú principal',
+                            ],
+                        ],
+                    ]],
                 ],
             ];
         }
@@ -3239,7 +3290,7 @@ class WhatsappService
             $message .= "  Subtotal: \${$subtotal}\n\n";
         }
 
-        $message .= "¿Qué deseas hacer?";
+        $message .= '¿Qué deseas hacer?';
 
         $buttons = [];
         $bulkAvailable = app(BulkOrderService::class)->isAvailable();
@@ -3294,25 +3345,25 @@ class WhatsappService
             ];
         }
 
-                return [
-                    'type' => 'interactive',
-                    'interactive' => [
-                        'type' => 'button',
-                        'body' => [
-                    'text' => $message
-                        ],
-                        'action' => [
-                            'buttons' => $buttons,
-                        ],
-                    ],
-                ];
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => [
+                    'text' => $message,
+                ],
+                'action' => [
+                    'buttons' => $buttons,
+                ],
+            ],
+        ];
     }
 
     private function sendBulkWebOrderLink(WhatsappContact $contact): array
     {
         $bulkService = app(BulkOrderService::class);
 
-        if (!$bulkService->isAvailable()) {
+        if (! $bulkService->isAvailable()) {
             return [
                 'type' => 'text',
                 'text' => ['body' => 'Esta opción no está disponible en tu plan actual.'],
@@ -3320,7 +3371,7 @@ class WhatsappService
         }
 
         $token = $bulkService->issueToken($contact);
-        if (!$token) {
+        if (! $token) {
             return [
                 'type' => 'text',
                 'text' => ['body' => 'No pudimos generar el enlace. Intenta de nuevo en unos minutos.'],
@@ -3337,8 +3388,8 @@ class WhatsappService
                 'type' => 'cta_url',
                 'body' => [
                     'text' => "🛒 *Pide con {$businessLabel} a tu ritmo*\n\n"
-                        . "Mira el menú, personaliza tus favoritos y revisa tu carrito en una sola pantalla.\n"
-                        . "Al confirmar, tu pedido llega al equipo y te respondemos por este chat.",
+                        ."Mira el menú, personaliza tus favoritos y revisa tu carrito en una sola pantalla.\n"
+                        .'Al confirmar, tu pedido llega al equipo y te respondemos por este chat.',
                 ],
                 'action' => [
                     'name' => 'cta_url',
@@ -3365,9 +3416,9 @@ class WhatsappService
     public function notifyBulkWebOrderSubmitted(WhatsappContact $contact, WhatsappCart $cart, string $orderNumber): void
     {
         $fallback = "✅ *Pedido registrado*\n\n"
-            . "📦 *Número de pedido:* {$orderNumber}\n"
-            . "💰 *Total:* \${$cart->total}\n\n"
-            . "Guarda este número para consultar el estado. Te contactaremos si hace falta algo más.";
+            ."📦 *Número de pedido:* {$orderNumber}\n"
+            ."💰 *Total:* \${$cart->total}\n\n"
+            .'Guarda este número para consultar el estado. Te contactaremos si hace falta algo más.';
 
         $body = MessageTemplate::render('bulk_order_submitted', [
             'order_number' => $orderNumber,
@@ -3382,7 +3433,7 @@ class WhatsappService
 
     public function sendBotPayload(WhatsappContact $contact, array $payload, bool $humanSent = false): bool
     {
-        if (!$contact->phone_number) {
+        if (! $contact->phone_number) {
             return false;
         }
 
@@ -3405,7 +3456,7 @@ class WhatsappService
                 $itemsList .= "• {$item->name} x{$item->quantity}\n";
             }
             if ($cart->items->count() > 6) {
-                $itemsList .= "• … y " . ($cart->items->count() - 6) . " producto(s) más\n";
+                $itemsList .= '• … y '.($cart->items->count() - 6)." producto(s) más\n";
             }
             $itemsList .= "\n";
         }
@@ -3416,11 +3467,11 @@ class WhatsappService
         $agentNoteLine = $agentNote ? "💬 *Mensaje del asesor:*\n{$agentNote}\n\n" : '';
 
         $fallback = "📋 *Confirma tu pedido*\n\n"
-            . "📦 *Número:* {$orderNumber}\n"
-            . "💰 *Total:* \${$cart->total}\n"
-            . "📄 *PDF:* {$pdfUrl}\n\n"
-            . $itemsList . $noteLine . $agentNoteLine
-            . "Revisa el PDF y elige una opción:";
+            ."📦 *Número:* {$orderNumber}\n"
+            ."💰 *Total:* \${$cart->total}\n"
+            ."📄 *PDF:* {$pdfUrl}\n\n"
+            .$itemsList.$noteLine.$agentNoteLine
+            .'Revisa el PDF y elige una opción:';
 
         $body = MessageTemplate::render('order_confirmation_ticket', [
             'order_number' => $orderNumber,
@@ -3441,21 +3492,21 @@ class WhatsappService
                         [
                             'type' => 'reply',
                             'reply' => [
-                                'id' => 'confirmar_pedido_' . $cart->id,
+                                'id' => 'confirmar_pedido_'.$cart->id,
                                 'title' => '✅ Confirmar',
                             ],
                         ],
                         [
                             'type' => 'reply',
                             'reply' => [
-                                'id' => 'modificar_pedido_' . $cart->id,
+                                'id' => 'modificar_pedido_'.$cart->id,
                                 'title' => '✏️ Modificar',
                             ],
                         ],
                         [
                             'type' => 'reply',
                             'reply' => [
-                                'id' => 'cancelar_pedido_' . $cart->id,
+                                'id' => 'cancelar_pedido_'.$cart->id,
                                 'title' => '❌ Cancelar',
                             ],
                         ],
@@ -3486,7 +3537,7 @@ class WhatsappService
 
     private function cartItemCount(?WhatsappContact $contact): int
     {
-        if (!$contact) {
+        if (! $contact) {
             return 0;
         }
 
@@ -3505,7 +3556,7 @@ class WhatsappService
                 ->where('is_active', true)->where('stock', '>', 0)->firstOrFail();
             $variation = $this->productVariation($price, $variationIndex);
             $unitPrice = $variation['price'] ?? ($price->is_promo ? $price->promo_price : $price->price);
-            $lineNote = $variation ? 'Variación: ' . $variation['title'] : null;
+            $lineNote = $variation ? 'Variación: '.$variation['title'] : null;
 
             // Buscar carrito activo o crear uno nuevo
             $cart = WhatsappCart::firstOrCreate(
@@ -3594,14 +3645,14 @@ class WhatsappService
                 ];
             }
 
-            $bodyText = "✅ *Producto agregado al carrito*\n\n" .
-                "• {$price->name}\n" .
-                ($variation ? "• {$variation['title']}\n" : '') .
-                "• Cantidad: {$quantity}\n" .
-                "• Precio unitario: $" . $unitPrice . "\n" .
-                "• Subtotal: $" . ($unitPrice * $quantity) . "\n" .
-                ($price->is_promo ? "• ¡Aprovecha esta oferta! 🎉\n" : "") . "\n" .
-                "¿Qué deseas hacer?";
+            $bodyText = "✅ *Producto agregado al carrito*\n\n".
+                "• {$price->name}\n".
+                ($variation ? "• {$variation['title']}\n" : '').
+                "• Cantidad: {$quantity}\n".
+                '• Precio unitario: $'.$unitPrice."\n".
+                '• Subtotal: $'.($unitPrice * $quantity)."\n".
+                ($price->is_promo ? "• ¡Aprovecha esta oferta! 🎉\n" : '')."\n".
+                '¿Qué deseas hacer?';
 
             if ($bulkAvailable) {
                 $bodyText .= "\n\n_📋 Armar lista:_ ideal si vas a pedir varios productos de una vez.";
@@ -3620,11 +3671,12 @@ class WhatsappService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'contact_id' => $contact->id,
-                'price_id' => $priceId
+                'price_id' => $priceId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al agregar el producto al carrito. Por favor, intenta nuevamente.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al agregar el producto al carrito. Por favor, intenta nuevamente.'],
             ];
         }
     }
@@ -3636,42 +3688,42 @@ class WhatsappService
                 ->where('status', 'active')
                 ->first();
 
-            if (!$cart || $cart->items->isEmpty()) {
+            if (! $cart || $cart->items->isEmpty()) {
                 return [
                     'type' => 'interactive',
                     'interactive' => [
                         'type' => 'button',
                         'body' => [
-                            'text' => "¡Gracias por tu interés! 😊\n\n" .
-                                "Tu carrito está vacío en este momento.\n\n" .
-                                "¿En qué más puedo ayudarte?"
+                            'text' => "¡Gracias por tu interés! 😊\n\n".
+                                "Tu carrito está vacío en este momento.\n\n".
+                                '¿En qué más puedo ayudarte?',
                         ],
                         'action' => [
                             'buttons' => [
                                 [
                                     'type' => 'reply',
                                     'reply' => [
-                                'id' => 'productos',
-                                'title' => '🛍️ Ver productos'
-                            ]
+                                        'id' => 'productos',
+                                        'title' => '🛍️ Ver productos',
+                                    ],
+                                ],
+                                [
+                                    'type' => 'reply',
+                                    'reply' => [
+                                        'id' => 'menu_principal',
+                                        'title' => '🏠 Menú principal',
+                                    ],
+                                ],
+                            ],
                         ],
-                        [
-                            'type' => 'reply',
-                            'reply' => [
-                                'id' => 'menu_principal',
-                                'title' => '🏠 Menú principal'
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
+                    ],
                 ];
             }
 
             // Si ya se le mandó el link de pago con tarjeta, no seguir
             // preguntando nada más — el resto del pedido se resuelve en la
             // página externa, no en este chat.
-            if (!empty($cart->metadata['card_payment_link_sent'] ?? false)) {
+            if (! empty($cart->metadata['card_payment_link_sent'] ?? false)) {
                 $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
 
                 return [
@@ -3693,9 +3745,9 @@ class WhatsappService
             // editor visual (usa el valor por defecto que haya elegido).
             if (empty($cart->metadata['service_type'] ?? null)) {
                 $branch = $cart->branch_id ? BusinessBranch::find($cart->branch_id) : null;
-                $branchAllowsDineIn = !$branch || $branch->dine_in_enabled;
+                $branchAllowsDineIn = ! $branch || $branch->dine_in_enabled;
 
-                if (!$branchAllowsDineIn || !$this->isCheckoutStepEnabled('service_type')) {
+                if (! $branchAllowsDineIn || ! $this->isCheckoutStepEnabled('service_type')) {
                     $metadata = $cart->metadata ?? [];
                     $metadata['service_type'] = $branchAllowsDineIn
                         ? $this->getCheckoutStepDefault('service_type', 'llevar')
@@ -3720,7 +3772,7 @@ class WhatsappService
 
                 Log::info('[finalizarCompra] 💳 Solicitando método de pago', [
                     'cart_id' => $cart->id,
-                    'contact_id' => $contact->id
+                    'contact_id' => $contact->id,
                 ]);
 
                 $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
@@ -3742,19 +3794,19 @@ class WhatsappService
                                     'title' => 'Métodos de pago disponibles',
                                     'rows' => array_values(array_filter([
                                         $this->isPaymentMethodEnabled('transferencia') ? [
-                                            'id' => 'pago_transferencia_' . $cart->id,
+                                            'id' => 'pago_transferencia_'.$cart->id,
                                             'title' => '🏦 Transferencia',
-                                            'description' => 'Transferencia o depósito · envías el comprobante'
+                                            'description' => 'Transferencia o depósito · envías el comprobante',
                                         ] : null,
                                         $this->isPaymentMethodEnabled('efectivo') ? [
-                                            'id' => 'pago_efectivo_' . $cart->id,
+                                            'id' => 'pago_efectivo_'.$cart->id,
                                             'title' => '💵 Pago en efectivo',
-                                            'description' => 'Pago en efectivo al recibir el pedido'
+                                            'description' => 'Pago en efectivo al recibir el pedido',
                                         ] : null,
                                         ($this->isPaymentMethodEnabled('tarjeta') && $cardPaymentUrl !== '') ? [
-                                            'id' => 'pago_tarjeta_' . $cart->id,
+                                            'id' => 'pago_tarjeta_'.$cart->id,
                                             'title' => '💳 Pago con tarjeta',
-                                            'description' => 'Te mandamos un link para pagar en línea'
+                                            'description' => 'Te mandamos un link para pagar en línea',
                                         ] : null,
                                     ])),
                                 ],
@@ -3768,7 +3820,7 @@ class WhatsappService
             // llevar). También se puede desactivar desde el editor visual.
             if (($cart->metadata['service_type'] ?? null) === 'llevar'
                 && empty($cart->metadata['pickup_mode'] ?? null)) {
-                if (!$this->isCheckoutStepEnabled('pickup_mode')) {
+                if (! $this->isCheckoutStepEnabled('pickup_mode')) {
                     $metadata = $cart->metadata ?? [];
                     $metadata['pickup_mode'] = $this->getCheckoutStepDefault('pickup_mode', 'retiro');
                     $cart->metadata = $metadata;
@@ -3795,7 +3847,7 @@ class WhatsappService
 
                 Log::info('[finalizarCompra] 📝 Solicitando nota para el pedido', [
                     'cart_id' => $cart->id,
-                    'contact_id' => $contact->id
+                    'contact_id' => $contact->id,
                 ]);
 
                 $faltaMensaje = ($cart->metadata['service_type'] ?? null) === 'servir'
@@ -3806,13 +3858,13 @@ class WhatsappService
                     'type' => 'interactive',
                     'interactive' => [
                         'type' => 'button',
-                        'body' => ['text' => "🎉 ¡Ya casi terminamos con tu pedido!\n{$faltaMensaje}\n\n" .
-                            "Si quieres, escribe una nota (instrucciones especiales, preferencias o cualquier detalle importante), o toca el botón para continuar sin nota."],
+                        'body' => ['text' => "🎉 ¡Ya casi terminamos con tu pedido!\n{$faltaMensaje}\n\n".
+                            'Si quieres, escribe una nota (instrucciones especiales, preferencias o cualquier detalle importante), o toca el botón para continuar sin nota.'],
                         'action' => [
                             'buttons' => [
                                 [
                                     'type' => 'reply',
-                                    'reply' => ['id' => 'nota_omitir_' . $cart->id, 'title' => '✅ Sin nota'],
+                                    'reply' => ['id' => 'nota_omitir_'.$cart->id, 'title' => '✅ Sin nota'],
                                 ],
                             ],
                         ],
@@ -3828,7 +3880,7 @@ class WhatsappService
 
             // Preparar los detalles del pedido para guardar en metadata
             $orderDetails = [
-                'order_number' => 'ORD-' . str_pad($cart->id, 6, '0', STR_PAD_LEFT),
+                'order_number' => 'ORD-'.str_pad($cart->id, 6, '0', STR_PAD_LEFT),
                 'items' => [],
                 'total' => $cart->total,
                 'note' => $cart->note,
@@ -3851,7 +3903,7 @@ class WhatsappService
                     'name' => $item->name,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
-                    'subtotal' => $item->price * $item->quantity
+                    'subtotal' => $item->price * $item->quantity,
                 ];
             }
 
@@ -3872,44 +3924,45 @@ class WhatsappService
                 $message .= "📝 *Nota:* {$cart->note}\n\n";
             }
 
-            $message .= "¿Confirmas tu pedido?";
+            $message .= '¿Confirmas tu pedido?';
 
             return [
                 'type' => 'interactive',
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => $message
+                        'text' => $message,
                     ],
                     'action' => [
                         'buttons' => [
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'confirmar_pedido_' . $cart->id,
-                                    'title' => '✅ Confirmar pedido'
-                                ]
+                                    'id' => 'confirmar_pedido_'.$cart->id,
+                                    'title' => '✅ Confirmar pedido',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'cancelar_pedido_' . $cart->id,
-                                    'title' => '❌ Cancelar pedido'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'id' => 'cancelar_pedido_'.$cart->id,
+                                    'title' => '❌ Cancelar pedido',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
         } catch (\Exception $e) {
             Log::error('Error al finalizar compra', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar tu compra.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar tu compra.'],
             ];
         }
     }
@@ -3941,11 +3994,11 @@ class WhatsappService
                         'buttons' => [
                             [
                                 'type' => 'reply',
-                                'reply' => ['id' => 'sucursal_mantener_' . $cart->id, 'title' => '✅ Sí, la misma'],
+                                'reply' => ['id' => 'sucursal_mantener_'.$cart->id, 'title' => '✅ Sí, la misma'],
                             ],
                             [
                                 'type' => 'reply',
-                                'reply' => ['id' => 'sucursal_cambiar_' . $cart->id, 'title' => '🔄 Elegir otra'],
+                                'reply' => ['id' => 'sucursal_cambiar_'.$cart->id, 'title' => '🔄 Elegir otra'],
                             ],
                         ],
                     ],
@@ -3977,13 +4030,13 @@ class WhatsappService
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'list',
-                'body' => ['text' => $this->getCheckoutStepMessage('sucursal_list', "📍 *¿Desde qué sucursal pedirás?*")],
+                'body' => ['text' => $this->getCheckoutStepMessage('sucursal_list', '📍 *¿Desde qué sucursal pedirás?*')],
                 'action' => [
                     'button' => 'Elegir sucursal',
                     'sections' => [[
                         'title' => 'Sucursales disponibles',
                         'rows' => $branches->map(fn (BusinessBranch $branch) => [
-                            'id' => 'sucursal_set_' . $branch->id . '_' . $cart->id,
+                            'id' => 'sucursal_set_'.$branch->id.'_'.$cart->id,
                             'title' => mb_substr($branch->name, 0, 24),
                         ])->values()->all(),
                     ]],
@@ -3995,14 +4048,14 @@ class WhatsappService
     private function confirmarSucursalMantenida(WhatsappContact $contact, int $cartId)
     {
         $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
-        if (!$cart) {
+        if (! $cart) {
             return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
         }
 
         $lastBranchId = $contact->getLastBranchId();
         $branch = $lastBranchId ? BusinessBranch::where('id', $lastBranchId)->where('is_active', true)->first() : null;
 
-        if (!$branch) {
+        if (! $branch) {
             return $this->buildSucursalList($cart);
         }
 
@@ -4012,7 +4065,7 @@ class WhatsappService
     private function setSucursalPedido(WhatsappContact $contact, int $branchId, int $cartId)
     {
         $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
-        if (!$cart) {
+        if (! $cart) {
             return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
         }
 
@@ -4021,7 +4074,7 @@ class WhatsappService
             ->where('is_active', true)
             ->first();
 
-        if (!$branch) {
+        if (! $branch) {
             return $this->buildSucursalList($cart);
         }
 
@@ -4045,16 +4098,16 @@ class WhatsappService
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'button',
-                'body' => ['text' => $this->getCheckoutStepMessage('service_type', "🍽️ *¿Tu pedido es para llevar o para servir?*")],
+                'body' => ['text' => $this->getCheckoutStepMessage('service_type', '🍽️ *¿Tu pedido es para llevar o para servir?*')],
                 'action' => [
                     'buttons' => [
                         [
                             'type' => 'reply',
-                            'reply' => ['id' => 'tipo_llevar_' . $cart->id, 'title' => '🥡 Para llevar'],
+                            'reply' => ['id' => 'tipo_llevar_'.$cart->id, 'title' => '🥡 Para llevar'],
                         ],
                         [
                             'type' => 'reply',
-                            'reply' => ['id' => 'tipo_servir_' . $cart->id, 'title' => '🍽️ Para servir'],
+                            'reply' => ['id' => 'tipo_servir_'.$cart->id, 'title' => '🍽️ Para servir'],
                         ],
                     ],
                 ],
@@ -4065,7 +4118,7 @@ class WhatsappService
     private function setTipoServicio(WhatsappContact $contact, int $cartId, string $tipo)
     {
         $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
-        if (!$cart) {
+        if (! $cart) {
             return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
         }
 
@@ -4091,11 +4144,11 @@ class WhatsappService
                     'buttons' => [
                         [
                             'type' => 'reply',
-                            'reply' => ['id' => 'retiro_local_' . $cart->id, 'title' => '🏬 Retiro en local'],
+                            'reply' => ['id' => 'retiro_local_'.$cart->id, 'title' => '🏬 Retiro en local'],
                         ],
                         [
                             'type' => 'reply',
-                            'reply' => ['id' => 'retiro_delivery_' . $cart->id, 'title' => '🛵 Delivery'],
+                            'reply' => ['id' => 'retiro_delivery_'.$cart->id, 'title' => '🛵 Delivery'],
                         ],
                     ],
                 ],
@@ -4106,7 +4159,7 @@ class WhatsappService
     private function setModoRetiro(WhatsappContact $contact, int $cartId, string $modo)
     {
         $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
-        if (!$cart) {
+        if (! $cart) {
             return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
         }
 
@@ -4133,7 +4186,7 @@ class WhatsappService
 
         return [
             'type' => 'text',
-            'text' => ['body' => $this->getCheckoutStepMessage('delivery_location', "📍 Escríbenos la *dirección completa* de entrega (calle, sector, referencia).")],
+            'text' => ['body' => $this->getCheckoutStepMessage('delivery_location', '📍 Escríbenos la *dirección completa* de entrega (calle, sector, referencia).')],
         ];
     }
 
@@ -4158,7 +4211,7 @@ class WhatsappService
         foreach ($cart->items as $item) {
             $lines .= "*{$item->name}*\n";
             $lines .= "Cantidad: {$item->quantity}\n";
-            $lines .= "Precio unitario: $" . number_format((float) $item->price, 2) . "\n\n";
+            $lines .= 'Precio unitario: $'.number_format((float) $item->price, 2)."\n\n";
         }
 
         return $lines;
@@ -4199,46 +4252,46 @@ class WhatsappService
             $rate = $config->iva_percentage / 100;
             $ivaAmount = $subtotal - ($subtotal / (1 + $rate));
             $pct = rtrim(rtrim(number_format($config->iva_percentage, 2), '0'), '.');
-            $lines .= "IVA incluido ({$pct}%): $" . number_format($ivaAmount, 2) . "\n";
+            $lines .= "IVA incluido ({$pct}%): $".number_format($ivaAmount, 2)."\n";
         }
 
         $metadata = $cart->metadata ?? [];
         $pending = [];
 
         if (($metadata['pickup_mode'] ?? null) === 'delivery') {
-            if (!empty($metadata['delivery_fee_pending_review'] ?? false) || !array_key_exists('delivery_fee', $metadata)) {
+            if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
                 $pending[] = 'envío';
             } else {
                 $deliveryFee = (float) ($metadata['delivery_fee'] ?? 0);
                 if ($deliveryFee > 0) {
-                    $lines .= "Costo de envío: $" . number_format($deliveryFee, 2) . "\n";
+                    $lines .= 'Costo de envío: $'.number_format($deliveryFee, 2)."\n";
                 }
             }
         }
 
         if (($metadata['service_type'] ?? null) === 'llevar') {
-            if (!array_key_exists('pickup_fee', $metadata)) {
+            if (! array_key_exists('pickup_fee', $metadata)) {
                 $pending[] = 'costo para llevar';
             } else {
                 $pickupFee = (float) ($metadata['pickup_fee'] ?? 0);
                 if ($pickupFee > 0) {
-                    $lines .= "Costo para llevar: $" . number_format($pickupFee, 2) . "\n";
+                    $lines .= 'Costo para llevar: $'.number_format($pickupFee, 2)."\n";
                 }
             }
         }
 
-        if (!$includeTotal) {
-            return $lines . "\n";
+        if (! $includeTotal) {
+            return $lines."\n";
         }
 
         $totalLabel = $pending ? 'Total productos' : 'Total';
-        $lines .= "💰 *{$totalLabel}:* $" . number_format((float) $cart->total, 2) . "\n";
+        $lines .= "💰 *{$totalLabel}:* $".number_format((float) $cart->total, 2)."\n";
 
         if ($pending) {
-            $lines .= ucfirst(implode(' y ', $pending)) . ": por confirmar\n";
+            $lines .= ucfirst(implode(' y ', $pending)).": por confirmar\n";
         }
 
-        return $lines . "\n";
+        return $lines."\n";
     }
 
     /**
@@ -4258,7 +4311,7 @@ class WhatsappService
             default => null,
         };
 
-        if (!$typeLabel && !$branchName) {
+        if (! $typeLabel && ! $branchName) {
             return '';
         }
 
@@ -4284,7 +4337,7 @@ class WhatsappService
             $lines .= "Entrega: Retiro en el local\n";
         }
 
-        return $lines . "\n";
+        return $lines."\n";
     }
 
     /**
@@ -4294,7 +4347,7 @@ class WhatsappService
     private function skipOrderNote(WhatsappContact $contact, int $cartId)
     {
         $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
-        if (!$cart) {
+        if (! $cart) {
             return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
         }
 
@@ -4328,9 +4381,9 @@ class WhatsappService
         $cart->save();
 
         $body = $this->buildOrderSummaryHeader('✅ *¡Pedido registrado!*', $details['order_number'])
-            . $this->buildFulfillmentSummaryText($cart)
-            . $this->buildCostBreakdownText($cart)
-            . "🧾 Pasa a caja con tu número de pedido para cancelar. ¡Gracias por tu pedido!";
+            .$this->buildFulfillmentSummaryText($cart)
+            .$this->buildCostBreakdownText($cart)
+            .'🧾 Pasa a caja con tu número de pedido para cancelar. ¡Gracias por tu pedido!';
 
         return [
             'type' => 'interactive',
@@ -4361,7 +4414,7 @@ class WhatsappService
             'interactive' => [
                 'type' => 'button',
                 'body' => [
-                    'text' => $this->getCheckoutStepMessage('delivery_recipient_name', "🧑 ¿A nombre de quién recibimos el pedido?"),
+                    'text' => $this->getCheckoutStepMessage('delivery_recipient_name', '🧑 ¿A nombre de quién recibimos el pedido?'),
                 ],
                 'action' => [
                     'buttons' => [
@@ -4426,13 +4479,13 @@ class WhatsappService
             && empty($cart->metadata['delivery_location'] ?? null)) {
             return true;
         }
-        if (!empty($cart->metadata['awaiting_delivery_recipient_name'] ?? false)) {
+        if (! empty($cart->metadata['awaiting_delivery_recipient_name'] ?? false)) {
             return true;
         }
-        if (!empty($cart->metadata['pending_note'] ?? false)) {
+        if (! empty($cart->metadata['pending_note'] ?? false)) {
             return true;
         }
-        if (!empty($cart->metadata['pending_payment_method'] ?? false)) {
+        if (! empty($cart->metadata['pending_payment_method'] ?? false)) {
             return true;
         }
 
@@ -4457,7 +4510,7 @@ class WhatsappService
         $text = trim($text);
 
         if (preg_match('/\[?SKU:\s*([^\]\*\s]+)\]?/i', $text, $matches)) {
-            return trim($matches[1], "*_~`");
+            return trim($matches[1], '*_~`');
         }
 
         $previous = null;
@@ -4512,7 +4565,7 @@ class WhatsappService
             return true;
         }
 
-        if (!empty($contact->metadata['awaiting_delivery_dispatch_lookup'] ?? false)) {
+        if (! empty($contact->metadata['awaiting_delivery_dispatch_lookup'] ?? false)) {
             $metadata = $contact->metadata ?? [];
             unset($metadata['awaiting_delivery_dispatch_lookup']);
             $contact->metadata = $metadata;
@@ -4558,7 +4611,7 @@ class WhatsappService
             ->get()
             ->first(function (WhatsappCart $order) use ($needle, $needleDigits) {
                 $orderNumber = strtoupper($order->getOrderNumber());
-                if ($orderNumber === $needle || $orderNumber === 'ORD-' . $needle) {
+                if ($orderNumber === $needle || $orderNumber === 'ORD-'.$needle) {
                     return true;
                 }
 
@@ -4587,10 +4640,10 @@ class WhatsappService
         $address = $metadata['delivery_location']['manual_address'] ?? 'Sin dirección registrada';
 
         return "🛵 *Datos para el delivery*\n\n"
-            . "Pedido: *{$order->getOrderNumber()}*\n"
-            . "Entregar a: {$recipient}\n"
-            . "Dirección: {$address}\n"
-            . "Pago: " . $this->getDispatchPaymentLabel($order);
+            ."Pedido: *{$order->getOrderNumber()}*\n"
+            ."Entregar a: {$recipient}\n"
+            ."Dirección: {$address}\n"
+            .'Pago: '.$this->getDispatchPaymentLabel($order);
     }
 
     /**
@@ -4602,7 +4655,7 @@ class WhatsappService
     private function getDispatchPaymentLabel(WhatsappCart $order): string
     {
         return match ($order->payment_method) {
-            'efectivo' => 'Efectivo — cobrar $' . number_format((float) $order->total, 2) . ' al entregar',
+            'efectivo' => 'Efectivo — cobrar $'.number_format((float) $order->total, 2).' al entregar',
             'transferencia' => 'Transferencia o depósito (ya pagado, no cobrar)',
             'tarjeta' => 'Tarjeta (ya pagado, no cobrar)',
             default => 'No especificado',
@@ -4622,16 +4675,16 @@ class WhatsappService
     {
         $contact = $order->contact;
 
-        if (!$contact || !$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+        if (! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
             return ['sent' => false, 'reason' => 'no_phone'];
         }
 
-        if (!$contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
+        if (! $contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
             return ['sent' => false, 'reason' => 'window_closed'];
         }
 
         $fallback = "🛵 *¡Tu pedido va en camino!*\n\nPedido *{$order->getOrderNumber()}*\n\n"
-            . "Te compartimos el contacto de tu repartidor, *{$driver->full_name}*, por si necesitas comunicarte con él.";
+            ."Te compartimos el contacto de tu repartidor, *{$driver->full_name}*, por si necesitas comunicarte con él.";
 
         $body = MessageTemplate::render('order_on_the_way', [
             'order_number' => $order->getOrderNumber(),
@@ -4658,7 +4711,7 @@ class WhatsappService
     private function sendDriverContactCard(WhatsappContact $contact, DeliveryDriver $driver): bool
     {
         $phoneNumberId = $this->resolvePhoneNumberId();
-        if (!$phoneNumberId || !$contact->phone_number) {
+        if (! $phoneNumberId || ! $contact->phone_number) {
             return false;
         }
 
@@ -4689,7 +4742,7 @@ class WhatsappService
             $this->recordSendFailure(
                 $contact,
                 'contacts',
-                'Error al compartir el contacto del repartidor: ' . $e->getMessage(),
+                'Error al compartir el contacto del repartidor: '.$e->getMessage(),
                 ['driver_id' => $driver->id],
                 'sendDriverContactCard'
             );
@@ -4702,7 +4755,7 @@ class WhatsappService
                 'business_profile_id' => $this->businessProfile?->id,
                 'contact_id' => $contact->id,
                 'message_id' => $response->json()['messages'][0]['id'] ?? null,
-                'content' => 'Contacto compartido: ' . $driver->full_name,
+                'content' => 'Contacto compartido: '.$driver->full_name,
                 'type' => 'contacts',
                 'status' => 'sent',
                 'sender_type' => 'system',
@@ -4716,7 +4769,7 @@ class WhatsappService
         $this->recordSendFailure(
             $contact,
             'contacts',
-            'Error al compartir el contacto del repartidor: ' . json_encode($response->json()),
+            'Error al compartir el contacto del repartidor: '.json_encode($response->json()),
             ['driver_id' => $driver->id],
             'sendDriverContactCard'
         );
@@ -4737,10 +4790,11 @@ class WhatsappService
     {
         try {
             // Validar que el mensaje tenga la estructura correcta
-            if (!isset($message['text'])) {
+            if (! isset($message['text'])) {
                 Log::error('[handleTextMessage] ❌ Estructura de mensaje inválida', [
-                    'message' => $message
+                    'message' => $message,
                 ]);
+
                 return;
             }
 
@@ -4773,10 +4827,11 @@ class WhatsappService
             if (preg_match('/(catalogo|catálogo|productos|precios|lista de precios|ver productos)/i', $text)) {
                 if ($contact) {
                     $contact->refresh();
-                    if (!$this->botMayRespondToContact($contact)) {
+                    if (! $this->botMayRespondToContact($contact)) {
                         $this->logBotBlocked('handleTextMessage.catalog', $contact, [
-                            'phone' => substr($from, 0, 4) . '****' . substr($from, -4),
+                            'phone' => substr($from, 0, 4).'****'.substr($from, -4),
                         ]);
+
                         return;
                     }
                     if ($messageId) {
@@ -4787,6 +4842,7 @@ class WhatsappService
                     $this->prepareBotReply($contact, $messageId);
                 }
                 $this->sendCatalog($from);
+
                 return;
             }
 
@@ -4801,7 +4857,7 @@ class WhatsappService
 
             // Buscar o crear el contacto en la base de datos
             $contact = $this->findContactByPhone($from);
-            if (!$contact) {
+            if (! $contact) {
                 // Si el contacto no existe, obtener sus datos del webhook
                 $contactData = $message['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
@@ -4812,15 +4868,15 @@ class WhatsappService
                     'business_profile_id' => $this->businessProfile->id,
                     'phone_number' => $from,
                     'name' => $contactName,
-                    'status' => 'active'
+                    'status' => 'active',
                 ]);
 
                 Log::info('[handleTextMessage] ✅ Nuevo contacto creado', [
                     'phone' => $from,
                     'contact_id' => $contact->id,
-                    'name' => $contactName
+                    'name' => $contactName,
                 ]);
-            } else if ($contact->name === 'Contacto sin nombre') {
+            } elseif ($contact->name === 'Contacto sin nombre') {
                 // Si el contacto existe pero tiene nombre genérico, intentar actualizarlo con el nombre real
                 $contactData = $message['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
@@ -4834,7 +4890,7 @@ class WhatsappService
                         'phone' => $from,
                         'contact_id' => $contact->id,
                         'old_name' => 'Contacto sin nombre',
-                        'new_name' => $contactName
+                        'new_name' => $contactName,
                     ]);
                 }
             } else {
@@ -4850,7 +4906,7 @@ class WhatsappService
                 'type' => 'text',
                 'status' => 'received',
                 'sender_type' => 'client',
-                'receiver_type' => 'system'
+                'receiver_type' => 'system',
             ]);
 
             $this->lastMessage = $whatsappMessage;
@@ -4874,8 +4930,8 @@ class WhatsappService
             // interpretar un mensaje sin relación como una cantidad.
             $pendingQuantity = $contact->metadata['pending_custom_quantity'] ?? null;
             if ($pendingQuantity) {
-                $requestedAt = isset($pendingQuantity['requested_at']) ? \Carbon\Carbon::parse($pendingQuantity['requested_at']) : null;
-                if (!$requestedAt || $requestedAt->lt(now()->subMinutes(10))) {
+                $requestedAt = isset($pendingQuantity['requested_at']) ? Carbon::parse($pendingQuantity['requested_at']) : null;
+                if (! $requestedAt || $requestedAt->lt(now()->subMinutes(10))) {
                     $metadata = $contact->metadata ?? [];
                     unset($metadata['pending_custom_quantity']);
                     $contact->metadata = $metadata;
@@ -4884,7 +4940,7 @@ class WhatsappService
                 }
             }
 
-            if (!$processHandled && $pendingQuantity) {
+            if (! $processHandled && $pendingQuantity) {
                 if (in_array($normalizedText, ['cancelar', 'salir'], true)) {
                     $metadata = $contact->metadata ?? [];
                     unset($metadata['pending_custom_quantity']);
@@ -4905,7 +4961,7 @@ class WhatsappService
                 } else {
                     $response = [
                         'type' => 'text',
-                        'text' => ['body' => "Por favor, escribe solo un número entre 1 y 49 (o escribe *cancelar*)."],
+                        'text' => ['body' => 'Por favor, escribe solo un número entre 1 y 49 (o escribe *cancelar*).'],
                     ];
                 }
                 $processHandled = true;
@@ -4922,7 +4978,7 @@ class WhatsappService
 
             // Paso 1 de delivery: dirección de entrega (texto libre, ya no se
             // pide ubicación GPS).
-            if (!$processHandled && $cart && !empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
+            if (! $processHandled && $cart && ! empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
                 Log::info('[handleTextMessage] 🗺️ Dirección de entrega recibida', ['cart_id' => $cart->id]);
 
                 $metadata = $cart->metadata ?? [];
@@ -4943,7 +4999,7 @@ class WhatsappService
             // un estimado referencial para prellenar el panel): el vendedor
             // lo confirma desde el módulo de Pedidos y recién ahí se suma al
             // total y se le avisa al cliente (ver OrderLifecycleService::sendFulfillmentCostsMessage).
-            if (!$processHandled && $cart && !empty($cart->metadata['awaiting_delivery_recipient_name'] ?? false)) {
+            if (! $processHandled && $cart && ! empty($cart->metadata['awaiting_delivery_recipient_name'] ?? false)) {
                 Log::info('[handleTextMessage] 🧑 Nombre de receptor de delivery recibido', ['cart_id' => $cart->id]);
 
                 $response = $this->applyDeliveryRecipientName($contact, $cart, $text);
@@ -4956,7 +5012,7 @@ class WhatsappService
             // vivo, así que si el equipo ya cambió el estado desde el panel
             // (lo confirmó manualmente, por ejemplo), este bloqueo deja de
             // aplicar automáticamente.
-            if (!$processHandled) {
+            if (! $processHandled) {
                 $awaitingProofCart = $this->findCartPendingProofUpload($contact);
                 if ($awaitingProofCart) {
                     if (in_array($normalizedText, ['cancelar', 'salir'], true)) {
@@ -4968,11 +5024,11 @@ class WhatsappService
                             'type' => 'interactive',
                             'interactive' => [
                                 'type' => 'button',
-                                'body' => ['text' => "🕐 Seguimos esperando el comprobante de pago de tu pedido *{$orderNumber}*.\n\n" .
-                                    "Envía la imagen o PDF del comprobante, o toca el botón si prefieres cancelar el pedido."],
+                                'body' => ['text' => "🕐 Seguimos esperando el comprobante de pago de tu pedido *{$orderNumber}*.\n\n".
+                                    'Envía la imagen o PDF del comprobante, o toca el botón si prefieres cancelar el pedido.'],
                                 'action' => [
                                     'buttons' => [
-                                        ['type' => 'reply', 'reply' => ['id' => 'cancelar_pedido_' . $awaitingProofCart->id, 'title' => '❌ Cancelar pedido']],
+                                        ['type' => 'reply', 'reply' => ['id' => 'cancelar_pedido_'.$awaitingProofCart->id, 'title' => '❌ Cancelar pedido']],
                                     ],
                                 ],
                             ],
@@ -4982,11 +5038,11 @@ class WhatsappService
                 }
             }
 
-            if (!$processHandled && $cart && isset($cart->metadata['pending_note']) && $cart->metadata['pending_note']) {
+            if (! $processHandled && $cart && isset($cart->metadata['pending_note']) && $cart->metadata['pending_note']) {
                 // Si hay un carrito esperando nota, procesar el mensaje como nota del pedido
                 Log::info('[handleTextMessage] 📝 Procesando nota para pedido', [
                     'cart_id' => $cart->id,
-                    'note' => $text
+                    'note' => $text,
                 ]);
 
                 // Actualizar la nota del carrito y continuar con el proceso de compra
@@ -5009,7 +5065,7 @@ class WhatsappService
             // texto es un saludo u otra palabra común reconocible, se
             // reconoce con un mensaje acorde (en vez del genérico "no
             // entendí") pero sin abandonar el paso pendiente.
-            if (!$processHandled && $cart && $this->cartHasPendingCheckoutStep($cart) && !$this->isAgentRequestText($text)) {
+            if (! $processHandled && $cart && $this->cartHasPendingCheckoutStep($cart) && ! $this->isAgentRequestText($text)) {
                 Log::info('[handleTextMessage] 🔁 Reenviando paso de checkout pendiente (texto no reconocido)', [
                     'cart_id' => $cart->id,
                 ]);
@@ -5017,26 +5073,26 @@ class WhatsappService
                 $pendingStep = $this->finalizarCompra($contact);
                 if (is_array($pendingStep) && ($pendingStep['type'] ?? null) === 'interactive') {
                     $intro = $this->matchCommonIntentReply($text)
-                        ?? "🙏 No entendí ese mensaje. Elige una opción de arriba para continuar:";
+                        ?? '🙏 No entendí ese mensaje. Elige una opción de arriba para continuar:';
                     $pendingStep['interactive']['body']['text'] =
-                        $intro . "\n\n" . ($pendingStep['interactive']['body']['text'] ?? '');
+                        $intro."\n\n".($pendingStep['interactive']['body']['text'] ?? '');
                 }
                 $response = $pendingStep;
                 $processHandled = true;
             }
 
             // Si no se procesó como nota, verificar si es un SKU de producto
-            if (!$processHandled) {
+            if (! $processHandled) {
                 // Solo buscar productos si el mensaje no es una respuesta común y tiene más de 2 caracteres
                 $searchTerm = $this->normalizeProductSearchTerm($text);
-                if (!in_array(strtolower($searchTerm), $commonResponses) && strlen($searchTerm) > 2) {
+                if (! in_array(strtolower($searchTerm), $commonResponses) && strlen($searchTerm) > 2) {
                     // Buscar producto por SKU o nombre en la base de datos
                     $demoCliente = app(DemoClienteService::class);
                     $product = $demoCliente->applyProductScope(
                         WhatsappPrice::where('business_profile_id', $this->businessProfile?->id)
-                            ->where(function($query) use ($searchTerm) {
-                                $query->where('sku', 'like', '%' . $searchTerm . '%')
-                                      ->orWhere('name', 'like', '%' . $searchTerm . '%');
+                            ->where(function ($query) use ($searchTerm) {
+                                $query->where('sku', 'like', '%'.$searchTerm.'%')
+                                    ->orWhere('name', 'like', '%'.$searchTerm.'%');
                             })
                     )
                         ->where('is_active', true)
@@ -5047,7 +5103,7 @@ class WhatsappService
                         Log::info('[handleTextMessage] 🔍 Producto encontrado', [
                             'search_term' => $searchTerm,
                             'original_text' => $text,
-                            'product_id' => $product->id
+                            'product_id' => $product->id,
                         ]);
                         $response = $this->getProductDetails($product->id, $contact);
                         $processHandled = true;
@@ -5056,7 +5112,7 @@ class WhatsappService
             }
 
             // Si no se procesó como SKU, generar respuesta del chatbot
-            if (!$processHandled) {
+            if (! $processHandled) {
                 if ($this->isAgentRequestText($text)) {
                     if ($messageId) {
                         $this->sendTypingIndicator($messageId);
@@ -5065,7 +5121,7 @@ class WhatsappService
 
                     Log::info('[handleTextMessage] ✅ Solicitud de asesor por texto', [
                         'contact_id' => $contact->id,
-                        'phone' => substr($from, 0, 4) . '****' . substr($from, -4),
+                        'phone' => substr($from, 0, 4).'****'.substr($from, -4),
                     ]);
 
                     return;
@@ -5075,9 +5131,9 @@ class WhatsappService
                 $contact->refresh();
 
                 // Verificar si el bot está habilitado para este contacto ANTES de generar respuesta
-                if (!$this->botMayRespondToContact($contact)) {
+                if (! $this->botMayRespondToContact($contact)) {
                     $this->logBotBlocked('handleTextMessage', $contact, [
-                        'phone' => substr($from, 0, 4) . '****' . substr($from, -4),
+                        'phone' => substr($from, 0, 4).'****'.substr($from, -4),
                         'message_content' => substr($text, 0, 100),
                     ]);
                     // No generar ni enviar respuesta automática
@@ -5105,8 +5161,8 @@ class WhatsappService
             // Registrar el procesamiento exitoso del mensaje
             Log::info('[handleTextMessage] ✅ Mensaje de texto procesado', [
                 'id' => $messageId,
-                'contacto' => substr($from, 0, 4) . '****' . substr($from, -4),
-                'nombre' => $contact->name
+                'contacto' => substr($from, 0, 4).'****'.substr($from, -4),
+                'nombre' => $contact->name,
             ]);
 
         } catch (\Exception $e) {
@@ -5114,7 +5170,7 @@ class WhatsappService
             Log::error('[handleTextMessage] ❌ Error al procesar mensaje de texto', [
                 'error' => $e->getMessage(),
                 'linea' => $e->getLine(),
-                'mensaje' => $message
+                'mensaje' => $message,
             ]);
         }
     }
@@ -5125,9 +5181,10 @@ class WhatsappService
             // Validar datos requeridos
             if (empty($message['from']) || empty($message['id'])) {
                 Log::warning('⚠️ Datos básicos de mensaje incompletos', [
-                    'tiene_from' => !empty($message['from']),
-                    'tiene_id' => !empty($message['id'])
+                    'tiene_from' => ! empty($message['from']),
+                    'tiene_id' => ! empty($message['id']),
                 ]);
+
                 return;
             }
 
@@ -5135,8 +5192,9 @@ class WhatsappService
             $existingMessage = WhatsappMessage::where('message_id', $message['id'])->first();
             if ($existingMessage) {
                 Log::info('⏭️ Mensaje de imagen ya procesado anteriormente', [
-                    'message_id' => $message['id']
+                    'message_id' => $message['id'],
                 ]);
+
                 return;
             }
 
@@ -5148,21 +5206,21 @@ class WhatsappService
 
             // Crear o actualizar contacto
             $contact = WhatsappContact::where('phone_number', $message['from'])->first();
-            if (!$contact) {
+            if (! $contact) {
                 // Crear nuevo contacto con el nombre del webhook
                 $contact = WhatsappContact::create([
                     'business_profile_id' => $this->businessProfile->id,
                     'phone_number' => $message['from'],
                     'name' => $contactName,
-                    'status' => 'active'
+                    'status' => 'active',
                 ]);
 
                 Log::info('✅ Nuevo contacto creado', [
                     'phone' => $message['from'],
                     'contact_id' => $contact->id,
-                    'name' => $contactName
+                    'name' => $contactName,
                 ]);
-            } else if ($contact->name === 'Contacto sin nombre') {
+            } elseif ($contact->name === 'Contacto sin nombre') {
                 // Si el contacto existe pero tiene nombre genérico, intentar actualizarlo
                 if ($contactName && $contactName !== 'Contacto sin nombre') {
                     $contact->name = $contactName;
@@ -5172,7 +5230,7 @@ class WhatsappService
                         'phone' => $message['from'],
                         'contact_id' => $contact->id,
                         'old_name' => 'Contacto sin nombre',
-                        'new_name' => $contactName
+                        'new_name' => $contactName,
                     ]);
                 }
             }
@@ -5183,6 +5241,7 @@ class WhatsappService
                 if ($response) {
                     $this->sendMessage($message['from'], $response);
                 }
+
                 return;
             }
 
@@ -5190,28 +5249,31 @@ class WhatsappService
             if ($this->isProcessActive($contact)) {
                 Log::warning('⚠️ Imagen recibida durante proceso activo', [
                     'contact_id' => $contact->id,
-                    'message_id' => $message['id']
+                    'message_id' => $message['id'],
                 ]);
 
                 // Guardar la imagen temporalmente en metadata del último mensaje
+                $incomingImage = is_array($message['image'] ?? null)
+                    ? $message['image']
+                    : (is_array($message['text'] ?? null) ? $message['text'] : []);
                 $imageData = [
-                    'image_id' => $message['text']['id'] ?? null,
-                    'mime_type' => $message['text']['mime_type'] ?? null,
-                    'sha256' => $message['text']['sha256'] ?? null,
-                    'caption' => $message['text']['caption'] ?? null
+                    'image_id' => $incomingImage['id'] ?? $incomingImage['image_id'] ?? null,
+                    'mime_type' => $incomingImage['mime_type'] ?? null,
+                    'sha256' => $incomingImage['sha256'] ?? null,
+                    'caption' => $incomingImage['caption'] ?? null,
                 ];
 
                 // Enviar mensaje de confirmación con opciones
-                    $response = [
+                $response = [
                     'type' => 'interactive',
                     'interactive' => [
                         'type' => 'button',
                         'body' => [
-                            'text' => "⚠️ *Proceso en curso*\n\n" .
-                                "Tienes un proceso activo que necesita ser completado.\n\n" .
-                                "¿Qué deseas hacer?\n\n" .
-                                "1️⃣ Cancelar el proceso actual y procesar la imagen\n" .
-                                "2️⃣ Continuar con el proceso actual"
+                            'text' => "⚠️ *Proceso en curso*\n\n".
+                                "Tienes un proceso activo que necesita ser completado.\n\n".
+                                "¿Qué deseas hacer?\n\n".
+                                "1️⃣ Cancelar el proceso actual y procesar la imagen\n".
+                                '2️⃣ Continuar con el proceso actual',
                         ],
                         'action' => [
                             'buttons' => [
@@ -5219,19 +5281,19 @@ class WhatsappService
                                     'type' => 'reply',
                                     'reply' => [
                                         'id' => 'cancelar_proceso_imagen',
-                                        'title' => '📸 Procesar imagen'
-                                    ]
+                                        'title' => '📸 Procesar imagen',
+                                    ],
                                 ],
                                 [
                                     'type' => 'reply',
                                     'reply' => [
                                         'id' => 'continuar_proceso',
-                                        'title' => '⏳ Continuar proceso'
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
+                                        'title' => '⏳ Continuar proceso',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
                 ];
 
                 // Guardar el mensaje de imagen temporalmente
@@ -5241,44 +5303,53 @@ class WhatsappService
                     'message_id' => $message['id'],
                     'sender_type' => 'client',
                     'receiver_type' => 'system',
-                    'content' => json_encode($imageData),
+                    'content' => $imageData['caption'] ?? '',
                     'type' => 'image',
                     'status' => 'pending',
                     'metadata' => [
                         'timestamp' => $message['timestamp'],
                         'wa_id' => $waId,
-                        'is_pending_confirmation' => true
-                    ]
+                        'is_pending_confirmation' => true,
+                        'media_id' => $imageData['image_id'],
+                        'mime_type' => $imageData['mime_type'],
+                        'sha256' => $imageData['sha256'],
+                        'caption' => $imageData['caption'],
+                    ],
                 ]);
 
                 $this->sendMessage($message['from'], $response);
+
                 return;
             }
 
             // Si no hay proceso activo, continuar con el procesamiento normal de la imagen
             // Extraer datos de la imagen del mensaje
+            $incomingImage = is_array($message['image'] ?? null)
+                ? $message['image']
+                : (is_array($message['text'] ?? null) ? $message['text'] : []);
             $imageData = [
-                'image_id' => $message['text']['id'] ?? null,
-                'mime_type' => $message['text']['mime_type'] ?? null,
-                'sha256' => $message['text']['sha256'] ?? null,
-                'caption' => $message['text']['caption'] ?? null
+                'image_id' => $incomingImage['id'] ?? $incomingImage['image_id'] ?? null,
+                'mime_type' => $incomingImage['mime_type'] ?? null,
+                'sha256' => $incomingImage['sha256'] ?? null,
+                'caption' => $incomingImage['caption'] ?? null,
             ];
 
             // Log para depuración
             Log::info('📸 Datos de imagen recibidos', [
                 'image_id' => $imageData['image_id'],
                 'mime_type' => $imageData['mime_type'],
-                'sha256' => $imageData['sha256']
+                'sha256' => $imageData['sha256'],
             ]);
 
             // Verificar datos de la imagen
             if (empty($imageData['image_id']) || empty($imageData['mime_type'])) {
                 Log::error('❌ Datos de imagen incompletos', [
-                    'tiene_id' => !empty($imageData['image_id']),
-                    'tiene_mime_type' => !empty($imageData['mime_type']),
+                    'tiene_id' => ! empty($imageData['image_id']),
+                    'tiene_mime_type' => ! empty($imageData['mime_type']),
                     'datos' => $imageData,
-                    'mensaje_original' => $message
+                    'mensaje_original' => $message,
                 ]);
+
                 return;
             }
 
@@ -5289,13 +5360,17 @@ class WhatsappService
                 'message_id' => $message['id'],
                 'sender_type' => 'client',
                 'receiver_type' => 'system',
-                'content' => json_encode($imageData),
+                'content' => $imageData['caption'] ?? '',
                 'type' => 'image',
                 'status' => 'received',
                 'metadata' => [
                     'timestamp' => $message['timestamp'],
                     'wa_id' => $waId,
-                ]
+                    'media_id' => $imageData['image_id'],
+                    'mime_type' => $imageData['mime_type'],
+                    'sha256' => $imageData['sha256'],
+                    'caption' => $imageData['caption'],
+                ],
             ]);
 
             // Establecer como último mensaje
@@ -5311,17 +5386,17 @@ class WhatsappService
             $response = [
                 'type' => 'text',
                 'text' => [
-                    'body' => "📸 Imagen recibida, ¡gracias!"
-                ]
+                    'body' => '📸 Imagen recibida, ¡gracias!',
+                ],
             ];
 
             $this->sendMessage($message['from'], $response);
 
             Log::info('✅ Mensaje de imagen procesado', [
                 'id' => $message['id'],
-                'contacto' => substr($message['from'], 0, 4) . '****' . substr($message['from'], -4),
+                'contacto' => substr($message['from'], 0, 4).'****'.substr($message['from'], -4),
                 'nombre' => $contactName,
-                'image_id' => $imageData['image_id']
+                'image_id' => $imageData['image_id'],
             ]);
 
         } catch (\Exception $e) {
@@ -5329,7 +5404,7 @@ class WhatsappService
                 'error' => $e->getMessage(),
                 'linea' => $e->getLine(),
                 'mensaje' => $message,
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -5345,13 +5420,15 @@ class WhatsappService
             $existingMessage = WhatsappMessage::where('message_id', $messageId)->first();
             if ($existingMessage) {
                 Log::info('⏭️ Mensaje ya guardado', ['id' => $messageId]);
+
                 return $existingMessage;
             }
 
             // Obtener datos del contacto
             $contact = WhatsappContact::find($messageData['contact_id']);
-            if (!$contact) {
+            if (! $contact) {
                 Log::error('❌ Contacto no encontrado', ['contact_id' => $messageData['contact_id']]);
+
                 return null;
             }
 
@@ -5382,14 +5459,14 @@ class WhatsappService
                 'status' => 'received',
                 'metadata' => [
                     'timestamp' => $messageData['timestamp'] ?? null,
-                    'raw_message' => $messageData
-                ]
+                    'raw_message' => $messageData,
+                ],
             ]);
 
             Log::info('✅ Mensaje guardado correctamente', [
                 'id' => $messageId,
-                'contacto' => substr($contact->phone_number, 0, 4) . '****' . substr($contact->phone_number, -4),
-                'nombre' => $contact->name
+                'contacto' => substr($contact->phone_number, 0, 4).'****'.substr($contact->phone_number, -4),
+                'nombre' => $contact->name,
             ]);
 
             return $whatsappMessage;
@@ -5397,8 +5474,9 @@ class WhatsappService
             Log::error('❌ Error guardando mensaje', [
                 'error' => $e->getMessage(),
                 'linea' => $e->getLine(),
-                'mensaje' => $messageData
+                'mensaje' => $messageData,
             ]);
+
             return null;
         }
     }
@@ -5410,7 +5488,7 @@ class WhatsappService
 
             if ($categoryId) {
                 $item = $this->findCatalogCategory($categoryId);
-                if (!$item) {
+                if (! $item) {
                     return [
                         'type' => 'text',
                         'text' => ['body' => 'Lo siento, no encontramos esa categoría.'],
@@ -5438,12 +5516,12 @@ class WhatsappService
 
                 foreach ($prices as $price) {
                     $priceText = $price->is_promo
-                        ? '💰 $' . number_format($price->promo_price, 2) . ' (Oferta)'
-                        : '💰 $' . number_format($price->price, 2);
+                        ? '💰 $'.number_format($price->promo_price, 2).' (Oferta)'
+                        : '💰 $'.number_format($price->price, 2);
 
                     $message .= "*[SKU: {$price->sku}] {$price->name}*\n";
                     if ($price->description) {
-                        $message .= '   ' . \Illuminate\Support\Str::limit($price->description, 72, '...') . "\n";
+                        $message .= '   '.Str::limit($price->description, 72, '...')."\n";
                     }
                     $message .= "   {$priceText}\n\n";
 
@@ -5473,10 +5551,10 @@ class WhatsappService
 
             $menu = $this->menuByActionId('prices_menu');
 
-            if (!$menu) {
+            if (! $menu) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no hay más productos disponibles.']
+                    'text' => ['body' => 'Lo siento, no hay más productos disponibles.'],
                 ];
             }
 
@@ -5490,7 +5568,7 @@ class WhatsappService
             if ($menuItems->isEmpty()) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no hay más productos disponibles.']
+                    'text' => ['body' => 'Lo siento, no hay más productos disponibles.'],
                 ];
             }
 
@@ -5506,26 +5584,26 @@ class WhatsappService
                 if ($prices->isEmpty()) {
                     continue;
                 }
-                //COLOQUEMOS EN MAYUSCULA EL TITULO
+                // COLOQUEMOS EN MAYUSCULA EL TITULO
                 $message .= "━━━━━━━━━━━━━━━━━━━━━\n";
-                $message .= "          *" . strtoupper($item->title) . "*\n";
+                $message .= '          *'.strtoupper($item->title)."*\n";
                 $message .= "━━━━━━━━━━━━━━━━━━━━━\n\n";
                 foreach ($prices as $price) {
                     $priceText = $price->is_promo
-                        ? "💰 $" . number_format($price->promo_price, 2) . " (Oferta)"
-                        : "💰 $" . number_format($price->price, 2);
+                        ? '💰 $'.number_format($price->promo_price, 2).' (Oferta)'
+                        : '💰 $'.number_format($price->price, 2);
 
                     // Incluir SKU en la lista
                     $message .= "*[SKU: {$price->sku}] {$price->name}*\n";
-                   /*  if ($price->description) {
-                        $message .= "   " . Str::limit($price->description, 50, '...') . "\n";
-                    } */
+                    /*  if ($price->description) {
+                         $message .= "   " . Str::limit($price->description, 50, '...') . "\n";
+                     } */
                     $message .= "   {$priceText}\n\n";
 
                     // Guardar el producto en el array con su número y SKU
                     $products[$number] = [
                         'price' => $price,
-                        'sku' => $price->sku
+                        'sku' => $price->sku,
                     ];
                     $number++;
                 }
@@ -5534,7 +5612,7 @@ class WhatsappService
             if (empty($products)) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no hay productos disponibles en este momento.']
+                    'text' => ['body' => 'Lo siento, no hay productos disponibles en este momento.'],
                 ];
             }
 
@@ -5552,16 +5630,17 @@ class WhatsappService
 
             return [
                 'type' => 'text',
-                'text' => ['body' => $message]
+                'text' => ['body' => $message],
             ];
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener precios restantes', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar los productos.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar los productos.'],
             ];
         }
     }
@@ -5572,7 +5651,7 @@ class WhatsappService
         $variations = is_array($product->metadata) ? ($product->metadata['variations'] ?? []) : [];
 
         return collect($variations)
-            ->filter(fn ($variation) => is_array($variation) && !empty($variation['title']) && isset($variation['price']) && is_numeric($variation['price']))
+            ->filter(fn ($variation) => is_array($variation) && ! empty($variation['title']) && isset($variation['price']) && is_numeric($variation['price']))
             ->map(fn ($variation) => [
                 'title' => trim((string) $variation['title']),
                 'price' => (float) $variation['price'],
@@ -5601,7 +5680,7 @@ class WhatsappService
         $product = $this->findCatalogProduct($productId);
         $flow = $this->quickOrderFlowConfig();
 
-        if (!$product || empty($flow['flow_id'])) {
+        if (! $product || empty($flow['flow_id'])) {
             // No retroceder al selector de cantidad legado si falta un Flow.
             // La compra rápida siempre agrega una unidad al carrito.
             return $product ? $this->addToCart($contact, $product->id, 1) : [
@@ -5610,7 +5689,7 @@ class WhatsappService
             ];
         }
 
-        return \App\Services\Whatsapp\WhatsappMessagePayload::flow(
+        return WhatsappMessagePayload::flow(
             "*{$product->name}* 🍗\n\nPersonaliza tu pedido, elige entrega o retiro y confírmalo en un solo formulario.",
             (string) $flow['flow_id'],
             (string) ($flow['flow_token'] ?? 'dpikeos_quick_order'),
@@ -5639,8 +5718,9 @@ class WhatsappService
         $order = $message['order'] ?? [];
         $items = $order['product_items'] ?? [];
 
-        if (!is_array($items) || $items === []) {
+        if (! is_array($items) || $items === []) {
             Log::warning('[Catálogo Meta] carrito recibido sin productos', ['message_id' => $messageId]);
+
             return;
         }
 
@@ -5688,8 +5768,9 @@ class WhatsappService
             foreach ($items as $item) {
                 $retailerId = strtoupper(trim((string) ($item['product_retailer_id'] ?? '')));
                 $product = WhatsappPrice::where('sku', $retailerId)->where('business_profile_id', $this->businessProfile?->id)->where('is_active', true)->first();
-                if (!$product) {
+                if (! $product) {
                     Log::warning('[Catálogo Meta] producto no vinculado al panel', ['retailer_id' => $retailerId]);
+
                     continue;
                 }
 
@@ -5709,9 +5790,10 @@ class WhatsappService
             $cart->save();
         });
 
-        if (!$cart || $cart->items()->count() === 0) {
+        if (! $cart || $cart->items()->count() === 0) {
             $cart?->delete();
             $this->sendMessage($from, ['type' => 'text', 'text' => ['body' => 'No pudimos relacionar los productos de tu carrito. Escríbenos y te ayudamos de inmediato.']]);
+
             return;
         }
 
@@ -5723,7 +5805,7 @@ class WhatsappService
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'button',
-                'body' => ['text' => "{$greeting}\n\n{$summary}\n\n*Total:* $" . number_format((float) $cart->total, 2) . "\n\nAhora confirma cómo deseas recibirlo."],
+                'body' => ['text' => "{$greeting}\n\n{$summary}\n\n*Total:* $".number_format((float) $cart->total, 2)."\n\nAhora confirma cómo deseas recibirlo."],
                 'action' => ['buttons' => [
                     ['type' => 'reply', 'reply' => ['id' => 'checkout', 'title' => '✅ Continuar pedido']],
                     ['type' => 'reply', 'reply' => ['id' => 'menu_productos', 'title' => '➕ Agregar más']],
@@ -5746,9 +5828,10 @@ class WhatsappService
         $raw = $interactive['nfm_reply']['response_json'] ?? '{}';
         $data = is_string($raw) ? json_decode($raw, true) : $raw;
 
-        if (!is_array($data)) {
+        if (! is_array($data)) {
             Log::warning('[WhatsApp Flow] respuesta JSON inválida', ['message_id' => $messageId]);
             $this->sendMessage($from, ['type' => 'text', 'text' => ['body' => 'No pudimos leer tu pedido. Por favor, vuelve a abrir el menú e inténtalo otra vez.']]);
+
             return;
         }
 
@@ -5756,8 +5839,9 @@ class WhatsappService
         if (is_string($lines)) {
             $lines = json_decode($lines, true) ?: [];
         }
-        if (!is_array($lines) || $lines === []) {
+        if (! is_array($lines) || $lines === []) {
             $this->sendMessage($from, ['type' => 'text', 'text' => ['body' => 'Tu pedido no incluye productos. Abre el menú y elige tu combo favorito.']]);
+
             return;
         }
 
@@ -5769,12 +5853,12 @@ class WhatsappService
             );
 
             foreach ($lines as $line) {
-                if (!is_array($line)) {
+                if (! is_array($line)) {
                     continue;
                 }
                 $sku = strtoupper(trim((string) ($line['product_sku'] ?? $line['sku'] ?? '')));
                 $product = WhatsappPrice::where('sku', $sku)->where('business_profile_id', $this->businessProfile?->id)->where('is_active', true)->first();
-                if (!$product) {
+                if (! $product) {
                     continue;
                 }
 
@@ -5799,8 +5883,8 @@ class WhatsappService
                 }
 
                 $noteParts = array_filter([
-                    $variation ? 'Variación: ' . $variation['title'] : null,
-                    $extraNames ? 'Extras: ' . implode(', ', $extraNames) : null,
+                    $variation ? 'Variación: '.$variation['title'] : null,
+                    $extraNames ? 'Extras: '.implode(', ', $extraNames) : null,
                 ]);
                 $lineNote = implode(' · ', $noteParts) ?: null;
                 $cart->items()->create([
@@ -5827,8 +5911,9 @@ class WhatsappService
             $cart->save();
         });
 
-        if (!$cart->items()->exists()) {
+        if (! $cart->items()->exists()) {
             $this->sendMessage($from, ['type' => 'text', 'text' => ['body' => 'Algunos productos ya no están disponibles. Abre el menú para elegir una opción vigente.']]);
+
             return;
         }
 
@@ -5838,7 +5923,7 @@ class WhatsappService
         $greeting = $community ? "¡Pedido recibido! Gracias por ser parte de {$community}. ✨" : '¡Pedido recibido! ✨';
         $this->sendMessage($from, [
             'type' => 'text',
-            'text' => ['body' => "{$greeting}\n\n*N.º {$orderNumber}*\nTotal: *$" . number_format((float) $cart->total, 2) . "*\n\nEl equipo confirmará disponibilidad, preparación y entrega por este chat."],
+            'text' => ['body' => "{$greeting}\n\n*N.º {$orderNumber}*\nTotal: *$".number_format((float) $cart->total, 2)."*\n\nEl equipo confirmará disponibilidad, preparación y entrega por este chat."],
         ]);
     }
 
@@ -5846,11 +5931,12 @@ class WhatsappService
     {
         try {
             $price = $this->findCatalogProduct($productId);
-            if (!$price || !$price->is_active) {
+            if (! $price || ! $price->is_active) {
                 // Sin el filtro is_active, un id numérico adivinado (ej. tocando
                 // "3" a mano) permitía ver la ficha de productos deshabilitados
                 // o descontinuados que ya no deberían mostrarse al cliente.
                 Log::warning('❌ Producto no encontrado o inactivo', ['id' => $productId]);
+
                 return [
                     'type' => 'text',
                     'text' => ['body' => 'Ese producto ya no está disponible. Escribe *menú* para ver las opciones vigentes.'],
@@ -5871,7 +5957,7 @@ class WhatsappService
                     ? json_decode($price->characteristics, true)
                     : $price->characteristics;
 
-                if (is_array($characteristics) && !empty($characteristics)) {
+                if (is_array($characteristics) && ! empty($characteristics)) {
                     $message .= "\n*Incluye*\n";
                     foreach ($characteristics as $characteristic) {
                         $message .= "• {$characteristic}\n";
@@ -5883,11 +5969,11 @@ class WhatsappService
             $variations = $this->productVariations($price);
             if ($variations !== []) {
                 $fromPrice = min(array_column($variations, 'price'));
-                $message .= "\n*Desde $" . number_format((float) $fromPrice, 2) . '*';
+                $message .= "\n*Desde $".number_format((float) $fromPrice, 2).'*';
             } elseif ($price->is_promo && $price->promo_price) {
                 $message .= "\n*Precio de oferta: \${$price->promo_price}*\n";
                 if ($price->promo_end_date) {
-                    $message .= "Válido hasta " . date('d/m/Y', strtotime($price->promo_end_date)) . "\n";
+                    $message .= 'Válido hasta '.date('d/m/Y', strtotime($price->promo_end_date))."\n";
                 }
                 $message .= "Precio regular: ~\${$price->price}~";
             } else {
@@ -5906,8 +5992,8 @@ class WhatsappService
                     $buttons[] = [
                         'type' => 'reply',
                         'reply' => [
-                            'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_') . $productId . '_' . $index,
-                            'title' => Str::limit('🛒 ' . $variation['title'] . ' $' . number_format((float) $variation['price'], 2), 20, ''),
+                            'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_').$productId.'_'.$index,
+                            'title' => Str::limit('🛒 '.$variation['title'].' $'.number_format((float) $variation['price'], 2), 20, ''),
                         ],
                     ];
                 }
@@ -5918,8 +6004,8 @@ class WhatsappService
                 $buttons[] = [
                     'type' => 'reply',
                     'reply' => [
-                        'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_') . $productId . '_base',
-                        'title' => Str::limit('🛒 Agregar $' . number_format($quickPrice, 2), 20, ''),
+                        'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_').$productId.'_base',
+                        'title' => Str::limit('🛒 Agregar $'.number_format($quickPrice, 2), 20, ''),
                     ],
                 ];
             }
@@ -5930,7 +6016,7 @@ class WhatsappService
                 $buttons[] = [
                     'type' => 'reply',
                     'reply' => [
-                        'id' => 'personalizar_' . $productId,
+                        'id' => 'personalizar_'.$productId,
                         'title' => 'Ver opciones',
                     ],
                 ];
@@ -5943,37 +6029,36 @@ class WhatsappService
                     'title' => $this->cartButtonTitle($this->cartItemCount($contact)),
                 ],
             ];
-            //validar que los titulos no sean mas de 20 caracteres
+            // validar que los titulos no sean mas de 20 caracteres
             foreach ($buttons as &$button) {
                 if (strlen($button['reply']['title']) > 20) {
-                    $button['reply']['title'] = substr($button['reply']['title'], 0, 17) . '...';
+                    $button['reply']['title'] = substr($button['reply']['title'], 0, 17).'...';
                 }
             }
             unset($button);
 
-            //validar que los botones no sean mas de 3
+            // validar que los botones no sean mas de 3
             if (count($buttons) > 3) {
                 $buttons = array_slice($buttons, 0, 3);
             }
-
 
             $interactive = [
                 'type' => 'interactive',
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => $message
+                        'text' => $message,
                     ],
                     'action' => [
-                        'buttons' => $buttons
-                    ]
-                ]
+                        'buttons' => $buttons,
+                    ],
+                ],
             ];
 
             // Si hay una imagen, agregarla como header. Sin imagen propia del
             // producto, el mensaje simplemente no lleva header (nunca cae al
             // logo de otra empresa como reemplazo).
-            $imageUrl = app(\App\Services\ProductImageService::class)->resolveUrl($price->image);
+            $imageUrl = app(ProductImageService::class)->resolveUrl($price->image);
             if ($imageUrl) {
                 $interactive['interactive']['header'] = [
                     'type' => 'image',
@@ -5987,8 +6072,9 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('Error al obtener detalles del producto', [
                 'error' => $e->getMessage(),
-                'product_id' => $productId
+                'product_id' => $productId,
             ]);
+
             return null;
         }
     }
@@ -5997,7 +6083,7 @@ class WhatsappService
     private function showVariationSelection($productId, ?WhatsappContact $contact = null)
     {
         $price = $this->findCatalogProduct($productId);
-        if (!$price) {
+        if (! $price) {
             return null;
         }
 
@@ -6012,8 +6098,8 @@ class WhatsappService
         foreach (array_slice($variations, 0, 8, true) as $index => $variation) {
             $rows[] = [
                 'id' => "variacion_{$productId}_{$index}",
-                'title' => \Illuminate\Support\Str::limit($variation['title'], 24, ''),
-                'description' => '$' . number_format((float) $variation['price'], 2),
+                'title' => Str::limit($variation['title'], 24, ''),
+                'description' => '$'.number_format((float) $variation['price'], 2),
             ];
         }
 
@@ -6032,11 +6118,11 @@ class WhatsappService
         try {
             $price = $this->findCatalogProduct($productId);
 
-            if (!$price) {
+            if (! $price) {
                 return null;
             }
 
-            if (!$price->allow_quantity_selection) {
+            if (! $price->allow_quantity_selection) {
                 // El producto ya no permite elegir cantidad (por ejemplo, se
                 // desactivó la opción entre que se envió el botón y el clic):
                 // agregamos 1 unidad en vez de dejar al cliente sin respuesta.
@@ -6052,12 +6138,12 @@ class WhatsappService
             $rows = [];
             for ($qty = $min; $qty <= $maxOption; $qty++) {
                 $rows[] = [
-                    'id' => 'cantidad_' . $qty . '_' . $productId . ($variationIndex === null ? '' : '_' . $variationIndex),
-                    'title' => $qty === 1 ? '1 unidad' : $qty . ' unidades',
+                    'id' => 'cantidad_'.$qty.'_'.$productId.($variationIndex === null ? '' : '_'.$variationIndex),
+                    'title' => $qty === 1 ? '1 unidad' : $qty.' unidades',
                 ];
             }
             $rows[] = [
-                'id' => 'otra_cantidad_' . $productId . ($variationIndex === null ? '' : '_' . $variationIndex),
+                'id' => 'otra_cantidad_'.$productId.($variationIndex === null ? '' : '_'.$variationIndex),
                 'title' => '✏️ Otra cantidad',
             ];
             $rows[] = [
@@ -6070,7 +6156,7 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'list',
                     'body' => [
-                        'text' => "*{$price->name}*\n\n¿Cuántas unidades quieres agregar?"
+                        'text' => "*{$price->name}*\n\n¿Cuántas unidades quieres agregar?",
                     ],
                     'action' => [
                         'button' => 'Seleccionar cantidad',
@@ -6086,8 +6172,9 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error al mostrar selección de cantidad', [
                 'error' => $e->getMessage(),
-                'product_id' => $productId
+                'product_id' => $productId,
             ]);
+
             return null;
         }
     }
@@ -6099,7 +6186,7 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('❌ Error al generar el menú de precios', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [
@@ -6113,11 +6200,11 @@ class WhatsappService
 
     private function sendNativeCatalogMenu(?WhatsappContact $contact = null): array
     {
-        if (!config('whatsapp.catalog_enabled') || !config('whatsapp.catalog_id')) {
+        if (! config('whatsapp.catalog_enabled') || ! config('whatsapp.catalog_id')) {
             return $this->getProductsMenu($contact);
         }
 
-        return \App\Services\Whatsapp\WhatsappMessagePayload::catalog(
+        return WhatsappMessagePayload::catalog(
             '🍗 *Catálogo DPIKEOS*\n\nMira las fotos, agrega varios productos a tu carrito y envíalo cuando estés listo.',
             (string) config('whatsapp.catalog_id'),
             null,
@@ -6134,10 +6221,10 @@ class WhatsappService
                 if (isset($message['interactive']['body']['text'])) {
                     $text = $message['interactive']['body']['text'];
                     if (mb_strlen($text) > 1024) {
-                        $message['interactive']['body']['text'] = mb_substr($text, 0, 1021) . '...';
+                        $message['interactive']['body']['text'] = mb_substr($text, 0, 1021).'...';
                         Log::warning('⚠️ Texto del cuerpo truncado', [
                             'longitud_original' => mb_strlen($text),
-                            'longitud_final' => mb_strlen($message['interactive']['body']['text'])
+                            'longitud_final' => mb_strlen($message['interactive']['body']['text']),
                         ]);
                     }
                 }
@@ -6148,10 +6235,10 @@ class WhatsappService
                         if (isset($button['reply']['title'])) {
                             $title = $button['reply']['title'];
                             if (mb_strlen($title) > 20) {
-                                $button['reply']['title'] = mb_substr($title, 0, 17) . '...';
+                                $button['reply']['title'] = mb_substr($title, 0, 17).'...';
                                 Log::warning('⚠️ Título de botón truncado', [
                                     'título_original' => $title,
-                                    'título_final' => $button['reply']['title']
+                                    'título_final' => $button['reply']['title'],
                                 ]);
                             }
                         }
@@ -6163,10 +6250,10 @@ class WhatsappService
                     foreach ($message['interactive']['action']['sections'] as &$section) {
                         // Validar título de sección (máximo 24 caracteres)
                         if (isset($section['title']) && mb_strlen($section['title']) > 24) {
-                            $section['title'] = mb_substr($section['title'], 0, 21) . '...';
+                            $section['title'] = mb_substr($section['title'], 0, 21).'...';
                             Log::warning('⚠️ Título de sección truncado', [
                                 'título_original' => $section['title'],
-                                'título_final' => $section['title']
+                                'título_final' => $section['title'],
                             ]);
                         }
 
@@ -6175,19 +6262,19 @@ class WhatsappService
                             foreach ($section['rows'] as &$row) {
                                 // Validar título de fila (máximo 24 caracteres)
                                 if (isset($row['title']) && mb_strlen($row['title']) > 24) {
-                                    $row['title'] = mb_substr($row['title'], 0, 21) . '...';
+                                    $row['title'] = mb_substr($row['title'], 0, 21).'...';
                                     Log::warning('⚠️ Título de fila truncado', [
                                         'título_original' => $row['title'],
-                                        'título_final' => $row['title']
+                                        'título_final' => $row['title'],
                                     ]);
                                 }
 
                                 // Validar descripción de fila (máximo 72 caracteres)
                                 if (isset($row['description']) && mb_strlen($row['description']) > 72) {
-                                    $row['description'] = mb_substr($row['description'], 0, 69) . '...';
+                                    $row['description'] = mb_substr($row['description'], 0, 69).'...';
                                     Log::warning('⚠️ Descripción de fila truncada', [
                                         'descripción_original' => $row['description'],
-                                        'descripción_final' => $row['description']
+                                        'descripción_final' => $row['description'],
                                     ]);
                                 }
                             }
@@ -6199,17 +6286,17 @@ class WhatsappService
                 if (isset($message['interactive']['action']['button'])) {
                     $buttonText = $message['interactive']['action']['button'];
                     if (mb_strlen($buttonText) > 20) {
-                        $message['interactive']['action']['button'] = mb_substr($buttonText, 0, 17) . '...';
+                        $message['interactive']['action']['button'] = mb_substr($buttonText, 0, 17).'...';
                         Log::warning('⚠️ Texto del botón de acción truncado', [
                             'texto_original' => $buttonText,
-                            'texto_final' => $message['interactive']['action']['button']
+                            'texto_final' => $message['interactive']['action']['button'],
                         ]);
                     }
                 }
             }
 
             $result = $this->sendMessageToWhatsApp($to, $message);
-            if (!$result && ($message['interactive']['type'] ?? null) === 'catalog_message') {
+            if (! $result && ($message['interactive']['type'] ?? null) === 'catalog_message') {
                 // Commerce Manager puede tardar en habilitar productos recién
                 // vinculados. Durante esa ventana no dejamos al cliente sin
                 // respuesta: enviamos el catálogo local navegable.
@@ -6218,7 +6305,7 @@ class WhatsappService
                     ? $this->sendBulkWebOrderLink($contact)
                     : app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCatalog($contact);
                 Log::warning('[Catálogo Meta] No disponible; usando micrositio temporalmente', [
-                    'to' => substr($to, 0, 4) . '****' . substr($to, -4),
+                    'to' => substr($to, 0, 4).'****'.substr($to, -4),
                 ]);
 
                 $result = $this->sendMessageToWhatsApp($to, $fallback);
@@ -6227,18 +6314,20 @@ class WhatsappService
                 }
             }
 
-            if (!$result) {
+            if (! $result) {
                 Log::error('❌ Error al enviar mensaje', [
                     'to' => $to,
-                    'message' => $message
+                    'message' => $message,
                 ]);
+
                 return false;
             }
 
             // Obtener el contacto
             $contact = $this->findContactByPhone($to);
-            if (!$contact) {
+            if (! $contact) {
                 Log::error('❌ Contacto no encontrado al guardar mensaje del sistema', ['phone' => $to]);
+
                 return false;
             }
 
@@ -6268,16 +6357,17 @@ class WhatsappService
                 'status' => 'sent',
                 'metadata' => [
                     'raw_message' => $message,
-                    'timestamp' => now()
-                ]
+                    'timestamp' => now(),
+                ],
             ]);
 
             return $result;
         } catch (\Exception $e) {
             Log::error('❌ Error al enviar mensaje', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return false;
         }
     }
@@ -6287,17 +6377,17 @@ class WhatsappService
         try {
             $contact = $this->lastMessage?->contact ?? null;
 
-            if (!$contact) {
+            if (! $contact) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se pudo identificar tu contacto. Por favor, envía un mensaje primero.']
+                    'text' => ['body' => 'Lo siento, no se pudo identificar tu contacto. Por favor, envía un mensaje primero.'],
                 ];
             }
 
             $intro = '';
             $ordersStep = $this->getMarketingStep(MarketingStepKey::ORDERS_MENU);
             if ($ordersStep && $ordersStep->is_enabled && $ordersStep->message_template) {
-                $intro = $ordersStep->renderMessage($this->marketingFlowVariables($contact)) . "\n\n";
+                $intro = $ordersStep->renderMessage($this->marketingFlowVariables($contact))."\n\n";
             }
 
             // Solo pedidos en curso: ya entregados/pagados no se muestran aquí
@@ -6320,9 +6410,9 @@ class WhatsappService
                     'interactive' => [
                         'type' => 'button',
                         'body' => [
-                            'text' => $intro . "📦 *Historial de Pedidos*\n\n" .
-                                "No tienes pedidos realizados aún.\n\n" .
-                                "¿Te gustaría ver nuestros productos?"
+                            'text' => $intro."📦 *Historial de Pedidos*\n\n".
+                                "No tienes pedidos realizados aún.\n\n".
+                                '¿Te gustaría ver nuestros productos?',
                         ],
                         'action' => [
                             'buttons' => [
@@ -6330,19 +6420,19 @@ class WhatsappService
                                     'type' => 'reply',
                                     'reply' => [
                                         'id' => 'productos',
-                                        'title' => '🛍️ Ver productos'
-                                    ]
+                                        'title' => '🛍️ Ver productos',
+                                    ],
                                 ],
                                 [
                                     'type' => 'reply',
                                     'reply' => [
                                         'id' => 'menu_principal',
-                                        'title' => '🏠 Menú principal'
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ]
+                                        'title' => '🏠 Menú principal',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
                 ];
             }
 
@@ -6355,7 +6445,7 @@ class WhatsappService
             ]);
             $paymentPendingOrders = $orders->where('status', WhatsappCart::STATUS_PAYMENT_PENDING);
 
-            $message = $intro . "📦 *Tus Pedidos*\n\n";
+            $message = $intro."📦 *Tus Pedidos*\n\n";
 
             // Mostrar pedidos pendientes de confirmación
             if ($pendingOrders->isNotEmpty()) {
@@ -6364,14 +6454,14 @@ class WhatsappService
                     $orderDetails = $order->metadata['order_details'] ?? null;
                     if ($orderDetails) {
                         $message .= "🛒 *{$orderDetails['order_number']}*\n";
-                        $message .= "📅 Fecha: " . date('d/m/Y H:i', strtotime($orderDetails['created_at'])) . "\n";
+                        $message .= '📅 Fecha: '.date('d/m/Y H:i', strtotime($orderDetails['created_at']))."\n";
                         $message .= "💰 Total: \${$orderDetails['total']}\n";
-                        $message .= "💳 Método de pago: " . $this->getPaymentMethodText($orderDetails['payment_method']) . "\n";
-                $message .= "📋 Items:\n";
+                        $message .= '💳 Método de pago: '.$this->getPaymentMethodText($orderDetails['payment_method'])."\n";
+                        $message .= "📋 Items:\n";
                         foreach ($orderDetails['items'] as $item) {
                             $message .= "  • {$item['name']} x{$item['quantity']}\n";
                         }
-                        if (!empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
+                        if (! empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
                             $message .= "📝 Nota: {$orderDetails['note']}\n";
                         }
                         $message .= "\n";
@@ -6386,17 +6476,17 @@ class WhatsappService
                     $orderDetails = $order->metadata['order_details'] ?? null;
                     if ($orderDetails) {
                         $message .= "🛒 *{$orderDetails['order_number']}*\n";
-                        $message .= "📅 Fecha: " . date('d/m/Y H:i', strtotime($orderDetails['created_at'])) . "\n";
+                        $message .= '📅 Fecha: '.date('d/m/Y H:i', strtotime($orderDetails['created_at']))."\n";
                         $message .= "💰 Total: \${$orderDetails['total']}\n";
-                        $message .= "💳 Método de pago: " . $this->getPaymentMethodText($orderDetails['payment_method']) . "\n";
+                        $message .= '💳 Método de pago: '.$this->getPaymentMethodText($orderDetails['payment_method'])."\n";
                         $message .= "📋 Items:\n";
                         foreach ($orderDetails['items'] as $item) {
                             $message .= "  • {$item['name']} x{$item['quantity']}\n";
                         }
-                        if (!empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
+                        if (! empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
                             $message .= "📝 Nota: {$orderDetails['note']}\n";
-                }
-                $message .= "\n";
+                        }
+                        $message .= "\n";
                     }
                 }
             }
@@ -6408,10 +6498,10 @@ class WhatsappService
                     $orderDetails = $order->metadata['order_details'] ?? null;
                     if ($orderDetails) {
                         $message .= "🛒 *{$orderDetails['order_number']}*\n";
-                        $message .= "📅 Fecha: " . date('d/m/Y H:i', strtotime($orderDetails['created_at'])) . "\n";
+                        $message .= '📅 Fecha: '.date('d/m/Y H:i', strtotime($orderDetails['created_at']))."\n";
                         $message .= "💰 Total: \${$orderDetails['total']}\n";
-                        $message .= "💳 Método de pago: " . $this->getPaymentMethodText($orderDetails['payment_method']) . "\n";
-                        if ($order->isAwaitingPaymentProof() && !$order->hasPaymentProof()) {
+                        $message .= '💳 Método de pago: '.$this->getPaymentMethodText($orderDetails['payment_method'])."\n";
+                        if ($order->isAwaitingPaymentProof() && ! $order->hasPaymentProof()) {
                             $message .= "📎 *Estado:* Pendiente de comprobante\n";
                         } elseif ($order->payment_status === 'proof_submitted') {
                             $message .= "✅ *Estado:* Comprobante en revisión\n";
@@ -6420,7 +6510,7 @@ class WhatsappService
                         foreach ($orderDetails['items'] as $item) {
                             $message .= "  • {$item['name']} x{$item['quantity']}\n";
                         }
-                        if (!empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
+                        if (! empty($orderDetails['note']) && $orderDetails['note'] !== 'sin nota') {
                             $message .= "📝 Nota: {$orderDetails['note']}\n";
                         }
                         $message .= "\n";
@@ -6428,10 +6518,10 @@ class WhatsappService
                 }
             }
 
-            $message .= "¿Qué deseas hacer?";
+            $message .= '¿Qué deseas hacer?';
 
             $awaitingProofOrders = $paymentPendingOrders->filter(
-                fn ($order) => $order->isAwaitingPaymentProof() && !$order->hasPaymentProof()
+                fn ($order) => $order->isAwaitingPaymentProof() && ! $order->hasPaymentProof()
             );
 
             // Preparar botones (máx. 3 en WhatsApp)
@@ -6441,7 +6531,7 @@ class WhatsappService
                 $buttons[] = [
                     'type' => 'reply',
                     'reply' => [
-                        'id' => 'enviar_comprobante_' . $awaitingProofOrders->first()->id,
+                        'id' => 'enviar_comprobante_'.$awaitingProofOrders->first()->id,
                         'title' => '📎 Enviar comprobante',
                     ],
                 ];
@@ -6486,21 +6576,22 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => $message
+                        'text' => $message,
                     ],
                     'action' => [
-                        'buttons' => $buttons
-                    ]
-                ]
+                        'buttons' => $buttons,
+                    ],
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener menú de pedidos', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar el historial de pedidos.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar el historial de pedidos.'],
             ];
         }
     }
@@ -6515,10 +6606,10 @@ class WhatsappService
             }
 
             $menu = $this->menuByActionId('info_menu');
-            if (!$menu) {
+            if (! $menu) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, el menú de información no está disponible en este momento.']
+                    'text' => ['body' => 'Lo siento, el menú de información no está disponible en este momento.'],
                 ];
             }
 
@@ -6542,22 +6633,23 @@ class WhatsappService
                         [
                             'id' => 'soporte',
                             'title' => '🛟 Soporte Técnico',
-                            'description' => 'Contacta con nuestro equipo de soporte'
-                        ]
-                    ]
+                            'description' => 'Contacta con nuestro equipo de soporte',
+                        ],
+                    ],
                 ];
             }
 
-                            // Agregar el botón de retorno al menú en cada sección
-            $sections = array_map(function($section) use ($mainMenuButton) {
-                            if (isset($section['rows'])) {
-                                $section['rows'][] = [
-                                    'id' => 'return_to_menu',
-                                    'title' => $mainMenuButton,
-                                    'description' => 'Volver al menú principal'
-                                ];
-                            }
-                            return $section;
+            // Agregar el botón de retorno al menú en cada sección
+            $sections = array_map(function ($section) use ($mainMenuButton) {
+                if (isset($section['rows'])) {
+                    $section['rows'][] = [
+                        'id' => 'return_to_menu',
+                        'title' => $mainMenuButton,
+                        'description' => 'Volver al menú principal',
+                    ];
+                }
+
+                return $section;
             }, $sections);
 
             return [
@@ -6565,25 +6657,26 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'list',
                     'body' => [
-                        'text' => $menu->content
+                        'text' => $menu->content,
                     ],
                     'action' => [
                         'button' => $menu->button_text,
-                        'sections' => $sections
+                        'sections' => $sections,
                     ],
                     'footer' => [
-                        'text' => 'Selecciona una opción o vuelve al menú principal'
-                    ]
-                ]
+                        'text' => 'Selecciona una opción o vuelve al menú principal',
+                    ],
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('❌ Error al obtener menú de información', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar el menú de información.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al cargar el menú de información.'],
             ];
         }
     }
@@ -6596,7 +6689,7 @@ class WhatsappService
             ->first();
 
         if ($cart && isset($cart->metadata['pending_note']) && $cart->metadata['pending_note']) {
-                return true;
+            return true;
         }
 
         $proofCart = $this->findCartPendingProofUpload($contact);
@@ -6614,10 +6707,10 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se encontró el pedido.']
+                    'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
             }
 
@@ -6663,13 +6756,13 @@ class WhatsappService
             $cart->save();
 
             $confirmationBody = "✅ *¡Pedido confirmado!*\n\n"
-                . "📦 *Número de pedido:* {$orderNumber}\n"
-                . $this->buildCostBreakdownText($cart, false)
-                . "💳 *Método de pago:* " . $this->getPaymentMethodText($cart->payment_method) . "\n\n"
-                . $this->buildFulfillmentSummaryText($cart);
+                ."📦 *Número de pedido:* {$orderNumber}\n"
+                .$this->buildCostBreakdownText($cart, false)
+                .'💳 *Método de pago:* '.$this->getPaymentMethodText($cart->payment_method)."\n\n"
+                .$this->buildFulfillmentSummaryText($cart);
 
             if ($this->requiresPaymentProofForCart($cart)) {
-                $cart = app(\App\Services\OrderLifecycleService::class)
+                $cart = app(OrderLifecycleService::class)
                     ->transition($cart, WhatsappCart::STATUS_PAYMENT_PENDING);
                 $this->syncOrderDetails($cart);
 
@@ -6679,7 +6772,7 @@ class WhatsappService
                 // monto que va a cambiar). Se le pide en cuanto se confirmen
                 // esos costos, ver WhatsappService::maybeRequestPaymentProofAfterCosts.
                 if ($this->cartHasPendingFulfillmentCosts($cart)) {
-                    $confirmationBody .= "🕐 Tu pedido se encuentra registrado. Pronto nuestro equipo te confirmará el total a pagar y ahí te pediremos tu comprobante.";
+                    $confirmationBody .= '🕐 Tu pedido se encuentra registrado. Pronto nuestro equipo te confirmará el total a pagar y ahí te pediremos tu comprobante.';
 
                     return [
                         'type' => 'text',
@@ -6694,23 +6787,24 @@ class WhatsappService
 
                 $proofPayload = $this->buildPaymentProofRequestPayload($contact, $cart);
                 if ($proofPayload && ($proofPayload['type'] ?? '') === 'text') {
-                    $proofPayload['text']['body'] = $confirmationBody . ($proofPayload['text']['body'] ?? '');
+                    $proofPayload['text']['body'] = $confirmationBody.($proofPayload['text']['body'] ?? '');
+
                     return $proofPayload;
                 }
 
                 return [
                     'type' => 'text',
-                    'text' => ['body' => $confirmationBody . "📎 Por favor, envía una imagen o PDF de tu comprobante de pago."]
+                    'text' => ['body' => $confirmationBody.'📎 Por favor, envía una imagen o PDF de tu comprobante de pago.'],
                 ];
             }
 
-            $cart = app(\App\Services\OrderLifecycleService::class)
+            $cart = app(OrderLifecycleService::class)
                 ->transition($cart, WhatsappCart::STATUS_CONFIRMED);
             $cart->payment_status = $cart->payment_method === 'efectivo' ? 'cash_on_delivery' : 'confirmed';
             $cart->save();
             $this->syncOrderDetails($cart);
 
-            $confirmationBody .= "Te contactaremos pronto para coordinar los siguientes pasos.";
+            $confirmationBody .= 'Te contactaremos pronto para coordinar los siguientes pasos.';
 
             return [
                 'type' => 'interactive',
@@ -6734,11 +6828,12 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('Error al confirmar pedido', [
                 'error' => $e->getMessage(),
-                'cart_id' => $cartId
+                'cart_id' => $cartId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al confirmar tu pedido.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al confirmar tu pedido.'],
             ];
         }
     }
@@ -6750,14 +6845,14 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se encontró el pedido.']
+                    'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
             }
 
-            $cart = app(\App\Services\OrderLifecycleService::class)
+            $cart = app(OrderLifecycleService::class)
                 ->transition($cart, WhatsappCart::STATUS_CANCELLED);
             $metadata = $cart->metadata ?? [];
             unset($metadata['awaiting_client_confirmation']);
@@ -6771,9 +6866,9 @@ class WhatsappService
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => "❌ *Pedido cancelado*\n\n" .
-                            "Tu pedido ha sido cancelado.\n\n" .
-                            "¿Qué deseas hacer?"
+                        'text' => "❌ *Pedido cancelado*\n\n".
+                            "Tu pedido ha sido cancelado.\n\n".
+                            '¿Qué deseas hacer?',
                     ],
                     'action' => [
                         'buttons' => [
@@ -6781,28 +6876,29 @@ class WhatsappService
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_productos',
-                                    'title' => '🛍️ Ver productos'
-                                ]
+                                    'title' => '🛍️ Ver productos',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
                                     'id' => 'menu_principal',
-                                    'title' => '🏠 Menú principal'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'title' => '🏠 Menú principal',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('Error al cancelar pedido', [
                 'error' => $e->getMessage(),
-                'cart_id' => $cartId
+                'cart_id' => $cartId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al cancelar tu pedido.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al cancelar tu pedido.'],
             ];
         }
     }
@@ -6814,7 +6910,7 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
                     'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
@@ -6848,9 +6944,9 @@ class WhatsappService
                             'type' => 'cta_url',
                             'body' => [
                                 'text' => "✏️ *Modificar pedido*\n\n"
-                                    . "Pedido *{$orderNumber}*.\n"
-                                    . "Abre el formulario, ajusta productos y cantidades.\n"
-                                    . "Al enviarlo, el pedido anterior será reemplazado.",
+                                    ."Pedido *{$orderNumber}*.\n"
+                                    ."Abre el formulario, ajusta productos y cantidades.\n"
+                                    .'Al enviarlo, el pedido anterior será reemplazado.',
                             ],
                             'action' => [
                                 'name' => 'cta_url',
@@ -6868,7 +6964,7 @@ class WhatsappService
                 'type' => 'text',
                 'text' => [
                     'body' => "✏️ *Modificar pedido {$orderNumber}*\n\n"
-                        . "Escríbenos por este chat indicando los cambios que necesitas y un asesor te ayudará.",
+                        .'Escríbenos por este chat indicando los cambios que necesitas y un asesor te ayudará.',
                 ],
             ];
         } catch (\Exception $e) {
@@ -6891,10 +6987,10 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se encontró el pedido.']
+                    'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
             }
 
@@ -6905,7 +7001,7 @@ class WhatsappService
 
             // Preparar los detalles del pedido para guardar en metadata
             $orderDetails = [
-                'order_number' => 'ORD-' . str_pad($cart->id, 6, '0', STR_PAD_LEFT),
+                'order_number' => 'ORD-'.str_pad($cart->id, 6, '0', STR_PAD_LEFT),
                 'items' => [],
                 'total' => $cart->total,
                 'note' => $cart->note,
@@ -6928,7 +7024,7 @@ class WhatsappService
                     'name' => $item->name,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
-                    'subtotal' => $item->price * $item->quantity
+                    'subtotal' => $item->price * $item->quantity,
                 ];
             }
 
@@ -6949,44 +7045,45 @@ class WhatsappService
                 $message .= "📝 *Nota:* {$cart->note}\n\n";
             }
 
-            $message .= "¿Confirmas tu pedido?";
+            $message .= '¿Confirmas tu pedido?';
 
             return [
                 'type' => 'interactive',
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => $message
+                        'text' => $message,
                     ],
                     'action' => [
                         'buttons' => [
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'confirmar_pedido_' . $cart->id,
-                                    'title' => '✅ Confirmar pedido'
-                                ]
+                                    'id' => 'confirmar_pedido_'.$cart->id,
+                                    'title' => '✅ Confirmar pedido',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'cancelar_pedido_' . $cart->id,
-                                    'title' => '❌ Cancelar pedido'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'id' => 'cancelar_pedido_'.$cart->id,
+                                    'title' => '❌ Cancelar pedido',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
 
         } catch (\Exception $e) {
             Log::error('Error al procesar pago por transferencia', [
                 'error' => $e->getMessage(),
-                'cart_id' => $cartId
+                'cart_id' => $cartId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago.'],
             ];
         }
     }
@@ -6998,10 +7095,10 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se encontró el pedido.']
+                    'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
             }
 
@@ -7012,7 +7109,7 @@ class WhatsappService
 
             // Preparar los detalles del pedido para guardar en metadata
             $orderDetails = [
-                'order_number' => 'ORD-' . str_pad($cart->id, 6, '0', STR_PAD_LEFT),
+                'order_number' => 'ORD-'.str_pad($cart->id, 6, '0', STR_PAD_LEFT),
                 'items' => [],
                 'total' => $cart->total,
                 'note' => $cart->note,
@@ -7035,7 +7132,7 @@ class WhatsappService
                     'name' => $item->name,
                     'quantity' => $item->quantity,
                     'price' => $item->price,
-                    'subtotal' => $item->price * $item->quantity
+                    'subtotal' => $item->price * $item->quantity,
                 ];
             }
 
@@ -7056,43 +7153,44 @@ class WhatsappService
                 $message .= "📝 *Nota:* {$cart->note}\n\n";
             }
 
-            $message .= "¿Confirmas tu pedido?";
+            $message .= '¿Confirmas tu pedido?';
 
             return [
                 'type' => 'interactive',
                 'interactive' => [
                     'type' => 'button',
                     'body' => [
-                        'text' => $message
+                        'text' => $message,
                     ],
                     'action' => [
                         'buttons' => [
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'confirmar_pedido_' . $cart->id,
-                                    'title' => '✅ Confirmar pedido'
-                                ]
+                                    'id' => 'confirmar_pedido_'.$cart->id,
+                                    'title' => '✅ Confirmar pedido',
+                                ],
                             ],
                             [
                                 'type' => 'reply',
                                 'reply' => [
-                                    'id' => 'cancelar_pedido_' . $cart->id,
-                                    'title' => '❌ Cancelar pedido'
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
+                                    'id' => 'cancelar_pedido_'.$cart->id,
+                                    'title' => '❌ Cancelar pedido',
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
             ];
         } catch (\Exception $e) {
             Log::error('Error al procesar pago en efectivo', [
                 'error' => $e->getMessage(),
-                'cart_id' => $cartId
+                'cart_id' => $cartId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago en efectivo.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago en efectivo.'],
             ];
         }
     }
@@ -7104,10 +7202,10 @@ class WhatsappService
                 ->where('contact_id', $contact->id)
                 ->first();
 
-            if (!$cart) {
+            if (! $cart) {
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'Lo siento, no se encontró el pedido.']
+                    'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
             }
 
@@ -7138,7 +7236,7 @@ class WhatsappService
 
                 return [
                     'type' => 'text',
-                    'text' => ['body' => 'El pago con tarjeta no está disponible por ahora. Por favor elige otro método de pago o escríbenos.']
+                    'text' => ['body' => 'El pago con tarjeta no está disponible por ahora. Por favor elige otro método de pago o escríbenos.'],
                 ];
             }
 
@@ -7159,11 +7257,12 @@ class WhatsappService
         } catch (\Exception $e) {
             Log::error('Error al procesar pago con tarjeta', [
                 'error' => $e->getMessage(),
-                'cart_id' => $cartId
+                'cart_id' => $cartId,
             ]);
+
             return [
                 'type' => 'text',
-                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago con tarjeta.']
+                'text' => ['body' => 'Lo siento, ha ocurrido un error al procesar el pago con tarjeta.'],
             ];
         }
     }
@@ -7178,10 +7277,10 @@ class WhatsappService
             // Buscar contacto en la base de datos por rol/tipo en metadata
             $contact = WhatsappContact::where('business_profile_id', $this->businessProfile->id)
                 ->where('status', 'active')
-                ->where(function($query) use ($keyword) {
+                ->where(function ($query) use ($keyword) {
                     $query->whereJsonContains('metadata->role', $keyword)
                         ->orWhereJsonContains('metadata->type', $keyword)
-                        ->orWhere('name', 'LIKE', '%' . $keyword . '%');
+                        ->orWhere('name', 'LIKE', '%'.$keyword.'%');
                 })
                 ->first();
 
@@ -7198,7 +7297,7 @@ class WhatsappService
 
                 // Construir el formato de contacto
                 $formattedContact = sprintf(
-                    "%s|%s|%s|%s|%s|%s|%s|%s",
+                    '%s|%s|%s|%s|%s|%s|%s|%s',
                     $name,                                    // formatted_name
                     $firstName,                               // first_name
                     $lastName,                                // last_name
@@ -7213,22 +7312,23 @@ class WhatsappService
                     'keyword' => $keyword,
                     'contact_id' => $contact->id,
                     'name' => $name,
-                    'phone' => $phone
+                    'phone' => $phone,
                 ]);
 
                 return $formattedContact;
             }
 
             Log::info('[getContactFromDatabase] ⚠️ No se encontró contacto en BD', [
-                'keyword' => $keyword
+                'keyword' => $keyword,
             ]);
 
             return null;
         } catch (\Exception $e) {
             Log::error('[getContactFromDatabase] ❌ Error al buscar contacto', [
                 'keyword' => $keyword,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -7250,8 +7350,9 @@ class WhatsappService
                 Log::error('Formato de contacto inválido', [
                     'campos_esperados' => 8,
                     'campos_recibidos' => count($fields),
-                    'campos' => $fields
+                    'campos' => $fields,
                 ]);
+
                 return [];
             }
 
@@ -7263,33 +7364,34 @@ class WhatsappService
                 'name' => [
                     'formatted_name' => $fields[0],
                     'first_name' => $fields[1],
-                    'last_name' => $fields[2]
+                    'last_name' => $fields[2],
                 ],
                 'phones' => [
                     [
                         'phone' => $fields[3],
                         'type' => 'CELL',
-                        'wa_id' => $waId  // Usar el número del business para que muestre "Escribir mensaje"
-                    ]
+                        'wa_id' => $waId,  // Usar el número del business para que muestre "Escribir mensaje"
+                    ],
                 ],
                 'emails' => [
                     [
                         'email' => $fields[4],
-                        'type' => 'WORK'
-                    ]
+                        'type' => 'WORK',
+                    ],
                 ],
                 'org' => [
                     'company' => $fields[5],
                     'department' => $fields[6],
-                    'title' => $fields[7]
-                ]
+                    'title' => $fields[7],
+                ],
             ];
 
             Log::info('Contacto formateado exitosamente', [
                 'contacto' => $contact,
                 'wa_id_usado' => $waId,
-                'business_phone' => $businessPhoneNumber
+                'business_phone' => $businessPhoneNumber,
             ]);
+
             return [$contact];
         }
 
@@ -7302,15 +7404,17 @@ class WhatsappService
                 Log::info('JSON decodificado exitosamente');
             } else {
                 Log::error('Error decodificando JSON', ['error' => json_last_error_msg()]);
+
                 return [];
             }
         }
 
         // Si no es un array después de la decodificación, retornar array vacío
-        if (!is_array($contacts)) {
+        if (! is_array($contacts)) {
             Log::error('Formato de contactos inválido después de procesamiento', [
-                'tipo' => gettype($contacts)
+                'tipo' => gettype($contacts),
             ]);
+
             return [];
         }
 
@@ -7324,12 +7428,12 @@ class WhatsappService
                 'name' => [
                     'formatted_name' => $contact['name'] ?? '',
                     'first_name' => $contact['first_name'] ?? '',
-                    'last_name' => $contact['last_name'] ?? ''
-                ]
+                    'last_name' => $contact['last_name'] ?? '',
+                ],
             ];
 
             // Agregar teléfono si existe
-            if (!empty($contact['phone'])) {
+            if (! empty($contact['phone'])) {
                 // Usar el número del business profile como wa_id si está disponible
                 // Esto asegura que WhatsApp muestre "Escribir mensaje" en lugar de "Invitar"
                 $waId = $businessPhoneNumber ? preg_replace('/[^0-9]/', '', $businessPhoneNumber) : preg_replace('/[^0-9]/', '', $contact['phone']);
@@ -7338,27 +7442,27 @@ class WhatsappService
                     [
                         'phone' => $contact['phone'],
                         'type' => 'CELL',
-                        'wa_id' => $waId  // Usar el número del business para que muestre "Escribir mensaje"
-                    ]
+                        'wa_id' => $waId,  // Usar el número del business para que muestre "Escribir mensaje"
+                    ],
                 ];
             }
 
             // Agregar email si existe
-            if (!empty($contact['email'])) {
+            if (! empty($contact['email'])) {
                 $formattedContact['emails'] = [
                     [
                         'email' => $contact['email'],
-                        'type' => 'WORK'
-                    ]
+                        'type' => 'WORK',
+                    ],
                 ];
             }
 
             // Agregar organización si existe
-            if (!empty($contact['company']) || !empty($contact['department']) || !empty($contact['title'])) {
+            if (! empty($contact['company']) || ! empty($contact['department']) || ! empty($contact['title'])) {
                 $formattedContact['org'] = [
                     'company' => $contact['company'] ?? '',
                     'department' => $contact['department'] ?? '',
-                    'title' => $contact['title'] ?? ''
+                    'title' => $contact['title'] ?? '',
                 ];
             }
 
@@ -7366,6 +7470,7 @@ class WhatsappService
         }
 
         Log::info('Contactos formateados exitosamente', ['cantidad' => count($formattedContacts)]);
+
         return $formattedContacts;
     }
 
@@ -7386,32 +7491,32 @@ class WhatsappService
         $text = "📞 *Información de Contacto*\n\n";
 
         // Nombre
-        if (!empty($contact['name']['formatted_name'])) {
-            $text .= "👤 *Nombre:* " . $contact['name']['formatted_name'] . "\n";
+        if (! empty($contact['name']['formatted_name'])) {
+            $text .= '👤 *Nombre:* '.$contact['name']['formatted_name']."\n";
         }
 
         // Teléfono
-        if (!empty($contact['phones'][0]['phone'])) {
+        if (! empty($contact['phones'][0]['phone'])) {
             $phone = $contact['phones'][0]['phone'];
-            $text .= "📱 *Teléfono:* " . $phone . "\n";
-            $text .= "💬 *Escribe directamente:* wa.me/" . preg_replace('/[^0-9]/', '', $phone) . "\n\n";
+            $text .= '📱 *Teléfono:* '.$phone."\n";
+            $text .= '💬 *Escribe directamente:* wa.me/'.preg_replace('/[^0-9]/', '', $phone)."\n\n";
         }
 
         // Email
-        if (!empty($contact['emails'][0]['email'])) {
-            $text .= "📧 *Email:* " . $contact['emails'][0]['email'] . "\n";
+        if (! empty($contact['emails'][0]['email'])) {
+            $text .= '📧 *Email:* '.$contact['emails'][0]['email']."\n";
         }
 
         // Organización
-        if (!empty($contact['org'])) {
-            if (!empty($contact['org']['company'])) {
-                $text .= "🏢 *Empresa:* " . $contact['org']['company'] . "\n";
+        if (! empty($contact['org'])) {
+            if (! empty($contact['org']['company'])) {
+                $text .= '🏢 *Empresa:* '.$contact['org']['company']."\n";
             }
-            if (!empty($contact['org']['title'])) {
-                $text .= "💼 *Cargo:* " . $contact['org']['title'] . "\n";
+            if (! empty($contact['org']['title'])) {
+                $text .= '💼 *Cargo:* '.$contact['org']['title']."\n";
             }
-            if (!empty($contact['org']['department'])) {
-                $text .= "📋 *Departamento:* " . $contact['org']['department'] . "\n";
+            if (! empty($contact['org']['department'])) {
+                $text .= '📋 *Departamento:* '.$contact['org']['department']."\n";
             }
         }
 
@@ -7429,7 +7534,7 @@ class WhatsappService
         $variables = [];
 
         // Si hay valores personalizados, usarlos directamente
-        if (!empty($customValues)) {
+        if (! empty($customValues)) {
             $variables = $customValues;
         }
         // Si no hay valores personalizados, usar valores por defecto
@@ -7446,7 +7551,7 @@ class WhatsappService
         Log::info('Variables construidas:', [
             'template' => $template->name,
             'customValues' => $customValues,
-            'finalVariables' => $variables
+            'finalVariables' => $variables,
         ]);
 
         return $variables;
@@ -7455,28 +7560,28 @@ class WhatsappService
     /**
      * Envía el catálogo configurado en el flujo comercial (categorías/productos del panel).
      *
-     * @param string $to Número de teléfono del destinatario
+     * @param  string  $to  Número de teléfono del destinatario
      */
     public function sendCatalog($to): bool
     {
         try {
             $contact = WhatsappContact::where('phone_number', $to)->first();
-            if (!$contact) {
+            if (! $contact) {
                 return false;
             }
 
             $contact->refresh();
 
-            if (!$this->botMayRespondToContact($contact)) {
+            if (! $this->botMayRespondToContact($contact)) {
                 $this->logBotBlocked('sendCatalog', $contact, [
-                    'to' => substr($to, 0, 4) . '****' . substr($to, -4),
+                    'to' => substr($to, 0, 4).'****'.substr($to, -4),
                 ]);
 
                 return false;
             }
 
             $response = $this->getProductsMenu($contact);
-            if (!$response) {
+            if (! $response) {
                 return false;
             }
 
@@ -7484,7 +7589,7 @@ class WhatsappService
 
             if ($sent) {
                 Log::info('✅ Catálogo enviado exitosamente', [
-                    'to' => substr($to, 0, 4) . '****' . substr($to, -4),
+                    'to' => substr($to, 0, 4).'****'.substr($to, -4),
                 ]);
             }
 
@@ -7511,7 +7616,7 @@ class WhatsappService
                 ? WhatsappChatbotConfig::where('business_profile_id', $profileId)->first()
                 : WhatsappChatbotConfig::first();
 
-            if (!$config || !filter_var($config->monitoring_enabled, FILTER_VALIDATE_BOOLEAN)) {
+            if (! $config || ! filter_var($config->monitoring_enabled, FILTER_VALIDATE_BOOLEAN)) {
                 return;
             }
 
@@ -7529,7 +7634,7 @@ class WhatsappService
 
             // Enviar mensaje de WhatsApp si está configurado
             // No enviar si el número de monitoreo es el mismo que el que está escribiendo
-            if (!empty($config->monitoring_phone_number)) {
+            if (! empty($config->monitoring_phone_number)) {
                 // Normalizar números para comparación (quitar espacios, guiones, etc.)
                 $normalizedFrom = preg_replace('/[^0-9]/', '', $from);
                 $normalizedMonitoring = preg_replace('/[^0-9]/', '', $config->monitoring_phone_number);
@@ -7546,13 +7651,13 @@ class WhatsappService
                     );
                 } else {
                     Log::info('⏭️ Mensaje de monitoreo omitido: el número de monitoreo es el mismo que el remitente', [
-                        'phone' => substr($from, 0, 4) . '****' . substr($from, -4)
+                        'phone' => substr($from, 0, 4).'****'.substr($from, -4),
                     ]);
                 }
             }
 
             // Enviar email si está configurado
-            if (!empty($config->monitoring_email)) {
+            if (! empty($config->monitoring_email)) {
                 $this->sendMonitoringEmail(
                     $config->monitoring_email,
                     $contactName,
@@ -7566,7 +7671,7 @@ class WhatsappService
             Log::error('❌ Error enviando notificaciones de monitoreo', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -7583,18 +7688,20 @@ class WhatsappService
                 if (is_array($message['text'] ?? null)) {
                     return $message['text']['body'] ?? 'Mensaje de texto sin contenido';
                 }
+
                 return $message['text'] ?? 'Mensaje de texto sin contenido';
 
             case 'interactive':
                 $interactive = $message['interactive'] ?? null;
                 if ($interactive) {
                     if (isset($interactive['button_reply']['title'])) {
-                        return 'Botón: ' . $interactive['button_reply']['title'];
+                        return 'Botón: '.$interactive['button_reply']['title'];
                     }
                     if (isset($interactive['list_reply']['title'])) {
-                        return 'Lista: ' . $interactive['list_reply']['title'];
+                        return 'Lista: '.$interactive['list_reply']['title'];
                     }
                 }
+
                 return 'Mensaje interactivo';
 
             case 'image':
@@ -7609,19 +7716,21 @@ class WhatsappService
             case 'document':
                 $document = $message['document'] ?? [];
                 $filename = $document['filename'] ?? 'Documento';
-                return '📄 Documento: ' . $filename;
+
+                return '📄 Documento: '.$filename;
 
             case 'location':
                 $location = $message['location'] ?? [];
                 $latitude = $location['latitude'] ?? '';
                 $longitude = $location['longitude'] ?? '';
-                return '📍 Ubicación: ' . $latitude . ', ' . $longitude;
+
+                return '📍 Ubicación: '.$latitude.', '.$longitude;
 
             case 'sticker':
                 return '😊 Sticker enviado';
 
             default:
-                return 'Tipo de mensaje: ' . $type;
+                return 'Tipo de mensaje: '.$type;
         }
     }
 
@@ -7640,36 +7749,36 @@ class WhatsappService
             // Crear o obtener el contacto de monitoreo
             $monitoringContact = WhatsappContact::where('phone_number', $monitoringPhone)->first();
 
-            if (!$monitoringContact) {
+            if (! $monitoringContact) {
                 // Crear contacto de monitoreo si no existe
                 $monitoringContact = WhatsappContact::create([
                     'business_profile_id' => $this->businessProfile->id,
                     'phone_number' => $monitoringPhone,
                     'name' => 'Monitoreo',
-                    'status' => 'active'
+                    'status' => 'active',
                 ]);
             }
 
             // Formatear el mensaje de monitoreo
             $monitoringMessage = "🔔 *Nuevo mensaje recibido*\n\n";
-            $monitoringMessage .= "👤 *Contacto:* " . $contactName . "\n";
-            $monitoringMessage .= "📱 *Teléfono:* " . $contactPhone . "\n";
-            $monitoringMessage .= "📝 *Tipo:* " . ucfirst($messageType) . "\n";
-            $monitoringMessage .= "🕐 *Fecha/Hora:* " . $timestamp . "\n\n";
-            $monitoringMessage .= "*Mensaje:*\n" . $messageContent;
+            $monitoringMessage .= '👤 *Contacto:* '.$contactName."\n";
+            $monitoringMessage .= '📱 *Teléfono:* '.$contactPhone."\n";
+            $monitoringMessage .= '📝 *Tipo:* '.ucfirst($messageType)."\n";
+            $monitoringMessage .= '🕐 *Fecha/Hora:* '.$timestamp."\n\n";
+            $monitoringMessage .= "*Mensaje:*\n".$messageContent;
 
             // Enviar el mensaje
             $this->sendTextMessage($monitoringContact, $monitoringMessage, false);
 
             Log::info('✅ Mensaje de monitoreo enviado a WhatsApp', [
-                'monitoring_phone' => substr($monitoringPhone, 0, 4) . '****' . substr($monitoringPhone, -4),
-                'contact' => substr($contactPhone, 0, 4) . '****' . substr($contactPhone, -4)
+                'monitoring_phone' => substr($monitoringPhone, 0, 4).'****'.substr($monitoringPhone, -4),
+                'contact' => substr($contactPhone, 0, 4).'****'.substr($contactPhone, -4),
             ]);
         } catch (\Exception $e) {
             Log::error('❌ Error enviando mensaje de monitoreo a WhatsApp', [
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'monitoring_phone' => substr($monitoringPhone, 0, 4) . '****' . substr($monitoringPhone, -4)
+                'monitoring_phone' => substr($monitoringPhone, 0, 4).'****'.substr($monitoringPhone, -4),
             ]);
         }
     }
@@ -7693,9 +7802,10 @@ class WhatsappService
             if ($mailDriver === 'log') {
                 Log::info('📧 Email de monitoreo (modo log)', [
                     'email' => $monitoringEmail,
-                    'contact' => substr($contactPhone, 0, 4) . '****' . substr($contactPhone, -4),
-                    'message' => 'El email se registró en los logs. Configura un servidor SMTP para enviar emails reales.'
+                    'contact' => substr($contactPhone, 0, 4).'****'.substr($contactPhone, -4),
+                    'message' => 'El email se registró en los logs. Configura un servidor SMTP para enviar emails reales.',
                 ]);
+
                 return;
             }
 
@@ -7706,8 +7816,9 @@ class WhatsappService
                     Log::warning('⚠️ Configuración de correo no válida', [
                         'mail_driver' => $mailDriver,
                         'mail_host' => $mailHost,
-                        'message' => 'Por favor, configura MAIL_HOST, MAIL_USERNAME y MAIL_PASSWORD en tu archivo .env'
+                        'message' => 'Por favor, configura MAIL_HOST, MAIL_USERNAME y MAIL_PASSWORD en tu archivo .env',
                     ]);
+
                     return;
                 }
             }
@@ -7724,7 +7835,7 @@ class WhatsappService
 
             Log::info('✅ Email de monitoreo enviado', [
                 'email' => $monitoringEmail,
-                'contact' => substr($contactPhone, 0, 4) . '****' . substr($contactPhone, -4)
+                'contact' => substr($contactPhone, 0, 4).'****'.substr($contactPhone, -4),
             ]);
         } catch (\Exception $e) {
             // No lanzar excepción, solo registrar el error para que el sistema continúe funcionando
@@ -7732,7 +7843,7 @@ class WhatsappService
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'email' => $monitoringEmail,
-                'suggestion' => 'Verifica tu configuración de correo en el archivo .env. Puedes usar MAIL_MAILER=log para desarrollo.'
+                'suggestion' => 'Verifica tu configuración de correo en el archivo .env. Puedes usar MAIL_MAILER=log para desarrollo.',
             ]);
         }
     }
@@ -7740,7 +7851,7 @@ class WhatsappService
     private function requiresPaymentProofForCart(WhatsappCart $cart): bool
     {
         $step = $this->getMarketingStep(MarketingStepKey::PAYMENT_PROOF);
-        if (!$step || !$step->is_enabled) {
+        if (! $step || ! $step->is_enabled) {
             return false;
         }
 
@@ -7759,12 +7870,12 @@ class WhatsappService
         $metadata = $cart->metadata ?? [];
 
         if (($metadata['pickup_mode'] ?? null) === 'delivery') {
-            if (!empty($metadata['delivery_fee_pending_review'] ?? false) || !array_key_exists('delivery_fee', $metadata)) {
+            if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
                 return true;
             }
         }
 
-        if (($metadata['service_type'] ?? null) === 'llevar' && !array_key_exists('pickup_fee', $metadata)) {
+        if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
             return true;
         }
 
@@ -7787,11 +7898,11 @@ class WhatsappService
             return null;
         }
 
-        if (!$this->requiresPaymentProofForCart($cart) || $this->cartHasPendingFulfillmentCosts($cart)) {
+        if (! $this->requiresPaymentProofForCart($cart) || $this->cartHasPendingFulfillmentCosts($cart)) {
             return null;
         }
 
-        $cart = app(\App\Services\OrderLifecycleService::class)
+        $cart = app(OrderLifecycleService::class)
             ->transition($cart, WhatsappCart::STATUS_PAYMENT_PENDING);
         $cart->markAwaitingPaymentProof();
         $this->syncOrderDetails($cart);
@@ -7813,7 +7924,7 @@ class WhatsappService
 
     private function getOrderStatusLabel(WhatsappCart $cart): string
     {
-        if ($cart->isAwaitingPaymentProof() && !$cart->hasPaymentProof()) {
+        if ($cart->isAwaitingPaymentProof() && ! $cart->hasPaymentProof()) {
             return 'Pendiente de comprobante';
         }
 
@@ -7875,7 +7986,7 @@ class WhatsappService
     private function buildPaymentProofRequestPayload(WhatsappContact $contact, WhatsappCart $cart): ?array
     {
         $step = $this->getMarketingStep(MarketingStepKey::PAYMENT_PROOF);
-        if (!$step || !$step->is_enabled) {
+        if (! $step || ! $step->is_enabled) {
             return null;
         }
 
@@ -7928,7 +8039,7 @@ class WhatsappService
                 WhatsappCart::STATUS_CONFIRMED,
             ])
             ->get()
-            ->first(fn (WhatsappCart $cart) => $cart->isAwaitingPaymentProof() && !$cart->hasPaymentProof());
+            ->first(fn (WhatsappCart $cart) => $cart->isAwaitingPaymentProof() && ! $cart->hasPaymentProof());
     }
 
     private function iniciarEnvioComprobante(WhatsappContact $contact, int $cartId): array
@@ -7937,7 +8048,7 @@ class WhatsappService
             ->where('contact_id', $contact->id)
             ->first();
 
-        if (!$cart) {
+        if (! $cart) {
             return [
                 'type' => 'text',
                 'text' => ['body' => 'No se encontró el pedido seleccionado.'],
@@ -7966,7 +8077,7 @@ class WhatsappService
             ->whereIn('status', [WhatsappCart::STATUS_PAYMENT_PENDING, WhatsappCart::STATUS_CONFIRMED])
             ->orderByDesc('created_at')
             ->get()
-            ->filter(fn (WhatsappCart $cart) => $cart->isAwaitingPaymentProof() && !$cart->hasPaymentProof());
+            ->filter(fn (WhatsappCart $cart) => $cart->isAwaitingPaymentProof() && ! $cart->hasPaymentProof());
 
         if ($orders->isEmpty()) {
             return [
@@ -7978,9 +8089,9 @@ class WhatsappService
         $rows = [];
         foreach ($orders as $order) {
             $rows[] = [
-                'id' => 'enviar_comprobante_' . $order->id,
+                'id' => 'enviar_comprobante_'.$order->id,
                 'title' => Str::limit($order->getOrderNumber(), 24, ''),
-                'description' => Str::limit('$' . number_format((float) $order->total, 2) . ' · ' . $this->getPaymentMethodText($order->payment_method), 72, ''),
+                'description' => Str::limit('$'.number_format((float) $order->total, 2).' · '.$this->getPaymentMethodText($order->payment_method), 72, ''),
             ];
         }
 
@@ -8017,13 +8128,18 @@ class WhatsappService
                 'business_profile_id' => $this->businessProfile->id,
                 'sender_type' => 'client',
                 'receiver_type' => 'system',
-                'content' => json_encode($mediaData),
+                'content' => $mediaType === 'image'
+                    ? ($mediaData['caption'] ?? '')
+                    : json_encode($mediaData),
                 'type' => $mediaType,
                 'status' => 'received',
                 'metadata' => [
                     'cart_id' => $cart->id,
                     'payment_proof' => true,
                     'timestamp' => $message['timestamp'] ?? null,
+                    'media_id' => $mediaData['id'] ?? null,
+                    'mime_type' => $mediaData['mime_type'] ?? null,
+                    'caption' => $mediaData['caption'] ?? null,
                 ],
             ]
         );
@@ -8074,7 +8190,7 @@ class WhatsappService
 
         Log::info('[triggerAgentHandoff] Solicitud de asesor registrada', [
             'contact_id' => $contact->id,
-            'phone' => substr($phone, 0, 4) . '****' . substr($phone, -4),
+            'phone' => substr($phone, 0, 4).'****'.substr($phone, -4),
             'source' => $source,
         ]);
 
@@ -8089,7 +8205,7 @@ class WhatsappService
             return true;
         }
 
-        if (!$buttonTitle) {
+        if (! $buttonTitle) {
             return false;
         }
 
@@ -8141,19 +8257,19 @@ class WhatsappService
         $normalized = mb_strtolower(trim($text));
 
         if ($this->isGreetingMessage($normalized)) {
-            return "👋 ¡Hola! Antes de seguir, solo falta este paso de tu pedido:";
+            return '👋 ¡Hola! Antes de seguir, solo falta este paso de tu pedido:';
         }
 
         if (preg_match('/^(gracias|muchas gracias|thanks|thank you)\b/u', $normalized)) {
-            return "🙏 ¡Con gusto! Solo falta este paso para terminar tu pedido:";
+            return '🙏 ¡Con gusto! Solo falta este paso para terminar tu pedido:';
         }
 
         if (preg_match('/(catalogo|catálogo|producto|categor[ií]a)/u', $normalized)) {
-            return "🛍️ Claro, en un momento te muestro eso — primero terminemos este paso de tu pedido:";
+            return '🛍️ Claro, en un momento te muestro eso — primero terminemos este paso de tu pedido:';
         }
 
         if (preg_match('/(informacion|información|ayuda|horario|direccion|dirección|ubicaci[oó]n)/u', $normalized)) {
-            return "ℹ️ Con gusto te ayudo con eso — primero terminemos este paso de tu pedido:";
+            return 'ℹ️ Con gusto te ayudo con eso — primero terminemos este paso de tu pedido:';
         }
 
         return null;
