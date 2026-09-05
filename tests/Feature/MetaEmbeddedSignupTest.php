@@ -86,6 +86,17 @@ class MetaEmbeddedSignupTest extends TestCase
         $this->assertSame('REAL-BUSINESS-TOKEN', $profile->access_token);
         $rawColumn = DB::table('whatsapp_business_profiles')->where('id', $profile->id)->value('access_token');
         $this->assertNotSame('REAL-BUSINESS-TOKEN', $rawColumn);
+
+        // El PIN de registro se generó, se usó en /register, y quedó
+        // guardado cifrado (igual que el token).
+        $this->assertNotNull($profile->two_factor_pin);
+        $this->assertMatchesRegularExpression('/^\d{6}$/', $profile->two_factor_pin);
+        $rawPin = DB::table('whatsapp_business_profiles')->where('id', $profile->id)->value('two_factor_pin');
+        $this->assertNotSame($profile->two_factor_pin, $rawPin);
+
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/register')
+            && ($request['pin'] ?? null) === $profile->two_factor_pin
+            && ($request['messaging_product'] ?? null) === 'whatsapp');
     }
 
     public function test_coexistence_mode_is_saved_with_its_own_connection_type_without_changing_the_graph_handshake(): void
@@ -110,9 +121,12 @@ class MetaEmbeddedSignupTest extends TestCase
         $this->assertSame('whatsapp_business_app_coexistence', $profile->connection_type);
         $this->assertSame(WhatsappBusinessProfile::STATUS_CONNECTED, $profile->status);
 
-        // El mismo handshake server-to-server que el modo estándar: 4
-        // llamadas a Graph API, ninguna a un endpoint /register.
-        Http::assertSentCount(4);
-        Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/register'));
+        // El mismo handshake server-to-server que el modo estándar: 5
+        // llamadas a Graph API (exchange, getPhoneNumber, getWaba,
+        // subscribed_apps, register) -- el paso de registro ya no se omite.
+        Http::assertSentCount(5);
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/register')
+            && $request->method() === 'POST');
+        $this->assertNotNull($profile->two_factor_pin);
     }
 }

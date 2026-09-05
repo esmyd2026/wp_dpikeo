@@ -21,6 +21,7 @@ class WhatsappBusinessProfile extends Model
         'status',
         'connection_type',
         'access_token',
+        'two_factor_pin',
         'connected_at',
         'disconnected_at',
         'last_verified_at',
@@ -39,6 +40,7 @@ class WhatsappBusinessProfile extends Model
     protected $casts = [
         'metadata' => 'array',
         'access_token' => 'encrypted',
+        'two_factor_pin' => 'encrypted',
         'connected_at' => 'datetime',
         'disconnected_at' => 'datetime',
         'last_verified_at' => 'datetime',

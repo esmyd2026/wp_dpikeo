@@ -99,6 +99,24 @@ class MetaGraphService
         $this->throwIfFailed($response, 'No se pudo suscribir la app a los webhooks de esta cuenta de WhatsApp Business.');
     }
 
+    /**
+     * Paso final obligatorio de Cloud API para un número que llega por
+     * Embedded Signup/coexistencia: sin esto Meta lo deja en "Pendiente"
+     * (WhatsApp Manager) y no puede enviar/recibir mensajes reales, aunque
+     * subscribeApp() ya haya funcionado -- subscribeApp() opera sobre la
+     * WABA, esto opera sobre el número puntual. El PIN queda asociado al
+     * número para la verificación en dos pasos de ahí en adelante.
+     */
+    public function registerPhoneNumber(string $phoneNumberId, string $token, string $pin): void
+    {
+        $response = Http::withToken($token)->post("{$this->baseUrl}/{$this->apiVersion()}/{$phoneNumberId}/register", [
+            'messaging_product' => 'whatsapp',
+            'pin' => $pin,
+        ]);
+
+        $this->throwIfFailed($response, 'No se pudo completar el registro del número en Cloud API.');
+    }
+
     /** Verifica que un token siga vigente y a qué app/usuario pertenece (diagnóstico, nunca loguea el token). */
     public function debugToken(string $token): array
     {
