@@ -80,7 +80,9 @@ class WhatsappWebhookController extends Controller
 
             // Decodificar el JSON recibido
             $data = json_decode($request->getContent(), true);
-            //Log::info('Webhook payload:', $data);
+            // TEMPORAL - DIAGNÓSTICO (revertir después de confirmar la forma
+            // del payload de coexistencia para 593959520743).
+            Log::info('[DEBUG-TEMPORAL] Webhook payload crudo:', $data ?? []);
 
             // Extraer la variable 'object'
             $object = $data['object'] ?? null;
