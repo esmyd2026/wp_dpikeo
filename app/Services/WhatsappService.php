@@ -3548,9 +3548,104 @@ class WhatsappService
         return $cart ? (int) $cart->items()->sum('quantity') : 0;
     }
 
+    /**
+     * Método de pago preguntado UNA vez por pedido, antes de pedir cantidad o
+     * agregar el primer producto (no después de "para llevar" como antes).
+     * Si el carrito activo todavía no tiene payment_method, devuelve la
+     * pregunta y guarda qué acción había que hacer (mostrar cantidad o
+     * agregar directo) para retomarla apenas conteste. Si ya eligió tarjeta,
+     * corta cualquier acción nueva del catálogo -- el pedido ya se resuelve
+     * en la página externa. Devuelve null si no hay que interceptar nada
+     * (ya respondió efectivo/transferencia), y el llamador sigue normal.
+     *
+     * @param  array{action: string, product_id: int, quantity?: int, variation_index?: ?int}  $pendingAction
+     */
+    private function interceptForPaymentMethod(WhatsappContact $contact, array $pendingAction): ?array
+    {
+        $cart = WhatsappCart::firstOrCreate(
+            ['contact_id' => $contact->id, 'status' => 'active'],
+            ['total' => 0]
+        );
+
+        if (! empty($cart->payment_method)) {
+            if ($cart->payment_method === 'tarjeta' && ! empty($cart->metadata['card_payment_link_sent'] ?? false)) {
+                $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
+
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => $cardPaymentUrl !== ''
+                        ? "Ya te enviamos el link para pagar tu pedido con tarjeta:\n{$cardPaymentUrl}"
+                        : 'Tu pedido con pago por tarjeta ya fue procesado. Si necesitas ayuda, escríbenos.'],
+                ];
+            }
+
+            return null;
+        }
+
+        $metadata = $cart->metadata ?? [];
+        $metadata['pending_first_action'] = $pendingAction;
+        $cart->metadata = $metadata;
+        $cart->save();
+
+        Log::info('[interceptForPaymentMethod] 💳 Solicitando método de pago antes de agregar el primer producto', [
+            'cart_id' => $cart->id,
+            'contact_id' => $contact->id,
+            'pending_action' => $pendingAction['action'],
+        ]);
+
+        $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
+
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'list',
+                'body' => [
+                    'text' => $this->getCheckoutStepMessage(
+                        'payment_method',
+                        "💳 *Selecciona el método de pago*\n\nAntes de continuar, elige cómo deseas realizar el pago:"
+                    ),
+                ],
+                'action' => [
+                    'button' => 'Seleccionar método de pago',
+                    'sections' => [
+                        [
+                            'title' => 'Métodos de pago disponibles',
+                            'rows' => array_values(array_filter([
+                                $this->isPaymentMethodEnabled('transferencia') ? [
+                                    'id' => 'pago_transferencia_'.$cart->id,
+                                    'title' => '🏦 Transferencia',
+                                    'description' => 'Transferencia o depósito · envías el comprobante',
+                                ] : null,
+                                $this->isPaymentMethodEnabled('efectivo') ? [
+                                    'id' => 'pago_efectivo_'.$cart->id,
+                                    'title' => '💵 Pago en efectivo',
+                                    'description' => 'Pago en efectivo al recibir el pedido',
+                                ] : null,
+                                ($this->isPaymentMethodEnabled('tarjeta') && $cardPaymentUrl !== '') ? [
+                                    'id' => 'pago_tarjeta_'.$cart->id,
+                                    'title' => '💳 Pago con tarjeta',
+                                    'description' => 'Te mandamos un link para pagar en línea',
+                                ] : null,
+                            ])),
+                        ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
     private function addToCart(WhatsappContact $contact, $priceId, $quantity = 1, ?int $variationIndex = null)
     {
         try {
+            if ($gate = $this->interceptForPaymentMethod($contact, [
+                'action' => 'add',
+                'product_id' => (int) $priceId,
+                'quantity' => $quantity,
+                'variation_index' => $variationIndex,
+            ])) {
+                return $gate;
+            }
+
             $price = WhatsappPrice::query()->whereKey($priceId)
                 ->where('business_profile_id', $this->businessProfile?->id)
                 ->where('is_active', true)->where('stock', '>', 0)->firstOrFail();
@@ -3759,11 +3854,11 @@ class WhatsappService
                 }
             }
 
-            // Paso 2.5: método de pago. Se pregunta apenas se sabe que es
-            // "para llevar" (para servir se paga en caja, ver más abajo),
-            // ANTES de retiro/delivery/dirección/nota — porque la respuesta
-            // determina el resto del flujo: si es tarjeta, el bot manda un
-            // link externo y no sigue preguntando nada más.
+            // Paso 2.5 (RESPALDO): en el flujo normal, el método de pago ya
+            // se preguntó antes, al pedir cantidad o agregar el primer
+            // producto (ver interceptForPaymentMethod). Este bloque solo
+            // actúa si por algún motivo un carrito llega hasta acá sin
+            // payment_method guardado todavía.
             if (($cart->metadata['service_type'] ?? null) === 'llevar' && empty($cart->payment_method)) {
                 $metadata = $cart->metadata ?? [];
                 $metadata['pending_payment_method'] = true;
@@ -3872,9 +3967,12 @@ class WhatsappService
                 ];
             }
 
-            // Para servir (mesa) no se pregunta método de pago: se paga en caja
-            // con el número de pedido, igual que en el punto de venta.
-            if (($cart->metadata['service_type'] ?? null) === 'servir') {
+            // El método de pago ahora se pregunta siempre, antes de armar el
+            // carrito (ver interceptForPaymentMethod) -- incluye "para
+            // servir". "Pagar en caja" queda solo como respaldo para el caso
+            // (ya no debería darse en el flujo normal) de que el carrito
+            // llegue hasta acá sin ningún payment_method guardado.
+            if (($cart->metadata['service_type'] ?? null) === 'servir' && empty($cart->payment_method)) {
                 return $this->finalizePayAtRegisterOrder($cart);
             }
 
@@ -6116,6 +6214,14 @@ class WhatsappService
     private function showQuantitySelection(WhatsappContact $contact, $productId, ?int $variationIndex = null)
     {
         try {
+            if ($gate = $this->interceptForPaymentMethod($contact, [
+                'action' => 'quantity',
+                'product_id' => (int) $productId,
+                'variation_index' => $variationIndex,
+            ])) {
+                return $gate;
+            }
+
             $price = $this->findCatalogProduct($productId);
 
             if (! $price) {
@@ -6980,6 +7086,33 @@ class WhatsappService
         }
     }
 
+    /**
+     * Si esta respuesta de método de pago vino del gate NUEVO (preguntado
+     * antes de cantidad/agregar, con el carrito todavía vacío), retoma la
+     * acción que había quedado pendiente en vez de saltar directo al resumen
+     * -- retoma() vuelve a pasar por interceptForPaymentMethod(), pero como
+     * ya hay payment_method guardado, esta vez sigue de largo.
+     */
+    private function resumePendingFirstAction(WhatsappContact $contact, WhatsappCart $cart): ?array
+    {
+        $pending = $cart->metadata['pending_first_action'] ?? null;
+
+        if (! $pending) {
+            return null;
+        }
+
+        $metadata = $cart->metadata ?? [];
+        unset($metadata['pending_first_action']);
+        $cart->metadata = $metadata;
+        $cart->save();
+
+        return match ($pending['action'] ?? null) {
+            'quantity' => $this->showQuantitySelection($contact, $pending['product_id'], $pending['variation_index'] ?? null),
+            'add' => $this->addToCart($contact, $pending['product_id'], $pending['quantity'] ?? 1, $pending['variation_index'] ?? null),
+            default => $this->getProductsMenu($contact),
+        };
+    }
+
     private function procesarPagoTransferencia(WhatsappContact $contact, $cartId)
     {
         try {
@@ -6998,6 +7131,10 @@ class WhatsappService
             $cart->payment_method = 'transferencia';
             $cart->payment_status = 'pending';
             $cart->save();
+
+            if ($resumed = $this->resumePendingFirstAction($contact, $cart)) {
+                return $resumed;
+            }
 
             // Preparar los detalles del pedido para guardar en metadata
             $orderDetails = [
@@ -7106,6 +7243,10 @@ class WhatsappService
             $cart->payment_method = 'efectivo';
             $cart->payment_status = 'pending';
             $cart->save();
+
+            if ($resumed = $this->resumePendingFirstAction($contact, $cart)) {
+                return $resumed;
+            }
 
             // Preparar los detalles del pedido para guardar en metadata
             $orderDetails = [
@@ -7218,7 +7359,7 @@ class WhatsappService
 
             $metadata = $cart->metadata ?? [];
             $metadata['card_payment_link_sent'] = true;
-            unset($metadata['pending_payment_method']);
+            unset($metadata['pending_payment_method'], $metadata['pending_first_action']);
             $cart->metadata = $metadata;
             $cart->save();
 

@@ -41,7 +41,7 @@ body.flow-builder-page .content-header {
 /* Grid 3 columnas */
 .flow-builder-grid {
     display: grid;
-    grid-template-columns: 272px minmax(0, 1fr) 300px;
+    grid-template-columns: 272px minmax(0, 1fr) 330px;
     gap: 1.25rem;
     align-items: start;
 }
@@ -245,72 +245,298 @@ body.flow-builder-page .content-header {
     top: 1rem;
 }
 .flow-preview-card {
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 1rem;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    border: 1px solid #dbe3ea;
+    border-radius: 18px;
+    padding: 1rem 1rem 1.1rem;
+    box-shadow: 0 12px 35px rgba(15, 23, 42, .09);
 }
 .wa-preview-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     font-size: .72rem;
     text-transform: uppercase;
     letter-spacing: .05em;
     color: #64748b;
-    margin-bottom: .65rem;
+    margin-bottom: .8rem;
     font-weight: 700;
 }
+.wa-preview-live {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .22rem .48rem;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: .61rem;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.wa-preview-live::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34,197,94,.12);
+}
+.wa-phone-frame {
+    position: relative;
+    padding: 7px;
+    border-radius: 34px;
+    background: linear-gradient(145deg, #20262b, #050708 70%);
+    box-shadow: 0 22px 45px rgba(15,23,42,.26), inset 0 0 0 1px rgba(255,255,255,.12);
+}
+.wa-phone-frame::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    z-index: 3;
+    width: 72px;
+    height: 18px;
+    border-radius: 0 0 12px 12px;
+    background: #050708;
+    transform: translateX(-50%);
+}
+.wa-phone-frame::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: calc(50% + 23px);
+    z-index: 4;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #202d35;
+    box-shadow: inset 0 0 0 1px #34434b;
+}
 .wa-phone {
+    display: flex;
+    flex-direction: column;
+    height: 520px;
     background: #efeae2;
-    border-radius: 22px;
-    border: 7px solid #111;
+    border-radius: 27px;
     overflow: hidden;
-    box-shadow: 0 10px 32px rgba(0,0,0,.12);
+}
+.wa-phone-statusbar {
+    height: 25px;
+    padding: 5px 14px 3px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #006c5b;
+    color: rgba(255,255,255,.96);
+    font-size: .58rem;
+    font-weight: 700;
+}
+.wa-phone-status-icons {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: .53rem;
 }
 .wa-phone-header {
-    background: var(--flow-bot-secondary);
+    min-height: 54px;
+    background: #008069;
     color: #fff;
-    padding: .8rem 1rem;
-    font-size: .84rem;
-    font-weight: 600;
+    padding: .55rem .65rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,.15);
+    z-index: 2;
+}
+.wa-phone-back {
+    width: 17px;
+    color: #fff;
+    font-size: .8rem;
+    text-align: center;
+}
+.wa-phone-avatar {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: 50%;
+    background: rgba(255,255,255,.2);
+    color: #fff;
+}
+.wa-phone-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.wa-phone-business { min-width: 0; flex: 1; }
+.wa-phone-business strong {
+    display: block;
+    overflow: hidden;
+    color: #fff;
+    font-size: .76rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.wa-phone-business small {
+    display: block;
+    margin-top: 2px;
+    color: rgba(255,255,255,.78);
+    font-size: .55rem;
+}
+.wa-phone-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: rgba(255,255,255,.95);
+    font-size: .68rem;
 }
 .wa-phone-body {
-    min-height: 300px;
-    max-height: 420px;
+    position: relative;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 1rem;
+    padding: .75rem .65rem 1rem;
     background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4cdc4' fill-opacity='0.25'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") #e5ddd5;
 }
+.wa-phone-body::-webkit-scrollbar { width: 4px; }
+.wa-phone-body::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(84,101,111,.3); }
+.wa-preview-day {
+    width: max-content;
+    margin: 0 auto .55rem;
+    padding: .2rem .55rem;
+    border-radius: 6px;
+    background: rgba(255,255,255,.9);
+    color: #54656f;
+    box-shadow: 0 1px 1px rgba(0,0,0,.06);
+    font-size: .54rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.wa-preview-security {
+    max-width: 92%;
+    margin: 0 auto .75rem;
+    padding: .38rem .5rem;
+    border-radius: 6px;
+    background: #ffeecd;
+    color: #6b5b35;
+    box-shadow: 0 1px 1px rgba(0,0,0,.05);
+    font-size: .51rem;
+    line-height: 1.35;
+    text-align: center;
+}
+.wa-message-row { display: flex; justify-content: flex-end; }
 .wa-bubble {
-    background: #fff;
-    border-radius: 0 10px 10px 10px;
-    padding: .7rem .9rem;
-    max-width: 94%;
-    box-shadow: 0 1px 2px rgba(0,0,0,.08);
-    font-size: .83rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
+    position: relative;
+    background: #d9fdd3;
+    border-radius: 8px 0 8px 8px;
+    padding: .58rem .62rem .42rem;
+    max-width: 91%;
+    min-width: 76%;
+    box-shadow: 0 1px 1px rgba(11,20,26,.14);
+    color: #111b21;
+    font-size: .71rem;
+    line-height: 1.42;
+    white-space: normal;
     word-break: break-word;
 }
-.wa-bubble-header { font-weight: 700; font-size: .78rem; margin-bottom: .35rem; }
-.wa-bubble-header-image { margin: -.7rem -.9rem .5rem; border-radius: 10px 10px 0 0; overflow: hidden; }
-.wa-bubble-header-image img { display: block; width: 100%; max-height: 130px; object-fit: cover; }
-.wa-bubble-footer { font-size: .72rem; color: #667781; margin-top: .45rem; }
+#wa-preview-body { white-space: pre-wrap; }
+.wa-bubble::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: -7px;
+    width: 0;
+    height: 0;
+    border-top: 8px solid #d9fdd3;
+    border-right: 8px solid transparent;
+}
+.wa-bubble-header { color: #111b21; font-weight: 700; font-size: .68rem; margin-bottom: .3rem; }
+.wa-bubble-header-image { margin: -.46rem -.5rem .45rem; border-radius: 7px 0 6px 6px; overflow: hidden; }
+.wa-bubble-header-image img { display: block; width: 100%; max-height: 145px; object-fit: cover; }
+.wa-bubble-footer { font-size: .59rem; color: #667781; margin-top: .4rem; }
+.wa-message-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+    min-height: 12px;
+    margin-top: .2rem;
+    color: #667781;
+    font-size: .5rem;
+    line-height: 1;
+}
+.wa-message-checks { color: #53bdeb; font-size: .53rem; letter-spacing: -3px; margin-right: 2px; }
 .wa-btn-preview {
-    display: block; text-align: center; padding: .5rem;
-    margin-top: .3rem; border-top: 1px solid #e9edef;
-    color: #027eb5; font-size: .79rem; font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    text-align: center;
+    padding: .48rem .35rem .16rem;
+    margin-top: .38rem;
+    border-top: 1px solid rgba(17,27,33,.1);
+    color: #027eb5;
+    font-size: .66rem;
+    font-weight: 600;
 }
 .wa-list-cta {
-    display: block; text-align: center; padding: .55rem; margin-top: .45rem;
-    background: #f0f2f5; border-radius: 6px; color: #027eb5; font-size: .79rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    text-align: center;
+    padding: .5rem .35rem .12rem;
+    margin-top: .4rem;
+    border-top: 1px solid rgba(17,27,33,.1);
+    color: #027eb5;
+    font-size: .66rem;
+    font-weight: 600;
+}
+.wa-phone-composer {
+    min-height: 48px;
+    padding: .4rem .42rem .48rem;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    background: #f0f2f5;
+}
+.wa-phone-input {
+    height: 34px;
+    padding: 0 .6rem;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex: 1;
+    border-radius: 18px;
+    background: #fff;
+    color: #8696a0;
+    font-size: .61rem;
+}
+.wa-phone-input span { flex: 1; }
+.wa-phone-mic {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #00a884;
+    color: #fff;
+    font-size: .68rem;
+}
+.wa-preview-note {
+    margin: .8rem .15rem 0;
+    color: #64748b;
+    font-size: .65rem;
+    line-height: 1.4;
+    text-align: center;
 }
 .flow-actions-legend {
-    margin-top: 1rem;
+    margin-top: .75rem;
     max-height: 200px;
     overflow-y: auto;
     font-size: .76rem;
     color: #64748b;
 }
+.flow-actions-legend summary { cursor: pointer; font-weight: 600; }
 .flow-actions-legend code { font-size: .7rem; color: #0f172a; }
 
 .flow-hint {
@@ -329,15 +555,14 @@ body.flow-builder-page .content-header {
     .flow-builder-grid { grid-template-columns: 240px minmax(0, 1fr); }
     .flow-preview-column {
         grid-column: 1 / -1;
-        display: grid;
-        grid-template-columns: 1fr 300px;
-        gap: 1rem;
+        width: 330px;
+        margin: 0 auto;
     }
 }
 @media (max-width: 768px) {
     .flow-builder-root { padding: 1rem; }
     .flow-builder-grid { grid-template-columns: 1fr; }
-    .flow-preview-column { grid-template-columns: 1fr; }
+    .flow-preview-column { width: min(100%, 330px); }
     .flow-steps-nav { max-height: 280px; position: static; }
 }
 </style>
@@ -702,31 +927,59 @@ body.flow-builder-page .content-header {
             {{-- Columna 3: Preview --}}
             <div class="flow-preview-column">
                 <div class="flow-preview-card">
-                    <div class="wa-preview-label"><i class="fab fa-whatsapp text-success me-1"></i> Vista previa</div>
-                    <div class="wa-phone">
-                        <div class="wa-phone-header d-flex align-items-center gap-2">
-                            @if($chatbotConfig?->bot_avatar_url)
-                                <img src="{{ $chatbotConfig->bot_avatar_url }}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-                            @else
-                                <i class="fas fa-robot opacity-75"></i>
-                            @endif
-                            <span>{{ $chatbotConfig?->bot_name ?? ($profile->business_name ?? 'Bot Ventas') }}</span>
-                        </div>
-                        <div class="wa-phone-body">
-                            <div class="wa-bubble">
-                                <div class="wa-bubble-header d-none" id="wa-preview-header"></div>
-                                <div id="wa-preview-body">Seleccione un paso.</div>
-                                <div class="wa-bubble-footer d-none" id="wa-preview-footer"></div>
-                                <div id="wa-preview-actions"></div>
+                    <div class="wa-preview-label">
+                        <span><i class="fab fa-whatsapp text-success me-1"></i> Vista previa</span>
+                        <span class="wa-preview-live">En tiempo real</span>
+                    </div>
+                    <div class="wa-phone-frame">
+                        <div class="wa-phone">
+                            <div class="wa-phone-statusbar">
+                                <span id="wa-phone-clock">9:41</span>
+                                <span class="wa-phone-status-icons"><i class="fas fa-signal"></i><i class="fas fa-wifi"></i><i class="fas fa-battery-three-quarters"></i></span>
+                            </div>
+                            <div class="wa-phone-header d-flex align-items-center gap-2">
+                                <span class="wa-phone-back"><i class="fas fa-arrow-left"></i></span>
+                                <span class="wa-phone-avatar">
+                                    @if($chatbotConfig?->bot_avatar_url)
+                                        <img src="{{ $chatbotConfig->bot_avatar_url }}" alt="Logo de {{ $chatbotConfig?->bot_name ?? $profile->business_name }}">
+                                    @else
+                                        <i class="fas fa-store"></i>
+                                    @endif
+                                </span>
+                                <span class="wa-phone-business">
+                                    <strong>{{ $chatbotConfig?->bot_name ?? ($profile->business_name ?? 'Bot Ventas') }}</strong>
+                                    <small>Cuenta de empresa</small>
+                                </span>
+                                <span class="wa-phone-header-actions"><i class="fas fa-video"></i><i class="fas fa-phone-alt"></i><i class="fas fa-ellipsis-v"></i></span>
+                            </div>
+                            <div class="wa-phone-body">
+                                <div class="wa-preview-day">Hoy</div>
+                                <div class="wa-preview-security"><i class="fas fa-lock me-1"></i>Los mensajes están protegidos con cifrado de extremo a extremo.</div>
+                                <div class="wa-message-row">
+                                    <div class="wa-bubble">
+                                        <div class="wa-bubble-header d-none" id="wa-preview-header"></div>
+                                        <div id="wa-preview-body">Seleccione un paso.</div>
+                                        <div class="wa-bubble-footer d-none" id="wa-preview-footer"></div>
+                                        <div id="wa-preview-actions"></div>
+                                        <div class="wa-message-meta"><span id="wa-preview-time">9:41</span><span class="wa-message-checks">✓✓</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="wa-phone-composer" aria-hidden="true">
+                                <div class="wa-phone-input"><i class="far fa-smile"></i><span>Mensaje</span><i class="fas fa-paperclip"></i><i class="fas fa-camera"></i></div>
+                                <span class="wa-phone-mic"><i class="fas fa-microphone"></i></span>
                             </div>
                         </div>
                     </div>
-                    <div class="flow-actions-legend">
-                        <strong class="d-block mb-1">Acciones del botón</strong>
-                        @foreach($buttonActions as $code => $actionLabel)
-                            <div class="mb-1"><code>{{ $code }}</code> — {{ $actionLabel }}</div>
-                        @endforeach
-                    </div>
+                    <p class="wa-preview-note"><i class="fas fa-info-circle me-1"></i>Así verá el cliente el mensaje dentro de WhatsApp.</p>
+                    <details class="flow-actions-legend">
+                        <summary>Consultar acciones configuradas</summary>
+                        <div class="pt-2">
+                            @foreach($buttonActions as $code => $actionLabel)
+                                <div class="mb-1"><code>{{ $code }}</code> — {{ $actionLabel }}</div>
+                            @endforeach
+                        </div>
+                    </details>
                 </div>
             </div>
         </div>
@@ -768,8 +1021,16 @@ body.flow-builder-page .content-header {
         if (!text) return '';
         return text.replace(/\{\{(\w+)\}\}/g, (_, key) => previewSamples[key] ?? ('{' + '{' + key + '}' + '}'));
     }
+    function escapePreviewHtml(text) {
+        return String(text ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
     function formatWhatsApp(text) {
-        return applyVariables(text).replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+        return escapePreviewHtml(applyVariables(text)).replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
     }
     function parseButtons(raw) {
         return raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(line => {
@@ -864,18 +1125,24 @@ body.flow-builder-page .content-header {
         actionsEl.innerHTML = '';
         if (type === 'button') {
             parseButtons(getField(activeStep, 'buttons')).forEach(btn => {
-                actionsEl.innerHTML += `<div class="wa-btn-preview">${btn.title}</div>`;
+                actionsEl.innerHTML += `<div class="wa-btn-preview"><i class="fas fa-reply"></i>${escapePreviewHtml(btn.title)}</div>`;
             });
         } else if (type === 'list') {
-            actionsEl.innerHTML = `<div class="wa-list-cta">${getField(activeStep, 'list_button') || 'Ver opciones'}</div>`;
-            parseListRows(getField(activeStep, 'list_sections')).forEach(row => {
-                actionsEl.innerHTML += `<div class="wa-btn-preview text-start small">${row.title}</div>`;
-            });
+            const listLabel = getField(activeStep, 'list_button') || 'Ver opciones';
+            actionsEl.innerHTML = `<div class="wa-list-cta"><i class="fas fa-list-ul"></i>${escapePreviewHtml(listLabel)}</div>`;
         } else if (type === 'flow') {
-            actionsEl.innerHTML = `<div class="wa-list-cta">${getField(activeStep, 'flow_cta') || 'Continuar'}</div>`;
+            const flowLabel = getField(activeStep, 'flow_cta') || 'Continuar';
+            actionsEl.innerHTML = `<div class="wa-list-cta"><i class="fas fa-arrow-right"></i>${escapePreviewHtml(flowLabel)}</div>`;
         } else if (type === 'cta_url') {
-            actionsEl.innerHTML = `<div class="wa-list-cta">${getField(activeStep, 'cta_button_text') || 'Abrir enlace'}</div>`;
+            const ctaLabel = getField(activeStep, 'cta_button_text') || 'Abrir enlace';
+            actionsEl.innerHTML = `<div class="wa-list-cta"><i class="fas fa-external-link-alt"></i>${escapePreviewHtml(ctaLabel)}</div>`;
         }
+
+        const previewTime = new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const messageTime = document.getElementById('wa-preview-time');
+        const phoneClock = document.getElementById('wa-phone-clock');
+        if (messageTime) messageTime.textContent = previewTime;
+        if (phoneClock) phoneClock.textContent = previewTime;
     }
     function toggleInteractivePanels(stepKey) {
         const panel = getPanel(stepKey);
