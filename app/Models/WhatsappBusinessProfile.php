@@ -92,9 +92,22 @@ class WhatsappBusinessProfile extends Model
     }
 
     /** Enlace público wa.me para iniciar conversación con el bot. */
+    /**
+     * Resuelve el número de la EMPRESA ACTIVA de la sesión (nunca "la primera
+     * fila de toda la tabla" -- eso mezclaba el número de otra empresa
+     * apenas hubiera más de una). Si no hay contexto de empresa resuelto
+     * (usuario sin sesión, o empresa con 2+ números y ninguno principal),
+     * cae al .env solo como último recurso, igual que antes.
+     */
     public static function publicWhatsAppLink(?string $message = null): ?array
     {
-        $profile = static::query()->first();
+        $profile = null;
+        try {
+            $profile = \App\Support\CompanyContext::current()->businessProfile;
+        } catch (\Throwable $e) {
+            // Sin contexto de empresa resoluble: se sigue con el fallback de abajo.
+        }
+
         $raw = $profile?->phone_number ?: config('whatsapp.phone_number');
         $digits = preg_replace('/\D/', '', (string) $raw);
 
