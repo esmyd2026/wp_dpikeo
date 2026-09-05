@@ -129,4 +129,49 @@ class MetaEmbeddedSignupTest extends TestCase
             && $request->method() === 'POST');
         $this->assertNotNull($profile->two_factor_pin);
     }
+
+    /**
+     * Bug real encontrado en producción: un reintento de conexión sobre un
+     * número que YA tiene un PIN de dos pasos establecido (de un registro
+     * anterior exitoso) generaba un PIN nuevo al azar -- Meta lo rechaza con
+     * "Two step verification PIN Mismatch" (133005) porque no coincide con
+     * el que ya quedó puesto la primera vez.
+     */
+    public function test_retrying_connect_on_an_already_registered_number_reuses_the_stored_pin_instead_of_generating_a_new_one(): void
+    {
+        $company = $this->makeCompany('Dpikeo Retry Test');
+
+        WhatsappBusinessProfile::create([
+            'company_id' => $company->id,
+            'business_name' => 'Dpikeo',
+            'display_name' => 'Dpikeo',
+            'phone_number' => '593959520743',
+            'phone_number_id' => 'RETRY-PHONE-ID',
+            'whatsapp_business_id' => 'RETRY-WABA',
+            'access_token' => 'old-token',
+            'two_factor_pin' => '482913',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
+            'connection_type' => 'whatsapp_business_app_coexistence',
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'NEW-TOKEN'], 200),
+            'graph.facebook.com/*/RETRY-PHONE-ID*' => Http::response([
+                'id' => 'RETRY-PHONE-ID',
+                'display_phone_number' => '+593 95 952 0743',
+                'verified_name' => 'Dpikeo',
+            ], 200),
+            'graph.facebook.com/*/RETRY-WABA*' => Http::response(['id' => 'RETRY-WABA', 'name' => 'Dpikeo WABA'], 200),
+            'graph.facebook.com/*/subscribed_apps*' => Http::response(['success' => true], 200),
+        ]);
+
+        $profile = app(MetaEmbeddedSignupService::class)->connect(
+            $company, 'auth-code-retry', 'RETRY-WABA', 'RETRY-PHONE-ID', 'coexistence'
+        );
+
+        $this->assertSame('482913', $profile->two_factor_pin);
+
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/register')
+            && ($request['pin'] ?? null) === '482913');
+    }
 }

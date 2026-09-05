@@ -50,10 +50,13 @@ class MetaEmbeddedSignupService
 
             // Paso final: sin esto Meta deja el número en "Pendiente" y no
             // habilita envío/recepción real, aunque los pasos de arriba hayan
-            // funcionado. El PIN se genera acá mismo -- nadie tiene que
-            // recordarlo ni tipearlo -- y se guarda cifrado para poder
-            // re-registrar el número en el futuro si hiciera falta.
-            $twoFactorPin = sprintf('%06d', random_int(0, 999999));
+            // funcionado. Si este número YA tiene un PIN de dos pasos
+            // establecido (un registro anterior, exitoso, ya se lo puso a
+            // Meta), hay que reenviar ESE MISMO PIN -- Meta rechaza con
+            // "Two step verification PIN Mismatch" (133005) si en un
+            // reintento se manda uno nuevo al azar. Solo se genera uno nuevo
+            // la primera vez que este phone_number_id pasa por acá.
+            $twoFactorPin = $existing?->two_factor_pin ?: sprintf('%06d', random_int(0, 999999));
             $this->graph->registerPhoneNumber($phoneNumberId, $token, $twoFactorPin);
         } catch (Throwable $e) {
             Log::error('[MetaEmbeddedSignupService] Falló la conexión de WhatsApp', [
