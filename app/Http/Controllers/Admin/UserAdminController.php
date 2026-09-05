@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\PermissionService;
 use App\Services\UserActivityService;
+use App\Support\CompanyContext;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -72,6 +73,25 @@ class UserAdminController extends Controller
             'role_id' => $role->id,
             'role' => $role->slug,
         ]);
+
+        // Sin esto, todo usuario nuevo (no super admin) quedaba sin ninguna
+        // empresa autorizada y chocaba con CompanyContext::current() al
+        // iniciar sesión -- se lo asigna a la empresa que el admin que lo
+        // creó tiene activa en este momento. Un super_admin no necesita fila
+        // en company_user (isSuperAdmin() ya salta ese chequeo).
+        if ($role->slug !== 'super_admin') {
+            try {
+                $activeCompany = CompanyContext::current()->company;
+                if ($activeCompany) {
+                    $user->companies()->syncWithoutDetaching([$activeCompany->id]);
+                }
+            } catch (\Throwable $e) {
+                // El propio admin que crea usuarios ya tiene que tener una
+                // empresa resuelta (si no, no habría llegado hasta acá) --
+                // esto es solo un resguardo para no romper la creación del
+                // usuario si algo raro pasa con el contexto.
+            }
+        }
 
         $permissionService->forgetUserCache($user);
 
