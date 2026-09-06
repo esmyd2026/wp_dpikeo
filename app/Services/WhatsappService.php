@@ -879,7 +879,7 @@ class WhatsappService
                 ],
             ];
 
-            $contact = WhatsappContact::where('phone_number', $message['from'])->first();
+            $contact = $this->findContactByPhone($message['from']);
             $this->sendMessage($message['from'], $this->getMainMenu(null, $contact));
 
         } catch (\Exception $e) {
@@ -1451,7 +1451,7 @@ class WhatsappService
      */
     protected function hasRecentHumanActivityByPhone(string $phoneNumber, int $hoursThreshold = 2): bool
     {
-        $contact = WhatsappContact::where('phone_number', $phoneNumber)->first();
+        $contact = $this->findContactByPhone($phoneNumber);
         if (! $contact) {
             return false;
         }
@@ -1882,7 +1882,7 @@ class WhatsappService
         try {
             // Si el mensaje es un saludo, bienvenida (1 vez al día) + menú principal
             if ($this->isGreetingMessage($message)) {
-                $contact = WhatsappContact::where('phone_number', $from)->first();
+                $contact = $this->findContactByPhone($from);
 
                 return $this->handleGreetingMessage($from, $contact);
             }
@@ -2619,7 +2619,13 @@ class WhatsappService
                 'contenido' => $interactive,
             ]);
 
-            $contact = WhatsappContact::where('phone_number', $from)->first();
+            // Bug real: sin escopar por negocio, un número que ya chateó con
+            // otra empresa (mismo teléfono, otro business_profile_id) traía
+            // ese contacto viejo -- el pedido terminaba armado sobre el
+            // negocio equivocado y hasta se mandaba con las credenciales de
+            // otra empresa (ver useBusinessProfile($contact->businessProfile)
+            // en OrderLifecycleService/BulkOrderService).
+            $contact = $this->findContactByPhone($from);
             if (! $contact) {
                 // Obtener datos del contacto del webhook
                 $contactData = $message['contacts'][0] ?? [];
@@ -5303,7 +5309,7 @@ class WhatsappService
             $waId = $contactData['wa_id'] ?? null;
 
             // Crear o actualizar contacto
-            $contact = WhatsappContact::where('phone_number', $message['from'])->first();
+            $contact = $this->findContactByPhone($message['from']);
             if (! $contact) {
                 // Crear nuevo contacto con el nombre del webhook
                 $contact = WhatsappContact::create([
@@ -7706,7 +7712,7 @@ class WhatsappService
     public function sendCatalog($to): bool
     {
         try {
-            $contact = WhatsappContact::where('phone_number', $to)->first();
+            $contact = $this->findContactByPhone($to);
             if (! $contact) {
                 return false;
             }
@@ -7763,7 +7769,7 @@ class WhatsappService
 
             // Obtener información del contacto
             $from = $message['from'];
-            $contact = WhatsappContact::where('phone_number', $from)->first();
+            $contact = $this->findContactByPhone($from);
             $contactName = $contact ? $contact->name : 'Contacto sin nombre';
 
             // Extraer contenido del mensaje según su tipo
@@ -7888,7 +7894,7 @@ class WhatsappService
     ) {
         try {
             // Crear o obtener el contacto de monitoreo
-            $monitoringContact = WhatsappContact::where('phone_number', $monitoringPhone)->first();
+            $monitoringContact = $this->findContactByPhone($monitoringPhone);
 
             if (! $monitoringContact) {
                 // Crear contacto de monitoreo si no existe

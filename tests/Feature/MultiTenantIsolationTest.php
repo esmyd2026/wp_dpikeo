@@ -189,6 +189,54 @@ class MultiTenantIsolationTest extends TestCase
         $this->assertNull($contactB->fresh()->metadata['current_graph_node'] ?? null);
     }
 
+    /**
+     * Bug real encontrado en producción: un cliente que ya había chateado con
+     * la empresa A (mismo teléfono) mandaba una respuesta de lista/botón
+     * (list_reply) a la empresa B, y handleInteractiveMessage() -- a
+     * diferencia de handleTextMessage() -- buscaba el contacto SIN escopar
+     * por business_profile_id, así que reusaba el contacto de la empresa A.
+     * El pedido terminaba armado (y hasta enviado) con las credenciales de la
+     * empresa A en vez de la B.
+     */
+    public function test_interactive_list_reply_never_reuses_a_contact_from_another_company(): void
+    {
+        $a = $this->makeCompanyWithCatalog('empresa-a', 'PHONE-A', 'TOKEN-A', 'Bot A');
+        $b = $this->makeCompanyWithCatalog('empresa-b', 'PHONE-B', 'TOKEN-B', 'Bot B');
+
+        $sameNumber = '593987654321';
+
+        $contactA = WhatsappContact::create([
+            'business_profile_id' => $a['profile']->id,
+            'phone_number' => $sameNumber,
+            'name' => 'Cliente en A',
+            'status' => 'active',
+        ]);
+
+        $serviceB = app(WhatsappService::class);
+        $serviceB->setWebhookPhoneNumberId('PHONE-B');
+
+        $serviceB->processIncomingMessage([
+            'from' => $sameNumber,
+            'id' => 'wamid.list-reply-test',
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'list_reply',
+                'list_reply' => ['id' => 'algun_boton_no_reconocido', 'title' => 'Opción'],
+            ],
+        ]);
+
+        $contactB = WhatsappContact::where('phone_number', $sameNumber)
+            ->where('business_profile_id', $b['profile']->id)
+            ->first();
+
+        $this->assertNotNull($contactB, 'Debe crearse un contacto propio de la empresa B, no reusar el de A.');
+        $this->assertNotEquals($contactA->id, $contactB->id);
+
+        $message = \App\Models\WhatsappMessage::where('message_id', 'wamid.list-reply-test')->first();
+        $this->assertSame($b['profile']->id, $message->business_profile_id);
+        $this->assertSame($contactB->id, $message->contact_id);
+    }
+
     public function test_catalog_and_prices_are_isolated_per_company(): void
     {
         $a = $this->makeCompanyWithCatalog('empresa-a', 'PHONE-A', 'TOKEN-A', 'Bot A');
