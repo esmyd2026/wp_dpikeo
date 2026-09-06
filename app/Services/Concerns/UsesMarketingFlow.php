@@ -92,6 +92,10 @@ trait UsesMarketingFlow
             $imageUrl = $step->getHeaderImageUrl();
             if ($imageUrl) {
                 $this->sendMessage($contact->phone_number, \App\Services\Whatsapp\WhatsappMessagePayload::image($imageUrl));
+                // Meta tarda en descargar/procesar la imagen antes de
+                // entregarla; sin esta pausa, la lista suele llegarle al
+                // cliente antes que la imagen, aunque la hayamos mandado primero.
+                usleep(500000);
             }
         }
 

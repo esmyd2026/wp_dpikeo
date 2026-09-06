@@ -6298,6 +6298,12 @@ class WhatsappService
 
         if ($contact?->phone_number && ($imageUrl = $builder->pendingListHeaderImage(null))) {
             $this->sendMessage($contact->phone_number, WhatsappMessagePayload::image($imageUrl));
+            // Meta tarda en descargar/procesar la imagen antes de entregarla;
+            // sin esta pausa, la lista (JSON puro, sin nada que descargar)
+            // suele llegarle al cliente antes que la imagen, aunque la hayamos
+            // mandado primero (mismo ajuste que ya se usa más arriba para
+            // preservar el orden entre dos mensajes seguidos del bot).
+            usleep(500000);
         }
 
         return $builder->buildCategoryBrowser($contact);
@@ -6310,6 +6316,7 @@ class WhatsappService
 
             if ($contact?->phone_number && ($imageUrl = $builder->pendingListHeaderImage($categoryId))) {
                 $this->sendMessage($contact->phone_number, WhatsappMessagePayload::image($imageUrl));
+                usleep(500000);
             }
 
             return $builder->buildCatalog($contact, $categoryId);
