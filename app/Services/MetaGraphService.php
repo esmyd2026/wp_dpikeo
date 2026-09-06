@@ -90,11 +90,20 @@ class MetaGraphService
 
     /**
      * Paso obligatorio de Meta: sin esto la cuenta queda conectada pero no
-     * manda webhooks a nuestra app.
+     * manda webhooks a nuestra app. La app de Meta ("SigloTecnologico") es
+     * Tech Provider y sirve a múltiples clientes con distintos backends
+     * (p.ej. arka01) -- sin override_callback_uri, una WABA nueva hereda
+     * el callback que sea que tenga la app a nivel global, que puede ser el
+     * de otro cliente. Por eso siempre se fija explícitamente el callback
+     * de esta app para cada WABA que conectamos, sin tocar la config
+     * global ni afectar a otros clientes de la misma app de Meta.
      */
     public function subscribeApp(string $wabaId, string $token): void
     {
-        $response = Http::withToken($token)->post("{$this->baseUrl}/{$this->apiVersion()}/{$wabaId}/subscribed_apps");
+        $response = Http::withToken($token)->post("{$this->baseUrl}/{$this->apiVersion()}/{$wabaId}/subscribed_apps", [
+            'override_callback_uri' => rtrim(config('app.url'), '/') . '/api/whatsapp/webhook',
+            'verify_token' => config('whatsapp.verify_token'),
+        ]);
 
         $this->throwIfFailed($response, 'No se pudo suscribir la app a los webhooks de esta cuenta de WhatsApp Business.');
     }
