@@ -83,6 +83,18 @@ trait UsesMarketingFlow
             return null;
         }
 
+        // Meta rechaza (#131009) un encabezado de imagen en mensajes tipo
+        // "list" (solo admite encabezado de texto ahí, a diferencia de los
+        // mensajes de botones) -- si el paso configuró una imagen igual, se
+        // manda como mensaje de imagen aparte, justo antes de la lista, para
+        // no perder la imagen que cargó el admin en el flujo.
+        if ($step->getInteractiveType() === 'list' && $step->getHeaderMode() === 'image' && $contact?->phone_number) {
+            $imageUrl = $step->getHeaderImageUrl();
+            if ($imageUrl) {
+                $this->sendMessage($contact->phone_number, \App\Services\Whatsapp\WhatsappMessagePayload::image($imageUrl));
+            }
+        }
+
         return app(MarketingFlowPayloadBuilder::class)->build(
             $step,
             $this->marketingFlowVariables($contact),

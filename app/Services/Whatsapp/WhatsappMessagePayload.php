@@ -90,7 +90,12 @@ class WhatsappMessagePayload
             ],
         ];
 
-        if ($header) {
+        // A diferencia de los mensajes de botones, Meta rechaza (#131009) un
+        // encabezado que no sea de texto en mensajes tipo "list" -- si el
+        // encabezado configurado es de imagen/video/documento, se descarta acá
+        // como resguardo (quien arma el mensaje es responsable de mandar esa
+        // imagen aparte antes, ver UsesMarketingFlow::buildMarketingStepPayload()).
+        if ($header && ($header['type'] ?? null) === 'text') {
             $interactive['header'] = self::normalizeHeader($header);
         }
         if ($footer) {
