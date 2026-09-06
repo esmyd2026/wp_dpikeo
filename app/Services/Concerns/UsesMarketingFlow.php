@@ -138,6 +138,17 @@ trait UsesMarketingFlow
             $customKey = substr($action, 7);
             $mainStep = $this->getMarketingStep(MarketingStepKey::MAIN_MENU);
             $message = $mainStep?->getCustomActions()[$customKey] ?? null;
+
+            // "horario_atencion" es un botón especial: en vez de depender de
+            // un texto fijo que el admin tiene que mantener sincronizado a
+            // mano, se arma en vivo desde las Sucursales (ver
+            // BusinessBranch::hoursByDay()). Si el admin igual escribió un
+            // texto propio para esta clave en "Acciones personalizadas", ese
+            // gana -- esto es solo el valor por defecto.
+            if (!$message && $customKey === 'horario_atencion') {
+                $message = $this->renderBusinessHoursMessage();
+            }
+
             if ($message) {
                 return [
                     'type' => 'text',
@@ -147,6 +158,50 @@ trait UsesMarketingFlow
         }
 
         return null;
+    }
+
+    /** @return string|null Null si esta empresa todavía no tiene ninguna sucursal activa configurada. */
+    protected function renderBusinessHoursMessage(): ?string
+    {
+        if (!$this->businessProfile) {
+            return null;
+        }
+
+        $branches = \App\Models\BusinessBranch::where('business_profile_id', $this->businessProfile->id)
+            ->where('is_active', true)
+            ->with('hours')
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        if ($branches->isEmpty()) {
+            return null;
+        }
+
+        $showBranchNames = $branches->count() > 1;
+        $lines = ['⏰ *Horario de atención*'];
+
+        foreach ($branches as $branch) {
+            if ($showBranchNames) {
+                $lines[] = '';
+                $lines[] = "*{$branch->name}*";
+            }
+
+            foreach ($branch->hoursByDay() as $hour) {
+                $label = $hour->dayLabel();
+                if ($hour->is_closed) {
+                    $lines[] = "{$label}: Cerrado";
+                } elseif ($hour->opens_at && $hour->closes_at) {
+                    $opens = \Illuminate\Support\Carbon::parse($hour->opens_at)->format('H:i');
+                    $closes = \Illuminate\Support\Carbon::parse($hour->closes_at)->format('H:i');
+                    $lines[] = "{$label}: {$opens} - {$closes}";
+                } else {
+                    $lines[] = "{$label}: Sin horario definido";
+                }
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     protected function resolveFlowButtonAction(string $buttonId): ?string
