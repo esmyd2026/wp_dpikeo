@@ -6146,10 +6146,14 @@ class WhatsappService
                     'title' => $this->cartButtonTitle($this->cartItemCount($contact)),
                 ],
             ];
-            // validar que los titulos no sean mas de 20 caracteres
+            // validar que los titulos no sean mas de 20 caracteres -- por
+            // caracteres reales (mb_strlen), no bytes: strlen() con emojis u
+            // otros caracteres multibyte contaba de más y cortaba el título a
+            // la mitad (perdiendo hasta el emoji), aunque ya entrara bien en
+            // el límite real de WhatsApp.
             foreach ($buttons as &$button) {
-                if (strlen($button['reply']['title']) > 20) {
-                    $button['reply']['title'] = substr($button['reply']['title'], 0, 17).'...';
+                if (mb_strlen($button['reply']['title']) > 20) {
+                    $button['reply']['title'] = mb_substr($button['reply']['title'], 0, 17).'...';
                 }
             }
             unset($button);
