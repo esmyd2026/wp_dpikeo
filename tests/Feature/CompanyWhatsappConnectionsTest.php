@@ -217,6 +217,81 @@ class CompanyWhatsappConnectionsTest extends TestCase
         $this->assertSame('593987654321', $a['profile']->fresh()->phone_number);
     }
 
+    public function test_a_connected_profile_cannot_be_deleted(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a');
+
+        $response = $this->actingAs($a['user'])->delete(
+            route('admin.empresas.whatsapp.profile.destroy', [$a['company'], $a['profile']])
+        );
+
+        $response->assertRedirect();
+        $this->assertNotNull($a['profile']->fresh(), 'No debió borrarse: sigue conectado.');
+    }
+
+    public function test_a_disconnected_profile_with_contacts_cannot_be_deleted(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a', [
+            'status' => WhatsappBusinessProfile::STATUS_DISCONNECTED,
+            'disconnected_at' => now(),
+        ]);
+
+        \App\Models\WhatsappContact::create([
+            'business_profile_id' => $a['profile']->id,
+            'phone_number' => '593987654321',
+            'name' => 'Cliente real',
+            'status' => 'active',
+        ]);
+
+        $response = $this->actingAs($a['user'])->delete(
+            route('admin.empresas.whatsapp.profile.destroy', [$a['company'], $a['profile']])
+        );
+
+        $response->assertRedirect();
+        $this->assertNotNull($a['profile']->fresh(), 'No debió borrarse: tiene contactos asociados.');
+    }
+
+    public function test_a_disconnected_profile_without_contacts_can_be_deleted_along_with_its_own_catalog(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a', [
+            'status' => WhatsappBusinessProfile::STATUS_DISCONNECTED,
+            'disconnected_at' => now(),
+        ]);
+
+        $menu = \App\Models\WhatsappMenu::create([
+            'business_profile_id' => $a['profile']->id,
+            'title' => 'Menu', 'type' => 'list', 'content' => 'x', 'action_id' => 'prices_menu',
+        ]);
+        \App\Models\WhatsappMenuItem::create([
+            'menu_id' => $menu->id, 'business_profile_id' => $a['profile']->id, 'title' => 'Cat', 'action_id' => 'cat_x',
+        ]);
+
+        $response = $this->actingAs($a['user'])->delete(
+            route('admin.empresas.whatsapp.profile.destroy', [$a['company'], $a['profile']])
+        );
+
+        $response->assertRedirect(route('admin.empresas.whatsapp', $a['company']));
+        $this->assertNull($a['profile']->fresh());
+        $this->assertSame(0, \App\Models\WhatsappMenu::where('business_profile_id', $a['profile']->id)->count());
+        $this->assertSame(0, \App\Models\WhatsappMenuItem::where('business_profile_id', $a['profile']->id)->count());
+    }
+
+    public function test_company_a_cannot_delete_a_profile_owned_by_company_b(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a');
+        $b = $this->makeCompanyWithProfile('empresa-b', [
+            'status' => WhatsappBusinessProfile::STATUS_DISCONNECTED,
+            'disconnected_at' => now(),
+        ]);
+
+        $response = $this->actingAs($a['user'])->delete(
+            route('admin.empresas.whatsapp.profile.destroy', [$a['company'], $b['profile']])
+        );
+
+        $response->assertNotFound();
+        $this->assertNotNull($b['profile']->fresh());
+    }
+
     public function test_multiple_profiles_can_belong_to_the_same_company(): void
     {
         $a = $this->makeCompanyWithProfile('empresa-a', ['connection_type' => 'manual']);

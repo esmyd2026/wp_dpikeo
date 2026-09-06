@@ -123,7 +123,13 @@
                                                 <i class="fas fa-plug-circle-xmark mr-1"></i> Desconectar
                                             </button>
                                         @else
-                                            <span class="block px-3 py-2 text-gray-400">Ya está desconectado</span>
+                                            <button type="button"
+                                                class="js-eliminar block w-full text-left px-3 py-2 hover:bg-red-50 text-red-600"
+                                                data-delete-url="{{ route('admin.empresas.whatsapp.profile.destroy', [$company, $account]) }}"
+                                                data-profile-name="{{ $account->display_name ?: $account->business_name }}"
+                                                data-profile-phone="{{ $account->phone_number ?: 'sin número' }}">
+                                                <i class="fas fa-trash mr-1"></i> Eliminar
+                                            </button>
                                         @endif
                                     </div>
                                 </div>
@@ -324,6 +330,49 @@
     </div>
 </div>
 
+{{-- Modal compartido: borrado real de una conexión ya desconectada (ver
+     CompanyWhatsappController::destroy). Bloqueado en el backend si sigue
+     conectada o si tiene contactos/pedidos asociados. --}}
+<div id="modal-eliminar" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-semibold text-gray-900">Eliminar esta conexión</h3>
+            <button type="button" class="js-cerrar-modal-eliminar text-gray-400 hover:text-gray-600">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        <div class="px-5 py-4 text-sm text-gray-700 space-y-3">
+            <p class="text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-xs">
+                Esto borra el registro para siempre (catálogo y configuración propios incluidos). No se puede
+                deshacer. Se bloquea si el número tiene contactos o pedidos asociados.
+            </p>
+            <dl class="text-xs text-gray-600 grid grid-cols-3 gap-x-2 gap-y-1">
+                <dt class="font-medium text-gray-500">Empresa</dt>
+                <dd class="col-span-2">{{ $company->name }}</dd>
+                <dt class="font-medium text-gray-500">Número</dt>
+                <dd class="col-span-2" id="modal-eliminar-numero">—</dd>
+            </dl>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">
+                    Escribí <span class="font-mono font-semibold">ELIMINAR</span> para confirmar
+                </label>
+                <input type="text" id="modal-eliminar-confirm-input" autocomplete="off"
+                    class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-red-500 focus:border-red-500">
+            </div>
+            <p id="modal-eliminar-status" class="text-xs text-gray-500"></p>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+            <button type="button" class="js-cerrar-modal-eliminar text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200">
+                Cancelar
+            </button>
+            <button type="button" id="modal-eliminar-submit" disabled
+                class="text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed">
+                Eliminar
+            </button>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
     (function () {
@@ -502,6 +551,53 @@
             btn.addEventListener('click', () => {
                 desconectarModal.classList.add('hidden');
                 desconectarModal.classList.remove('flex');
+            });
+        });
+
+        // ---- Modal "Eliminar" ----
+        const eliminarModal = document.getElementById('modal-eliminar');
+        const eliminarInput = document.getElementById('modal-eliminar-confirm-input');
+        const eliminarSubmit = document.getElementById('modal-eliminar-submit');
+        const eliminarStatus = document.getElementById('modal-eliminar-status');
+        let eliminarUrl = null;
+
+        document.querySelectorAll('.js-eliminar').forEach((btn) => {
+            btn.addEventListener('click', function () {
+                eliminarUrl = btn.dataset.deleteUrl;
+                document.getElementById('modal-eliminar-numero').textContent = btn.dataset.profilePhone || '—';
+                eliminarInput.value = '';
+                eliminarStatus.textContent = '';
+                eliminarSubmit.disabled = true;
+                eliminarSubmit.className = 'text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed';
+                eliminarModal.classList.remove('hidden');
+                eliminarModal.classList.add('flex');
+            });
+        });
+
+        eliminarInput?.addEventListener('input', function () {
+            const enabled = this.value.trim() === 'ELIMINAR';
+            eliminarSubmit.disabled = !enabled;
+            eliminarSubmit.className = enabled
+                ? 'text-xs px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700'
+                : 'text-xs px-3 py-1.5 rounded-md bg-red-300 text-white cursor-not-allowed';
+        });
+
+        eliminarSubmit?.addEventListener('click', function () {
+            if (!eliminarUrl || eliminarInput.value.trim() !== 'ELIMINAR') return;
+            eliminarStatus.textContent = 'Eliminando...';
+            fetch(eliminarUrl, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+            }).then((r) => {
+                if (r.redirected) { window.location.href = r.url; return; }
+                window.location.reload();
+            }).catch(() => { eliminarStatus.textContent = 'Error de red al eliminar.'; });
+        });
+
+        document.querySelectorAll('.js-cerrar-modal-eliminar').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                eliminarModal.classList.add('hidden');
+                eliminarModal.classList.remove('flex');
             });
         });
     })();

@@ -290,6 +290,50 @@ class CompanyWhatsappController extends Controller
             ->with('success', "«{$profile->display_name}» ahora es el número principal de {$company->name}.");
     }
 
+    /**
+     * Borrado real, a diferencia de disconnect(): saca la fila para siempre,
+     * junto con su catálogo/config/flujo propios (que sin el perfil no
+     * sirven para nada). Bloqueado si sigue conectado (hay que desconectarlo
+     * primero, a propósito -- no queremos borrar un número en uso de un
+     * click) o si tiene contactos asociados (implica clientes/pedidos reales;
+     * ahí la opción es dejarlo desconectado, no perder ese historial).
+     */
+    public function destroy(Company $company, WhatsappBusinessProfile $profile)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        if ($profile->status === WhatsappBusinessProfile::STATUS_CONNECTED) {
+            return back()->with('error', 'Desconectá este número antes de eliminarlo.');
+        }
+
+        if (\App\Models\WhatsappContact::where('business_profile_id', $profile->id)->exists()) {
+            return back()->with('error', 'No se puede eliminar: este número tiene contactos o pedidos asociados. Para conservar ese historial, dejalo desconectado en vez de borrarlo.');
+        }
+
+        DB::transaction(function () use ($profile) {
+            \App\Models\WhatsappPrice::where('business_profile_id', $profile->id)->delete();
+            \App\Models\WhatsappMenuItem::where('business_profile_id', $profile->id)->delete();
+            \App\Models\WhatsappMenu::where('business_profile_id', $profile->id)->delete();
+            \App\Models\WhatsappChatbotConfig::where('business_profile_id', $profile->id)->delete();
+            \App\Models\Franchise::where('business_profile_id', $profile->id)->delete();
+            \App\Models\BusinessBranch::where('business_profile_id', $profile->id)->delete();
+
+            foreach (\App\Models\MarketingFlow::where('business_profile_id', $profile->id)->get() as $flow) {
+                \App\Models\MarketingFlowStep::where('flow_id', $flow->id)->delete();
+                \App\Models\MarketingFlowEdge::where('flow_id', $flow->id)->delete();
+                \App\Models\MarketingFlowNode::where('flow_id', $flow->id)->delete();
+                \App\Models\MarketingFlowVersion::where('flow_id', $flow->id)->delete();
+                $flow->delete();
+            }
+
+            $profile->delete();
+        });
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', 'Número eliminado correctamente.');
+    }
+
     private function serializeProfile(WhatsappBusinessProfile $profile, Company $company): array
     {
         return [

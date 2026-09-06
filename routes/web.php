@@ -320,6 +320,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::post('/{company:slug}/whatsapp/{profile}/set-primary', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'setPrimary'])
             ->middleware('permission:chatbot.update')
             ->name('whatsapp.profile.set-primary');
+        Route::delete('/{company:slug}/whatsapp/{profile}', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'destroy'])
+            ->middleware('permission:chatbot.update')
+            ->name('whatsapp.profile.destroy');
     });
 
     Route::get('/marketing-flow', [App\Http\Controllers\Admin\MarketingFlowController::class, 'edit'])
