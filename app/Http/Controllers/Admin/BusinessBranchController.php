@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BusinessBranch;
+use App\Models\BusinessBranchHour;
 use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class BusinessBranchController extends Controller
@@ -23,6 +25,7 @@ class BusinessBranchController extends Controller
             'branches' => BusinessBranch::query()
                 ->when($context->businessProfileId(), fn ($q) => $q->where('business_profile_id', $context->businessProfileId()))
                 ->withCount('orders')
+                ->with('hours')
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(),
@@ -35,12 +38,13 @@ class BusinessBranchController extends Controller
         abort_unless($profile, 422, 'Esta empresa todavía no tiene un número de WhatsApp conectado.');
         $data = $this->validated($request);
 
-        DB::transaction(function () use ($profile, $data) {
+        DB::transaction(function () use ($profile, $data, $request) {
             if ($data['is_default']) {
                 BusinessBranch::query()->where('business_profile_id', $profile->id)->update(['is_default' => false]);
             }
 
-            BusinessBranch::create(array_merge($data, ['business_profile_id' => $profile->id]));
+            $branch = BusinessBranch::create(array_merge($data, ['business_profile_id' => $profile->id]));
+            $this->syncHours($branch, $request);
         });
 
         return back()->with('success', 'Sucursal creada correctamente.');
@@ -58,11 +62,12 @@ class BusinessBranchController extends Controller
         $this->authorizeBranch($branch);
         $data = $this->validated($request, $branch);
 
-        DB::transaction(function () use ($branch, $data) {
+        DB::transaction(function () use ($branch, $data, $request) {
             if ($data['is_default']) {
                 BusinessBranch::query()->where('business_profile_id', $branch->business_profile_id)->whereKeyNot($branch->id)->update(['is_default' => false]);
             }
             $branch->update($data);
+            $this->syncHours($branch, $request);
         });
 
         return back()->with('success', 'Sucursal actualizada.');
@@ -104,6 +109,10 @@ class BusinessBranchController extends Controller
             'delivery_fee_per_unit' => ['nullable', 'numeric', 'min:0'],
             'delivery_fee_km_unit' => ['nullable', 'numeric', 'min:0.1'],
             'delivery_fee_minimum' => ['nullable', 'numeric', 'min:0'],
+            'hours' => ['nullable', 'array'],
+            'hours.*.is_closed' => ['nullable', 'boolean'],
+            'hours.*.opens_at' => ['nullable', 'date_format:H:i'],
+            'hours.*.closes_at' => ['nullable', 'date_format:H:i'],
         ]);
 
         return [
@@ -128,5 +137,34 @@ class BusinessBranchController extends Controller
             'delivery_fee_km_unit' => $data['delivery_fee_km_unit'] ?? null,
             'delivery_fee_minimum' => $data['delivery_fee_minimum'] ?? null,
         ];
+    }
+
+    /**
+     * Guarda el horario de atención (7 filas, una por día, 0=domingo..6=sábado).
+     * Un día marcado "cerrado" siempre queda sin horas, sin importar lo que
+     * haya llegado en el form -- evita que quede una hora "fantasma" guardada
+     * para un día que la sucursal no atiende.
+     */
+    private function syncHours(BusinessBranch $branch, Request $request): void
+    {
+        $hours = $request->input('hours', []);
+
+        foreach (array_keys(BusinessBranchHour::DAYS) as $day) {
+            $row = $hours[$day] ?? [];
+            $isClosed = (bool) ($row['is_closed'] ?? false);
+            $opensAt = $isClosed ? null : (($row['opens_at'] ?? null) ?: null);
+            $closesAt = $isClosed ? null : (($row['closes_at'] ?? null) ?: null);
+
+            if (!$isClosed && $opensAt && $closesAt && $closesAt <= $opensAt) {
+                throw ValidationException::withMessages([
+                    "hours.{$day}.closes_at" => 'La hora de cierre de ' . BusinessBranchHour::DAYS[$day] . ' debe ser posterior a la de apertura.',
+                ]);
+            }
+
+            BusinessBranchHour::updateOrCreate(
+                ['business_branch_id' => $branch->id, 'day_of_week' => $day],
+                ['is_closed' => $isClosed, 'opens_at' => $opensAt, 'closes_at' => $closesAt]
+            );
+        }
     }
 }

@@ -292,6 +292,34 @@ class CompanyWhatsappConnectionsTest extends TestCase
         $this->assertNotNull($b['profile']->fresh());
     }
 
+    public function test_company_name_can_be_edited_without_changing_the_slug(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a');
+        $originalSlug = $a['company']->slug;
+
+        $response = $this->actingAs($a['user'])->put(route('admin.empresas.update', $a['company']), [
+            'name' => 'Empresa A Corregida',
+        ]);
+
+        $response->assertRedirect(route('admin.empresas.whatsapp', $a['company']));
+        $fresh = $a['company']->fresh();
+        $this->assertSame('Empresa A Corregida', $fresh->name);
+        $this->assertSame($originalSlug, $fresh->slug, 'El slug no debe cambiar al editar el nombre.');
+    }
+
+    public function test_company_a_cannot_rename_company_b(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a');
+        $b = $this->makeCompanyWithProfile('empresa-b');
+
+        $response = $this->actingAs($a['user'])->put(route('admin.empresas.update', $b['company']), [
+            'name' => 'Nombre Robado',
+        ]);
+
+        $response->assertForbidden();
+        $this->assertNotEquals('Nombre Robado', $b['company']->fresh()->name);
+    }
+
     public function test_multiple_profiles_can_belong_to_the_same_company(): void
     {
         $a = $this->makeCompanyWithProfile('empresa-a', ['connection_type' => 'manual']);

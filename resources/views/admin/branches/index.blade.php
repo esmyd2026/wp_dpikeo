@@ -21,6 +21,12 @@
     .branch-check input { width:auto!important; }
     .branch-save { border:0; border-radius:9px; padding:10px 13px; color:#fff; background:#e85d04; font:inherit; font-weight:800; cursor:pointer; }
     .branch-add { border:1px dashed #fdba74; background:#fffaf5; }
+    .branch-hours { display:grid; gap:6px; border-top:1px solid #eef0f3; padding-top:10px; margin-top:2px; }
+    .branch-hours-title { font-size:.78rem; font-weight:800; color:#475569; margin:0 0 2px; }
+    .branch-hours-row { display:grid; grid-template-columns:74px auto 1fr 1fr; align-items:center; gap:6px; font-size:.78rem; }
+    .branch-hours-row label.branch-check { font-weight:600!important; font-size:.72rem; color:#64748b; }
+    .branch-hours-row input[type="time"] { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:5px 6px; font:inherit; font-size:.8rem; }
+    .branch-hours-row input[type="time"]:disabled { background:#f1f5f9; color:#94a3b8; }
 </style>
 
 <div class="branch-page">
@@ -59,6 +65,21 @@
                     <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($branch->is_default)> Usar como sucursal predeterminada</label>
                     <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($branch->is_active)> Sucursal activa</label>
                     <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked($branch->dine_in_enabled)> Permite pedidos para servir en mesa</label>
+
+                    <div class="branch-hours">
+                        <p class="branch-hours-title">Horario de atención</p>
+                        @foreach($branch->hoursByDay() as $day => $hour)
+                            <div class="branch-hours-row">
+                                <span>{{ $hour->dayLabel() }}</span>
+                                <label class="branch-check">
+                                    <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1" @checked($hour->is_closed)> Cerrado
+                                </label>
+                                <input type="time" name="hours[{{ $day }}][opens_at]" value="{{ $hour->opens_at ? \Illuminate\Support\Carbon::parse($hour->opens_at)->format('H:i') : '' }}" @disabled($hour->is_closed)>
+                                <input type="time" name="hours[{{ $day }}][closes_at]" value="{{ $hour->closes_at ? \Illuminate\Support\Carbon::parse($hour->closes_at)->format('H:i') : '' }}" @disabled($hour->is_closed)>
+                            </div>
+                        @endforeach
+                    </div>
+
                     <button class="branch-save">Guardar cambios</button>
                 </form>
                 @unless($branch->is_default)
@@ -91,9 +112,36 @@
                 <label class="branch-check"><input type="checkbox" name="is_default" value="1"> Usar como predeterminada</label>
                 <label class="branch-check"><input type="checkbox" name="is_active" value="1" checked> Sucursal activa</label>
                 <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" checked> Permite pedidos para servir en mesa</label>
+
+                <div class="branch-hours">
+                    <p class="branch-hours-title">Horario de atención (opcional, se puede completar después)</p>
+                    @foreach(\App\Models\BusinessBranchHour::DAYS as $day => $label)
+                        <div class="branch-hours-row">
+                            <span>{{ $label }}</span>
+                            <label class="branch-check">
+                                <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1"> Cerrado
+                            </label>
+                            <input type="time" name="hours[{{ $day }}][opens_at]">
+                            <input type="time" name="hours[{{ $day }}][closes_at]">
+                        </div>
+                    @endforeach
+                </div>
+
                 <button class="branch-save">Crear sucursal</button>
             </form>
         </article>
     </div>
 </div>
+
+<script>
+    document.querySelectorAll('.js-day-closed').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            const row = checkbox.closest('.branch-hours-row');
+            row.querySelectorAll('input[type="time"]').forEach(function (input) {
+                input.disabled = checkbox.checked;
+                if (checkbox.checked) input.value = '';
+            });
+        });
+    });
+</script>
 @endsection

@@ -34,4 +34,26 @@ class BusinessBranch extends Model
     {
         return $this->hasMany(WhatsappCart::class, 'branch_id');
     }
+
+    public function hours(): HasMany
+    {
+        return $this->hasMany(BusinessBranchHour::class)->orderBy('day_of_week');
+    }
+
+    /** Los 7 días siempre presentes y en orden, aunque todavía no tengan fila guardada (sucursal recién creada). */
+    public function hoursByDay(): array
+    {
+        $existing = $this->hours->keyBy('day_of_week');
+
+        $result = [];
+        foreach (array_keys(BusinessBranchHour::DAYS) as $day) {
+            $result[$day] = $existing->get($day) ?? new BusinessBranchHour([
+                'business_branch_id' => $this->id,
+                'day_of_week' => $day,
+                'is_closed' => false,
+            ]);
+        }
+
+        return $result;
+    }
 }

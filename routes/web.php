@@ -302,6 +302,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::post('/', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'store'])
             ->middleware('permission:chatbot.update')
             ->name('store');
+        Route::put('/{company:slug}', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'updateCompany'])
+            ->middleware('permission:chatbot.update')
+            ->name('update');
         Route::get('/{company:slug}/whatsapp', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'show'])
             ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')
             ->name('whatsapp');

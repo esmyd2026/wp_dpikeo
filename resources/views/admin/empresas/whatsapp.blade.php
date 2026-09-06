@@ -9,7 +9,22 @@
             <i class="fas fa-arrow-left mr-1"></i> Empresas
         </a>
 
-        <h2 class="text-xl font-semibold text-gray-900 mb-1">{{ $company->name }}</h2>
+        <div class="flex items-center gap-2 mb-1">
+            <h2 class="text-xl font-semibold text-gray-900">{{ $company->name }}</h2>
+            <button type="button" onclick="var f=document.getElementById('form-editar-nombre-empresa'); f.style.display = f.style.display === 'flex' ? 'none' : 'flex';"
+                class="text-gray-400 hover:text-gray-600" title="Editar nombre de la empresa">
+                <i class="fas fa-pen text-sm"></i>
+            </button>
+        </div>
+        <form id="form-editar-nombre-empresa" action="{{ route('admin.empresas.update', $company) }}" method="POST"
+            style="display:{{ $errors->has('name') ? 'flex' : 'none' }}" class="items-center gap-2 mb-3">
+            @csrf
+            @method('PUT')
+            <input type="text" name="name" value="{{ old('name', $company->name) }}" maxlength="120" required
+                class="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700">Guardar</button>
+        </form>
+        @error('name')<p class="text-xs text-red-600 mb-2">{{ $message }}</p>@enderror
         <p class="text-sm text-gray-600 mb-6">Números de WhatsApp conectados a esta empresa.</p>
 
         @php

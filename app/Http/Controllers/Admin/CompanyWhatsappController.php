@@ -77,6 +77,25 @@ class CompanyWhatsappController extends Controller
             ->with('success', 'Empresa creada. Ahora conectá su WhatsApp.');
     }
 
+    /**
+     * Solo el nombre visible -- el slug (usado en las URLs del panel, ver
+     * getRouteKeyName() en Company) queda fijo a propósito, para no romper
+     * ningún enlace interno ya guardado si alguien corrige un typo en el nombre.
+     */
+    public function updateCompany(Request $request, Company $company)
+    {
+        $this->authorizeCompany($company);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:120',
+        ]);
+
+        $company->update(['name' => trim($validated['name'])]);
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', 'Nombre de la empresa actualizado.');
+    }
+
     public function show(Company $company)
     {
         $this->authorizeCompany($company);
