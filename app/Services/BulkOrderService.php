@@ -350,6 +350,13 @@ class BulkOrderService
                 'status' => 'active',
                 'note' => $orderNote,
                 'metadata' => $metadata,
+                // El cliente puede haber elegido el método de pago por chat
+                // (ver WhatsappService::interceptForPaymentMethod) antes de
+                // entrar al micrositio a armar la lista -- sin esto, el
+                // carrito nuevo lo perdía y confirmarPedido() se lo volvía a
+                // preguntar, aunque ya lo hubiera elegido.
+                'payment_method' => $previousCart?->payment_method,
+                'payment_status' => $previousCart?->payment_status,
             ]);
 
             $total = 0;
@@ -445,9 +452,18 @@ class BulkOrderService
                 throw new InvalidArgumentException('No se pudo confirmar el pedido por WhatsApp: revisá la conexión de WhatsApp de esta empresa.');
             }
 
-            $orderNumber = $whatsapp->finalizeBulkWebOrder($cart);
+            $whatsapp->finalizeBulkWebOrder($cart);
             $cart->refresh();
-            $cart->setAttribute('order_number', $orderNumber);
+            // Sin atributo sintético "order_number" acá (a diferencia de
+            // submitFromAdmin() más arriba, que sí lo necesita y lo quita
+            // antes de guardar): finalizeBulkWebOrder() ya deja el número
+            // persistido en metadata->order_details, así que
+            // $cart->getOrderNumber() lo lee bien después del refresh() sin
+            // necesidad de un atributo que no es una columna real -- dejarlo
+            // puesto acá hacía crashear el guardado posterior en
+            // OrderConfirmationService::sendToClient() ("Unknown column
+            // 'order_number'"), y el pedido terminaba sin la confirmación
+            // completa (solo el mensaje de respaldo).
 
             return $cart->load('items');
         });
