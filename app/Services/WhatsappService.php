@@ -4569,6 +4569,19 @@ class WhatsappService
      */
     private function cartHasPendingCheckoutStep(WhatsappCart $cart): bool
     {
+        // Bug real: un carrito activo recién creado (todavía sin productos,
+        // el cliente apenas está navegando categorías) también tiene
+        // 'branch_confirmed' vacío -- sin este chequeo, cualquier saludo o
+        // palabra suelta mientras se navega el catálogo (sin haber tocado
+        // "Finalizar compra" todavía) se interpretaba como "checkout
+        // pendiente" y reenviaba finalizarCompra(), que a su vez respondía
+        // "tu carrito está vacío" pegado atrás del saludo -- un mensaje
+        // contradictorio. Sin ítems no puede haber ningún paso de checkout
+        // pendiente, sin importar qué falte en el metadata.
+        if ($cart->items->isEmpty()) {
+            return false;
+        }
+
         if (empty($cart->metadata['branch_confirmed'] ?? false)) {
             return true;
         }
