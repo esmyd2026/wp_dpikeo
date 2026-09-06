@@ -40,6 +40,7 @@ return [
                 'orders.menu' => ['label' => 'Ver en menú', 'type' => 'menu'],
                 'orders.view' => ['label' => 'Ver pedidos y reportes de ventas', 'type' => 'action'],
                 'orders.update' => ['label' => 'Cambiar estado de pedidos', 'type' => 'action'],
+                'orders.delete' => ['label' => 'Eliminar pedidos definitivamente', 'type' => 'action'],
                 'orders.billing' => ['label' => 'Ver y gestionar facturación del pedido', 'type' => 'action'],
                 'orders.internal_notes' => ['label' => 'Ver y gestionar notas para el equipo', 'type' => 'action'],
                 'orders.followup' => ['label' => 'Ver y gestionar conversaciones y seguimiento', 'type' => 'action'],

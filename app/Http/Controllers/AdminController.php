@@ -1008,6 +1008,37 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * Borrado definitivo de un pedido (a diferencia de cancelarlo, que solo
+     * cambia el estado). Devuelve el stock reservado si lo había -- sin
+     * pasar por la máquina de estados de transition(), porque un pedido
+     * 'completed' no tiene ninguna transición permitida hacia 'cancelled' y
+     * aun así debe poder devolver stock al borrarse (ver
+     * OrderLifecycleService::releaseInventoryIfReserved()). Los ítems y
+     * notas del pedido se borran solos por ON DELETE CASCADE; los mensajes
+     * de WhatsApp del cliente quedan intactos (son historial de
+     * conversación, no del pedido).
+     */
+    public function destroyOrder(Request $request, $id, OrderLifecycleService $lifecycle)
+    {
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
+        $orderNumber = $order->getOrderNumber();
+
+        $lifecycle->releaseInventoryIfReserved($order, (int) $request->user()->id);
+        $order->delete();
+
+        Log::info('[AdminController] Pedido eliminado definitivamente', [
+            'order_number' => $orderNumber,
+            'user_id' => $request->user()->id,
+        ]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->route('admin.orders')->with('success', "Pedido {$orderNumber} eliminado correctamente.");
+    }
+
     public function contactDetails($id)
     {
         $contact = WhatsappContact::findOrFail($id);

@@ -153,6 +153,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/orders/{id}/notes', [App\Http\Controllers\AdminController::class, 'storeOrderNote'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('orders.notes.store');
+    Route::delete('/orders/{id}', [App\Http\Controllers\AdminController::class, 'destroyOrder'])
+        ->middleware(['permission:orders.delete', 'platform.feature:orders'])
+        ->name('orders.destroy');
     Route::prefix('orders/bulk')->name('orders.bulk.')->middleware(['permission:bulk_orders.create', 'platform.feature:orders'])->group(function () {
     Route::get('/', [AdminBulkOrderController::class, 'create'])->name('create');
     Route::get('/contacts', [AdminBulkOrderController::class, 'searchContacts'])->name('contacts');

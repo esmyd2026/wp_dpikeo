@@ -33,6 +33,7 @@
     $canViewBilling = auth()->user()?->hasPermission('orders.billing') ?? false;
     $canViewInternalNotes = auth()->user()?->hasPermission('orders.internal_notes') ?? false;
     $canViewFollowup = auth()->user()?->hasPermission('orders.followup') ?? false;
+    $canDelete = auth()->user()?->hasPermission('orders.delete') ?? false;
     $columnHints = [
         'id' => 'Identificador único del pedido en el sistema. Sirve para buscarlo, exportarlo o referenciarlo en notas internas.',
         'client' => 'Nombre del contacto de WhatsApp vinculado al pedido. Si tiene cédula en su perfil, aparece debajo del nombre.',
@@ -256,6 +257,8 @@
         background: #fff; color: #475569; cursor: pointer; text-decoration: none;
     }
     .o-btn.primary { background: linear-gradient(135deg, #128c7e, #075e54); border-color: transparent; color: #fff !important; }
+    .o-btn.danger { color: #dc2626; border-color: #fecaca; }
+    .o-btn.danger:hover { background: #fef2f2; }
 
     .orders-empty {
         text-align: center; padding: 3rem; background: #fff; border: 1px dashed #e2e8f0; border-radius: 14px; color: #64748b;
@@ -865,6 +868,12 @@
                                     <a href="{{ route('admin.orders.pdf', $order->id) }}" class="o-btn" title="Descargar PDF" target="_blank" rel="noopener">
                                         <i class="fas fa-file-pdf"></i> PDF
                                     </a>
+                                    @if($canDelete)
+                                        <button type="button" class="o-btn danger" title="Eliminar pedido definitivamente"
+                                            onclick="confirmDeleteOrder({{ $order->id }}, {{ Js::from($order->getOrderNumber()) }})">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </button>
+                                    @endif
                                 </div>
                             </div>
                         </article>
@@ -1621,6 +1630,37 @@ function confirmOrderPayment(orderId) {
         }
     })
     .catch(() => showToast('Error al confirmar el pago', 'error'));
+}
+
+/**
+ * Borrado definitivo (no es lo mismo que cancelar): saca el pedido para
+ * siempre e intenta devolver el stock reservado (ver
+ * AdminController::destroyOrder). No hay forma de deshacerlo, por eso pide
+ * escribir el número de pedido en vez de un simple confirm().
+ */
+function confirmDeleteOrder(orderId, orderNumber) {
+    const typed = prompt(`Esto elimina el pedido ${orderNumber} para siempre (se devuelve el stock reservado si lo había). Esta acción no se puede deshacer.\n\nEscribí el número de pedido para confirmar:`);
+    if (typed === null) return;
+    if (typed.trim() !== orderNumber) {
+        showToast('No coincide el número de pedido, no se eliminó nada.', 'error');
+        return;
+    }
+
+    fetch(`/admin/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+    })
+    .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) throw new Error(data.message || 'No se pudo eliminar el pedido');
+
+        return data;
+    })
+    .then(() => {
+        document.getElementById('order-row-' + orderId)?.remove();
+        showToast(`Pedido ${orderNumber} eliminado.`);
+    })
+    .catch(error => showToast(error.message || 'No se pudo eliminar el pedido', 'error'));
 }
 
 document.getElementById('orders-search')?.addEventListener('input', function() {

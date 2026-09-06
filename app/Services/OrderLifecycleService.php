@@ -355,6 +355,22 @@ class OrderLifecycleService
         ]);
     }
 
+    /**
+     * Para el borrado definitivo de un pedido (AdminController::destroyOrder):
+     * a diferencia de transition(), no está limitado por ALLOWED_TRANSITIONS
+     * -- un pedido 'completed' nunca puede pasar a 'cancelled' normalmente,
+     * pero borrarlo sí debe poder devolver el stock si quedó reservado. No
+     * hace nada si el pedido no tenía nada reservado (idempotente).
+     */
+    public function releaseInventoryIfReserved(WhatsappCart $order, ?int $userId = null): void
+    {
+        if (!$this->isReserved($order)) {
+            return;
+        }
+
+        DB::transaction(fn () => $this->releaseInventory($order, $userId));
+    }
+
     private function requiresReservation(string $status): bool
     {
         return in_array($status, [
