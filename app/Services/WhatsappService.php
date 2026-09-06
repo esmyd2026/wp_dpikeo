@@ -2920,7 +2920,7 @@ class WhatsappService
                 case 'ver_mas_precios':
                     // Nunca enviamos al cliente un listado técnico con SKU.
                     // Las categorías hacen el menú más corto, visual y fácil de recorrer.
-                    $response = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCategoryBrowser($contact);
+                    $response = $this->buildCategoryBrowserResponse($contact);
                     break;
                 case 'volver_productos':
                     $response = $this->getProductsMenu($contact);
@@ -2961,7 +2961,7 @@ class WhatsappService
                         // La lista nativa de WhatsApp permite un máximo de 10 filas.
                         // Si una categoría crece, mostramos su navegación limpia en lugar
                         // de forzar al cliente a copiar o escribir códigos SKU.
-                        $response = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCategoryBrowser($contact);
+                        $response = $this->buildCategoryBrowserResponse($contact);
                         break;
                     }
 
@@ -6291,10 +6291,28 @@ class WhatsappService
         }
     }
 
+    /** "Ver categorías" / "Volver a categorías" -- misma imagen de encabezado pendiente que getProductsMenu(). */
+    private function buildCategoryBrowserResponse(?WhatsappContact $contact = null): array
+    {
+        $builder = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile]);
+
+        if ($contact?->phone_number && ($imageUrl = $builder->pendingListHeaderImage(null))) {
+            $this->sendMessage($contact->phone_number, WhatsappMessagePayload::image($imageUrl));
+        }
+
+        return $builder->buildCategoryBrowser($contact);
+    }
+
     private function getProductsMenu(?WhatsappContact $contact = null, ?int $categoryId = null)
     {
         try {
-            return app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCatalog($contact, $categoryId);
+            $builder = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile]);
+
+            if ($contact?->phone_number && ($imageUrl = $builder->pendingListHeaderImage($categoryId))) {
+                $this->sendMessage($contact->phone_number, WhatsappMessagePayload::image($imageUrl));
+            }
+
+            return $builder->buildCatalog($contact, $categoryId);
         } catch (\Exception $e) {
             Log::error('❌ Error al generar el menú de precios', [
                 'error' => $e->getMessage(),
@@ -6415,7 +6433,7 @@ class WhatsappService
                 $contact = $this->findContactByPhone($to);
                 $fallback = $contact && app(BulkOrderService::class)->isAvailable()
                     ? $this->sendBulkWebOrderLink($contact)
-                    : app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile])->buildCatalog($contact);
+                    : $this->getProductsMenu($contact);
                 Log::warning('[Catálogo Meta] No disponible; usando micrositio temporalmente', [
                     'to' => substr($to, 0, 4).'****'.substr($to, -4),
                 ]);

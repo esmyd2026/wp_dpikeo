@@ -84,6 +84,38 @@ class MarketingCatalogBuilder
         return $this->buildCategoryListPayload($step, $this->variables($contact));
     }
 
+    /**
+     * Igual que buildProductListPayload() con $categoryId, el resto de
+     * buildCatalog() (categorías de nivel superior, o el listado plano de
+     * "todos los productos") no fuerza el encabezado a texto -- así que si el
+     * paso tiene una imagen configurada, WhatsappMessagePayload::list() la va
+     * a descartar en silencio (Meta no admite encabezado de imagen en listas,
+     * ver error #131009). Este método le dice al llamador (getProductsMenu())
+     * si hay una imagen pendiente para mandar aparte, ANTES de la lista, para
+     * no perder la imagen que cargó el admin en el flujo.
+     */
+    public function pendingListHeaderImage(?int $categoryId = null): ?string
+    {
+        if ($categoryId !== null) {
+            return null;
+        }
+
+        $step = $this->getProductsStep();
+        if (!$step || !$step->is_enabled || $step->getHeaderMode() !== 'image') {
+            return null;
+        }
+
+        $type = $step->getInteractiveType();
+        if ($type === 'flow') {
+            $type = 'list';
+        }
+        if ($type !== 'list') {
+            return null;
+        }
+
+        return $step->getHeaderImageUrl();
+    }
+
     protected function getProductsStep(): ?MarketingFlowStep
     {
         if (!$this->businessProfile) {

@@ -7,6 +7,9 @@ use App\Models\MarketingFlow;
 use App\Models\MarketingFlowStep;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappContact;
+use App\Models\WhatsappMenu;
+use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappPrice;
 use App\Services\Whatsapp\WhatsappMessagePayload;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,5 +93,65 @@ class MarketingFlowListHeaderImageTest extends TestCase
         Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/messages')
             && ($request['type'] ?? null) === 'image'
             && str_contains((string) ($request['image']['link'] ?? ''), 'marketing-flow-headers/1/foo.png'));
+    }
+
+    /**
+     * El camino real que sirve "Catálogo de productos" en producción NO pasa
+     * por buildMarketingStepPayload() -- pasa por
+     * WhatsappService::getProductsMenu() -> MarketingCatalogBuilder, que arma
+     * el listado de categorías directo. Sin este fix, el error anterior ya no
+     * tumbaba el envío (WhatsappMessagePayload::list() descarta el header no
+     * soportado), pero la imagen configurada se perdía en silencio.
+     */
+    public function test_real_catalog_category_listing_sends_the_configured_header_image_separately(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+
+        $profile = WhatsappBusinessProfile::create([
+            'business_name' => 'DPIKEOS', 'display_name' => 'DPIKEOS', 'phone_number' => '593990000001',
+            'phone_number_id' => 'PHONE-TEST', 'whatsapp_business_id' => 'WABA-TEST', 'access_token' => 'test',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
+        ]);
+        $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593987654321', 'name' => 'Cliente', 'status' => 'active']);
+
+        $menu = WhatsappMenu::create([
+            'business_profile_id' => $profile->id, 'title' => 'Menú', 'type' => 'list',
+            'content' => 'Menú', 'action_id' => 'prices_menu',
+        ]);
+        $category = WhatsappMenuItem::create([
+            'menu_id' => $menu->id, 'business_profile_id' => $profile->id, 'title' => 'Boxes', 'action_id' => 'cat_boxes', 'is_active' => true,
+        ]);
+        WhatsappPrice::create([
+            'menu_item_id' => $category->id, 'business_profile_id' => $profile->id, 'category' => 'Boxes', 'sku' => 'BOX-1',
+            'name' => 'Box 1', 'price' => 5.99, 'currency' => 'USD', 'is_active' => true, 'stock' => 10,
+        ]);
+
+        $flow = MarketingFlow::create(['business_profile_id' => $profile->id, 'name' => 'Flujo', 'is_active' => true, 'is_default' => true]);
+        MarketingFlowStep::create([
+            'flow_id' => $flow->id,
+            'step_key' => MarketingStepKey::PRODUCTS_MENU,
+            'name' => 'Catálogo de productos',
+            'message_template' => '¿Qué se te antoja?',
+            'is_enabled' => true,
+            'config' => [
+                'interactive_type' => 'list',
+                'header' => ['type' => 'image', 'image_path' => 'marketing-flow-headers/4/foo.png'],
+                'catalog_source' => 'categories',
+            ],
+        ]);
+
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+
+        $ref = new \ReflectionMethod($service, 'getProductsMenu');
+        $ref->setAccessible(true);
+        $payload = $ref->invoke($service, $contact, null);
+
+        $this->assertSame('list', $payload['interactive']['type']);
+        $this->assertArrayNotHasKey('header', $payload['interactive']);
+
+        Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/messages')
+            && ($request['type'] ?? null) === 'image'
+            && str_contains((string) ($request['image']['link'] ?? ''), 'marketing-flow-headers/4/foo.png'));
     }
 }
