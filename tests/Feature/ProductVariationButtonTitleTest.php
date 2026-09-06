@@ -12,14 +12,17 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Bug real reportado en vivo: el botón de una variación con emoji (ej. "🛒 Con
- * gaseosa $3.99", 19 caracteres reales) aparecía mutilado y sin el emoji en
- * WhatsApp ("Con gaseosa ..."). getProductDetails() volvía a truncar los
- * títulos con strlen()/substr() (cuentan BYTES) después de que Str::limit()
- * ya los había dejado bien recortados por caracteres -- un emoji ocupa 4
- * bytes pero es un solo carácter para el límite real de 20 de WhatsApp, así
- * que un título que entraba perfecto se cortaba igual, y el corte a nivel de
- * bytes partía el emoji a la mitad (por eso desaparecía del todo).
+ * Bug real reportado en vivo: el botón de una variación con emoji (ej. "🥤
+ * c/gas $3.99") aparecía mutilado y sin el emoji en WhatsApp.
+ * getProductDetails() volvía a truncar los títulos con strlen()/substr()
+ * (cuentan BYTES) después de que Str::limit() ya los había dejado bien
+ * recortados por caracteres -- un emoji ocupa 4 bytes pero es un solo
+ * carácter para el límite real de 20 de WhatsApp, así que un título que
+ * entraba perfecto se cortaba igual, y el corte a nivel de bytes partía el
+ * emoji a la mitad (por eso desaparecía del todo). El botón ya no antepone su
+ * propio ícono de carrito (WhatsApp ya dibuja uno junto a cada botón de
+ * respuesta) -- si el admin quiere un ícono, lo pone en el nombre de la
+ * variación, como en este test.
  */
 class ProductVariationButtonTitleTest extends TestCase
 {
@@ -49,8 +52,8 @@ class ProductVariationButtonTitleTest extends TestCase
             'name' => 'Box Tender', 'price' => 3.75, 'currency' => 'USD', 'is_active' => true, 'stock' => 20,
             'metadata' => [
                 'variations' => [
-                    ['title' => 'Con gaseosa', 'price' => 3.99],
-                    ['title' => 'Sin gaseosa', 'price' => 3.50],
+                    ['title' => '🥤 c/gas', 'price' => 3.99],
+                    ['title' => 'Sin gas', 'price' => 3.50],
                 ],
             ],
         ]);
@@ -61,8 +64,8 @@ class ProductVariationButtonTitleTest extends TestCase
 
         $titles = collect($details['interactive']['action']['buttons'])->pluck('reply.title')->all();
 
-        $this->assertSame('🛒 Con gaseosa $3.99', $titles[0]);
-        $this->assertSame('🛒 Sin gaseosa $3.50', $titles[1]);
+        $this->assertSame('🥤 c/gas $3.99', $titles[0]);
+        $this->assertSame('Sin gas $3.50', $titles[1]);
         foreach ($titles as $title) {
             $this->assertLessThanOrEqual(20, mb_strlen($title));
         }

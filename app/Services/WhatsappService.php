@@ -3260,6 +3260,13 @@ class WhatsappService
             ->first();
 
         if (! $cart || $cart->items->isEmpty()) {
+            // "Resumen del carrito" del flujo, si el admin lo configuró --
+            // antes esto era siempre un texto fijo sin la marca/copy del
+            // negocio, sin importar lo que el admin haya armado en el editor.
+            if ($flowPayload = $this->buildMarketingStepPayload(MarketingStepKey::CART_SUMMARY, $contact)) {
+                return $flowPayload;
+            }
+
             return [
                 'type' => 'interactive',
                 'interactive' => [
@@ -3790,6 +3797,10 @@ class WhatsappService
                 ->first();
 
             if (! $cart || $cart->items->isEmpty()) {
+                if ($flowPayload = $this->buildMarketingStepPayload(MarketingStepKey::CART_SUMMARY, $contact)) {
+                    return $flowPayload;
+                }
+
                 return [
                     'type' => 'interactive',
                     'interactive' => [
@@ -6110,7 +6121,13 @@ class WhatsappService
                         'type' => 'reply',
                         'reply' => [
                             'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_').$productId.'_'.$index,
-                            'title' => Str::limit('🛒 '.$variation['title'].' $'.number_format((float) $variation['price'], 2), 20, ''),
+                            // Sin ícono de carrito propio: WhatsApp ya dibuja
+                            // su propio ícono junto a cada botón de
+                            // respuesta, y duplicarlo solo desperdicia
+                            // caracteres del límite de 20 -- si el admin
+                            // quiere un ícono, lo pone en el nombre de la
+                            // variación (ej. "🥤 c/gas").
+                            'title' => Str::limit($variation['title'].' $'.number_format((float) $variation['price'], 2), 20, ''),
                         ],
                     ];
                 }
@@ -6122,7 +6139,7 @@ class WhatsappService
                     'type' => 'reply',
                     'reply' => [
                         'id' => ($askQuantity ? 'pedir_cantidad_' : 'quick_add_').$productId.'_base',
-                        'title' => Str::limit('🛒 Agregar $'.number_format($quickPrice, 2), 20, ''),
+                        'title' => Str::limit('Agregar $'.number_format($quickPrice, 2), 20, ''),
                     ],
                 ];
             }
