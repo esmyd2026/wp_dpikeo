@@ -33,7 +33,7 @@
     <div class="wrap">
         <div class="hero">
             <h1>🛵 Pedido {{ $orderNumber }}</h1>
-            <p>Confirmá la entrega con una foto</p>
+            <p>Confirma la entrega con una foto</p>
         </div>
 
         @if($state === 'used')
@@ -44,7 +44,7 @@
         @elseif($state === 'expired')
             <div class="status-box">
                 <div style="font-size:2.4rem;">⏰</div>
-                <p>Este link ya venció. Pedile al negocio que te mande uno nuevo.</p>
+                <p>Este link ya venció. Pídele al negocio que te mande uno nuevo.</p>
             </div>
         @else
             <div class="card">

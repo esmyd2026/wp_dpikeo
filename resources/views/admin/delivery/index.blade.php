@@ -136,7 +136,7 @@ function deliveryShareText(order, dispatchResult) {
         lines.push('', 'Ruta (retiro → entrega):', routeUrl);
     }
     if (order.confirmation_url) {
-        lines.push('', 'Cuando entregues el pedido, confirmá aquí (con una foto):', order.confirmation_url);
+        lines.push('', 'Cuando entregues el pedido, confirma aquí (con una foto):', order.confirmation_url);
     }
     return lines.join('\n');
 }

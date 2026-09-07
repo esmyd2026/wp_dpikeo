@@ -3645,7 +3645,7 @@ class WhatsappService
         // cliente empiece a elegir productos sin saber que tiene un plazo.
         $timeoutMinutes = app(AbandonedCartService::class)->timeoutMinutes($this->businessProfile?->id);
         if ($timeoutMinutes) {
-            $bodyText .= "\n\n⏰ Tenés {$timeoutMinutes} minutos para completar tu pedido -- si no lo confirmás en ese tiempo, esta sesión se cancela automáticamente y tendrás que empezar de nuevo.";
+            $bodyText .= "\n\n⏰ Tienes {$timeoutMinutes} minutos para completar tu pedido -- si no lo confirmas en ese tiempo, esta sesión se cancela automáticamente y tendrás que empezar de nuevo.";
         }
 
         return [
@@ -4341,7 +4341,7 @@ class WhatsappService
 
         $body = $this->getCheckoutStepMessage(
             'delivery_location',
-            "📍 Escríbenos tu *dirección completa* de entrega (calle, sector, referencia).\n\nTambién podés compartir tu ubicación actual con el botón de abajo."
+            "📍 Escríbenos tu *dirección completa* de entrega (calle, sector, referencia).\n\nTambién puedes compartir tu ubicación actual con el botón de abajo."
         );
 
         return WhatsappMessagePayload::locationRequest($body);
