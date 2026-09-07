@@ -4307,9 +4307,12 @@ class WhatsappService
 
     /**
      * Paso 4 del checkout (solo si eligió delivery): pedir la dirección de
-     * entrega por texto. No se pide ubicación GPS: el costo de envío exacto
-     * lo confirma el vendedor manualmente desde el panel según la dirección
-     * (ver buildFulfillmentSummaryText y el módulo de Pedidos).
+     * entrega. El costo de envío exacto lo confirma el vendedor manualmente
+     * desde el panel según la dirección (ver buildFulfillmentSummaryText y
+     * el módulo de Pedidos) -- por eso no es obligatorio compartir ubicación
+     * GPS, es solo una forma más rápida de escribir la dirección a mano;
+     * ambas terminan en el mismo lugar (handleTextMessage/handleLocationMessage
+     * guardan lo mismo en metadata.delivery_location).
      */
     private function buildDeliveryLocationRequest(WhatsappCart $cart)
     {
@@ -4318,10 +4321,12 @@ class WhatsappService
         $cart->metadata = $metadata;
         $cart->save();
 
-        return [
-            'type' => 'text',
-            'text' => ['body' => $this->getCheckoutStepMessage('delivery_location', '📍 Escríbenos la *dirección completa* de entrega (calle, sector, referencia).')],
-        ];
+        $body = $this->getCheckoutStepMessage(
+            'delivery_location',
+            "📍 Escríbenos tu *dirección completa* de entrega (calle, sector, referencia).\n\nTambién podés compartir tu ubicación actual con el botón de abajo."
+        );
+
+        return WhatsappMessagePayload::locationRequest($body);
     }
 
     /**

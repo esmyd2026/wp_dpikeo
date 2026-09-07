@@ -51,11 +51,13 @@ class BranchDeliveryCheckoutTest extends TestCase
         $this->assertSame('llevar', $cart->metadata['service_type']);
         $this->assertStringContainsString('retiras en el local', mb_strtolower($step3['interactive']['body']['text']));
 
-        // Elegir delivery: ya no se pide ubicación GPS, se pide la dirección por texto.
+        // Elegir delivery: se pide la dirección, con opción de compartir
+        // ubicación actual además de poder escribirla a mano.
         $step4 = $this->invoke($service, 'setModoRetiro', [$contact, $cart->id, 'delivery']);
         $cart->refresh();
         $this->assertSame('delivery', $cart->metadata['pickup_mode']);
-        $this->assertSame('text', $step4['type']);
+        $this->assertSame('interactive', $step4['type']);
+        $this->assertSame('location_request_message', $step4['interactive']['type']);
         $this->assertTrue($cart->metadata['awaiting_delivery_address']);
 
         $totalBeforeDelivery = (float) $cart->total;
@@ -241,10 +243,11 @@ class BranchDeliveryCheckoutTest extends TestCase
 
     public function test_shared_location_is_accepted_as_address_when_customer_shares_it_anyway(): void
     {
-        // Ya no se pide ubicación GPS, pero si el cliente comparte una de
-        // todas formas mientras esperamos la dirección, no debe perderse:
-        // se guarda como dirección (con link a Maps) y se sigue pidiendo el
-        // nombre de quien recibe, igual que con una dirección escrita.
+        // Aunque ahora se ofrece el botón de "enviar ubicación", el cliente
+        // puede ignorarlo y escribir la dirección a mano igual -- y si
+        // comparte la ubicación, no debe perderse: se guarda como dirección
+        // (con link a Maps) y se sigue pidiendo el nombre de quien recibe,
+        // igual que con una dirección escrita.
         [$product, $contact, $branchUrdesa] = $this->fixture();
         $cart = $this->cartWithItem($contact, $product);
         $service = new WhatsappService();

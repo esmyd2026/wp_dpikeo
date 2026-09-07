@@ -23,6 +23,25 @@ class WhatsappMessagePayload
         return $payload;
     }
 
+    /**
+     * Mensaje con el botón nativo "Enviar ubicación" de WhatsApp (abre el
+     * selector de ubicación del cliente) -- el texto del botón lo pone
+     * WhatsApp según el idioma del dispositivo, no es personalizable, solo
+     * el cuerpo de arriba. Al compartir, llega como mensaje type=location al
+     * webhook (ver WhatsappService::handleLocationMessage()).
+     */
+    public static function locationRequest(string $body): array
+    {
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'location_request_message',
+                'body' => ['text' => self::truncate($body, 1024)],
+                'action' => ['name' => 'send_location'],
+            ],
+        ];
+    }
+
     public static function buttons(string $body, array $buttons, ?array $header = null, ?string $footer = null): array
     {
         $formatted = [];
