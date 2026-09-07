@@ -16,6 +16,7 @@ class BulkOrderService
 {
     public function __construct(
         private DemoClienteService $demoCliente,
+        private ProductImageService $productImages,
     ) {}
 
     public function isAvailable(): bool
@@ -154,7 +155,9 @@ class BulkOrderService
                     'allow_quantity' => (bool) $p->allow_quantity_selection,
                     'min_qty' => max(1, (int) ($p->min_quantity ?? 1)),
                     'max_qty' => max(1, (int) ($p->max_quantity ?? 99)),
-                    'image' => $p->image_url,
+                    // La tienda puede abrirse desde un dominio o puerto distinto
+                    // al APP_URL; las imágenes locales deben seguir ese origen.
+                    'image' => $this->productImages->resolveWebUrl($p->image),
                     'variations' => $this->pricedOptions($p->metadata['variations'] ?? []),
                     'extras' => $this->pricedOptions($p->metadata['extras'] ?? []),
                 ];

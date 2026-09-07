@@ -23,6 +23,29 @@ class ProductImageService
         return asset('storage/' . ltrim($image, '/'));
     }
 
+    /**
+     * Devuelve una URL segura para vistas web abiertas desde cualquier host.
+     *
+     * Los archivos locales usan una ruta relativa al origen para evitar que un
+     * micrositio abierto mediante otro puerto, dominio o túnel intente cargar
+     * las imágenes desde el APP_URL configurado en el servidor. Las imágenes
+     * externas conservan su URL absoluta.
+     */
+    public function resolveWebUrl(?string $image): ?string
+    {
+        if (!$image || trim($image) === '') {
+            return null;
+        }
+
+        $image = trim($image);
+
+        if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
+            return $image;
+        }
+
+        return '/storage/' . ltrim($image, '/');
+    }
+
     public function store(UploadedFile $file, ?string $oldPath = null, string $directory = 'product-images'): string
     {
         $this->delete($oldPath);
