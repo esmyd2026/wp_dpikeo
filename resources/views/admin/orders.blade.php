@@ -545,7 +545,15 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* Detalle del pedido: lectura rápida y una sola prioridad visible. */
-    .modal-panel { max-width: 760px; border-radius: 18px; }
+    #orderModal .modal-panel {
+        width: min(760px, calc(100vw - 2rem));
+        max-width: 760px;
+        border-radius: 18px;
+    }
+    #statusModal .status-modal-panel {
+        width: min(650px, calc(100vw - 2rem));
+        max-width: 650px;
+    }
     .modal-header { padding: 1rem 1.15rem; background: #fff; align-items: center; }
     .modal-heading { min-width: 0; }
     .modal-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem; }
@@ -691,7 +699,6 @@
     /* Móvil: ningún aviso, tarjeta o modal debe ampliar el viewport. */
     .orders-page { min-width: 0; }
     .order-card,
-    .modal-panel,
     .modal-header,
     .modal-body,
     .modal-footer,
@@ -738,8 +745,8 @@
             align-items: flex-end;
             padding: 0;
         }
-        .modal-panel,
-        .status-modal-panel {
+        #orderModal .modal-panel,
+        #statusModal .status-modal-panel {
             width: 100%;
             max-width: 100%;
             max-height: min(94dvh, 94vh);
