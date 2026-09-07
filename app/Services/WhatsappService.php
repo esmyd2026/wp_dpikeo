@@ -2932,9 +2932,14 @@ class WhatsappService
                     $response = $this->getProductsMenu($contact);
                     break;
 
-                    // Carrito y compras
+                    // Carrito y compras -- "Ver carrito" salta directo a
+                    // finalizar (mismo destino que "Finalizar compra"): el
+                    // resumen final del checkout ya muestra los productos y
+                    // deja confirmar/cancelar, así que la pantalla
+                    // intermedia "Tu Carrito" (getCartContents) era un paso
+                    // de más para llegar a lo mismo.
                 case 'ver_carrito':
-                    $response = $this->getCartContents($contact);
+                    $response = $this->finalizarCompra($contact);
                     break;
                 case 'finalizar_compra':
                 case 'checkout':
