@@ -810,6 +810,21 @@ body.flow-builder-page .content-header {
                                     </div>
                                 </div>
                             </div>
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-8">
+                                    <label class="form-label small fw-semibold">Texto al abrir una categoría</label>
+                                    <input type="text" name="steps[{{ $stepKey }}][category_products_intro]" class="form-control form-control-sm" maxlength="200"
+                                        value="{{ old("steps.$stepKey.category_products_intro", $config['category_products_intro'] ?? '') }}"
+                                        placeholder="Elige una opción para personalizar tu pedido.">
+                                    <div class="form-text small">Va debajo de la descripción de la categoría, antes de la lista de productos. Vacío = el texto de siempre.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small fw-semibold">Texto del botón de la lista</label>
+                                    <input type="text" name="steps[{{ $stepKey }}][category_products_button]" class="form-control form-control-sm" maxlength="20"
+                                        value="{{ old("steps.$stepKey.category_products_button", $config['category_products_button'] ?? '') }}"
+                                        placeholder="Ver productos">
+                                </div>
+                            </div>
                         </div>
                         @endif
 

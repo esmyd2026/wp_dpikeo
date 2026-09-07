@@ -319,8 +319,8 @@ class MarketingCatalogBuilder
                 $step,
                 $vars,
                 $sections,
-                $this->buildCategoryProductsBody($category, $productCount, $totalRows, $effectiveMaxRows),
-                'Ver productos',
+                $this->buildCategoryProductsBody($step, $category, $productCount, $totalRows, $effectiveMaxRows),
+                trim((string) ($step->config['category_products_button'] ?? '')) ?: 'Ver productos',
                 [
                     // Las listas interactivas de la Cloud API solo admiten
                     // encabezado de texto. Una imagen aquí hace que Meta
@@ -335,6 +335,7 @@ class MarketingCatalogBuilder
     }
 
     protected function buildCategoryProductsBody(
+        MarketingFlowStep $step,
         WhatsappMenuItem $category,
         int $productCount,
         int $shownCount,
@@ -349,7 +350,8 @@ class MarketingCatalogBuilder
             $body .= "Mostrando {$shownCount} de {$productCount} opciones.\n\n";
         }
 
-        $body .= 'Elige una opción para personalizar tu pedido.';
+        $intro = trim((string) ($step->config['category_products_intro'] ?? ''));
+        $body .= $intro !== '' ? $intro : 'Elige una opción para personalizar tu pedido.';
 
         return $body;
     }

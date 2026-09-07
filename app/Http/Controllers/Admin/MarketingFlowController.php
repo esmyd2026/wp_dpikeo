@@ -86,6 +86,8 @@ class MarketingFlowController extends Controller
             'steps.*.catalog_source' => 'nullable|string|in:products,categories,manual',
             'steps.*.max_product_rows' => 'nullable|integer|min:1|max:8',
             'steps.*.include_navigation' => 'nullable|boolean',
+            'steps.*.category_products_intro' => 'nullable|string|max:200',
+            'steps.*.category_products_button' => 'nullable|string|max:20',
             'steps.*.require_proof' => 'nullable|boolean',
             'steps.*.require_for_methods' => 'nullable|array',
             'steps.*.require_for_methods.*' => 'string|in:transferencia,efectivo,tarjeta',
@@ -149,6 +151,8 @@ class MarketingFlowController extends Controller
                 $config['catalog_source'] = $stepData['catalog_source'] ?? 'products';
                 $config['max_product_rows'] = (int) ($stepData['max_product_rows'] ?? 8);
                 $config['include_navigation'] = !empty($stepData['include_navigation']);
+                $config['category_products_intro'] = trim((string) ($stepData['category_products_intro'] ?? ''));
+                $config['category_products_button'] = trim((string) ($stepData['category_products_button'] ?? ''));
                 $config['quick_order_flow'] = array_filter([
                     'flow_id' => $stepData['quick_order_flow_id'] ?? null,
                     'cta' => $stepData['quick_order_flow_cta'] ?? 'Pedir ahora',
