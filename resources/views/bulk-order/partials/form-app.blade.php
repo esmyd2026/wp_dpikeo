@@ -79,8 +79,19 @@
         overflow: hidden;
         background:#fff;
         box-shadow:0 6px 18px rgba(94,30,0,.06);
+        cursor:pointer;
     }
+    .bulk-order-product-row:focus-visible { outline:3px solid rgba(255,101,11,.35); outline-offset:3px; }
     .bulk-order-product-row strong { display: block; font-size: .92rem; margin-bottom: 4px; }
+    .bulk-order-product-row .bulk-order-product-desc,
+    .bulk-order-product-row .bulk-order-product-meta { display:none; }
+    .bulk-order-product-content > strong {
+        display:-webkit-box;
+        overflow:hidden;
+        line-height:1.28;
+        -webkit-box-orient:vertical;
+        -webkit-line-clamp:3;
+    }
     .bulk-order-product-row small { color: var(--muted); display: block; line-height: 1.4; }
     .bulk-order-product-desc {
         font-size: .82rem;
@@ -118,6 +129,20 @@
     .bulk-order-product-media .fallback { height:100%;display:grid;place-items:center;font-size:2.8rem; }
     .bulk-order-product-content { padding:0 12px 12px; }
     .bulk-order-product-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; }
+    .bulk-order-product-price {
+        display:block;
+        margin-top:auto;
+        padding-top:9px;
+        color:#858585;
+        font-size:.86rem;
+        font-weight:650;
+        line-height:1.2;
+    }
+    .bulk-order-product-price.is-promo {
+        color:#b54708;
+        font-size:.94rem;
+        font-weight:900;
+    }
     .bulk-order-btn {
         border: none;
         border-radius: 8px;
@@ -386,7 +411,25 @@
     .bulk-order-invoice-fields { display:none; gap:12px; padding:13px; border:1px solid #fde68a; border-radius:10px; background:#fffbeb; }
     .bulk-order-invoice-fields.is-open { display:grid; }
     .bulk-order-invoice-fields > strong { color:#92400e; font-size:.8rem; }
-    .bulk-order-form-disabled { opacity: .55; pointer-events: none; }
+    .bulk-order-form-disabled { position:relative; opacity:1; pointer-events:none; }
+    .bulk-order-form-disabled::before {
+        content:'Selecciona un cliente para habilitar el menú';
+        position:absolute;
+        top:72px;
+        left:50%;
+        z-index:12;
+        padding:10px 16px;
+        border:1px solid #fed7aa;
+        border-radius:999px;
+        background:rgba(255,247,237,.96);
+        color:#9a3412;
+        box-shadow:0 9px 24px rgba(124,45,18,.14);
+        font-size:.78rem;
+        font-weight:850;
+        transform:translateX(-50%);
+        white-space:nowrap;
+    }
+    .bulk-order-form-disabled > * { opacity:.58; filter:saturate(.6); }
     .bulk-order-notify-row {
         display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted);
         width: 100%;
@@ -396,6 +439,23 @@
         color: #fff; opacity: .9; text-decoration: none; font-size: .82rem; margin-bottom: 8px;
     }
     .bulk-order-back-link:hover { opacity: 1; color: #fff; }
+    .bulk-order-header-nav { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
+    .bulk-order-header-nav .bulk-order-back-link { margin:0; }
+    .bulk-order-touch-link {
+        display:inline-flex;
+        align-items:center;
+        gap:7px;
+        padding:8px 11px;
+        border:1px solid rgba(255,255,255,.34);
+        border-radius:9px;
+        background:rgba(255,255,255,.12);
+        color:#fff;
+        text-decoration:none;
+        font-size:.76rem;
+        font-weight:800;
+        backdrop-filter:blur(5px);
+    }
+    .bulk-order-touch-link:hover { background:rgba(255,255,255,.2); color:#fff; }
     .bulk-order-btn.is-loading {
         display: inline-flex;
         align-items: center;
@@ -734,12 +794,354 @@
     @media (min-width: 960px) {
         .bulk-order-cart-fab { bottom: 26px; }
     }
+
+    /* Storefront touch-first: una misma experiencia para micrositio y POS. */
+    .bulk-order-app[data-mode="public"] {
+        min-height: 100dvh;
+        background: #f6f4f1;
+    }
+    .bulk-order-app[data-mode="public"] .bulk-order-wrap { max-width: 1540px; }
+    .bulk-order-section-head {
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        margin-bottom:12px;
+    }
+    .bulk-order-section-head h2 { margin:0 !important; }
+    .bulk-order-result-count,
+    .bulk-order-cart-count {
+        display:inline-flex;
+        align-items:center;
+        min-height:28px;
+        padding:5px 9px;
+        border-radius:999px;
+        background:#f3f4f6;
+        color:#667085;
+        font-size:.7rem;
+        font-weight:800;
+        white-space:nowrap;
+    }
+    .bulk-order-category-title {
+        display:none;
+        color:#75685f;
+        font-size:.68rem;
+        font-weight:900;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+    }
+    .bulk-order-products-stage { position:relative; min-width:0; }
+    .bulk-order-scroll-controls {
+        display:none;
+        position:absolute;
+        right:12px;
+        bottom:12px;
+        z-index:4;
+        flex-direction:column;
+        gap:8px;
+    }
+    .bulk-order-scroll-controls.is-hidden { opacity:0; pointer-events:none; }
+    .bulk-order-scroll-controls button {
+        width:42px;
+        height:42px;
+        display:grid;
+        place-items:center;
+        border:1px solid #ddd6cf;
+        border-radius:50%;
+        background:rgba(255,255,255,.94);
+        color:#2d2926;
+        box-shadow:0 7px 18px rgba(52,38,27,.16);
+        cursor:pointer;
+        font-size:1rem;
+        transition:transform .16s ease, opacity .16s ease, background .16s ease;
+        backdrop-filter:blur(7px);
+    }
+    .bulk-order-scroll-controls button:hover:not(:disabled) { transform:translateY(-2px); background:#fff7ed; }
+    .bulk-order-scroll-controls button:active:not(:disabled) { transform:scale(.94); }
+    .bulk-order-scroll-controls button:disabled { opacity:.32; cursor:default; }
+    .bulk-order-scroll-controls svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+    .bulk-order-product-row { position:relative; }
+    .bulk-order-promo-ribbon {
+        position:absolute;
+        top:10px;
+        left:10px;
+        z-index:2;
+        padding:5px 8px;
+        border-radius:7px;
+        background:#ffd43b;
+        color:#3d2b00;
+        box-shadow:0 4px 10px rgba(122,83,0,.18);
+        font-size:.64rem;
+        font-weight:950;
+        letter-spacing:.02em;
+        text-transform:uppercase;
+    }
+    .bulk-order-app[data-mode="public"] .bulk-order-product-media img { object-fit:contain; }
+    .bulk-order-app[data-mode="public"] .bulk-order-product-media {
+        padding:12px;
+        background:linear-gradient(180deg,#fff,#f8f5f1);
+    }
+    .bulk-order-app[data-mode="public"] .bulk-order-product-row:active { transform:scale(.985); }
+    .bulk-order-app[data-mode="public"] .bulk-order-btn-primary { min-height:42px; }
+
+    @media (min-width:720px) {
+        .bulk-order-app[data-mode="public"] .bulk-order-menu-layout {
+            display:grid;
+            grid-template-columns:190px minmax(0,1fr);
+            gap:18px;
+            align-items:start;
+        }
+        .bulk-order-category-rail {
+            position:sticky;
+            top:12px;
+            min-width:0;
+        }
+        .bulk-order-category-title { display:block; margin:0 0 9px 4px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips {
+            max-height:calc(100dvh - 275px);
+            margin:0;
+            padding:4px 6px 12px 2px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:7px;
+            overflow-y:auto;
+            overflow-x:hidden;
+            border:0;
+            background:transparent;
+            scroll-snap-type:none;
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button {
+            width:100%;
+            min-width:0;
+            min-height:52px;
+            justify-content:flex-start;
+            padding:8px 10px;
+            border-color:transparent;
+            border-radius:12px;
+            background:transparent;
+            box-shadow:none;
+            text-align:left;
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button:hover { background:#fff7ed; transform:none; }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button.is-active {
+            position:relative;
+            color:#1f1b18;
+            background:#fff;
+            border-color:#eadfd5;
+            box-shadow:0 4px 12px rgba(76,48,25,.08);
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button.is-active::after {
+            content:'';
+            position:absolute;
+            left:44px;
+            right:12px;
+            bottom:5px;
+            height:3px;
+            border-radius:999px;
+            background:#ffb000;
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button.is-active .bulk-order-category-icon {
+            color:#fff;
+            background:#ff650b;
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-list {
+            grid-template-columns:repeat(auto-fill,minmax(175px,1fr));
+            gap:12px;
+            max-height:calc(100dvh - 285px);
+            padding:3px 58px 24px 3px;
+            overflow-y:auto;
+            overflow-x:hidden;
+            scroll-behavior:smooth;
+            overscroll-behavior:contain;
+            scrollbar-gutter:stable;
+        }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-list::-webkit-scrollbar { width:7px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-list::-webkit-scrollbar-thumb { border-radius:999px; background:#d8cec5; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-row { min-height:258px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-media { height:150px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-content { display:flex; flex:1; flex-direction:column; }
+    .bulk-order-app[data-mode="public"] .bulk-order-product-price { margin-top:auto; }
+        .bulk-order-scroll-controls { display:flex; }
+    }
+    @media (min-width:1180px) {
+        .bulk-order-app[data-mode="public"] #bulkOrderFormBody {
+            grid-template-columns:minmax(0,1fr) 360px;
+            gap:20px;
+        }
+        .bulk-order-app[data-mode="public"] #bulkCartPanel { max-height:calc(100dvh - 180px); }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-list { grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); }
+    }
+    @media (min-width:1500px) {
+        .bulk-order-app[data-mode="public"] .bulk-order-menu-layout { grid-template-columns:220px minmax(0,1fr); gap:22px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-category-chips button { min-height:58px; font-size:.86rem; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-list { grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:16px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-row { min-height:285px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-media { height:175px; }
+    }
+    @media (max-width:719.98px) {
+        .bulk-order-section-head { margin-bottom:10px; }
+        .bulk-order-result-count { display:none; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-media { height:125px; padding:7px; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-desc { display:none; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-row strong { font-size:.88rem; line-height:1.25; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-price { font-size:.78rem; }
+        .bulk-order-app[data-mode="public"] .bulk-order-product-price.is-promo { font-size:.86rem; }
+        .bulk-order-app[data-mode="public"] .bulk-order-btn-primary { padding:8px 9px; font-size:.68rem; }
+    }
+
+    /* El pedido desde administración usa la misma estructura tipo kiosco. */
+    .bulk-order-app[data-mode="agent"] { background:#f5f6f7; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-header {
+        min-height:118px;
+        padding:17px 20px 20px;
+        border-radius:18px;
+        background:linear-gradient(112deg,#3b1608 0%,#7f2b08 48%,#e95308 48%,#ff650b 100%);
+        border-bottom:5px solid #ffd166;
+        box-shadow:0 12px 30px rgba(86,34,8,.14);
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-header h1 { font-size:1.7rem; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-wrap { max-width:none; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-panel {
+        padding:18px;
+        border-color:#e4e5e7;
+        border-radius:16px;
+        box-shadow:0 5px 18px rgba(15,23,42,.055);
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-client-panel {
+        position:relative;
+        border-left:4px solid #ff650b;
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-media {
+        height:155px;
+        padding:10px;
+        background:linear-gradient(180deg,#fff,#f8f5f1);
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-media img { object-fit:contain; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-row {
+        min-height:264px;
+        border-color:#e2ded9;
+        box-shadow:0 4px 13px rgba(44,30,20,.07);
+        transition:transform .16s ease, box-shadow .16s ease;
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-row:hover {
+        transform:translateY(-3px);
+        box-shadow:0 12px 25px rgba(44,30,20,.12);
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-content { display:flex; flex:1; flex-direction:column; padding:13px; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-product-price { margin-top:auto; }
+    .bulk-order-app[data-mode="agent"] .bulk-order-footer {
+        border-radius:14px;
+        border:1px solid #e2e4e7;
+        box-shadow:0 -8px 28px rgba(15,23,42,.1);
+    }
+    .bulk-order-app[data-mode="agent"] .bulk-order-footer-inner { max-width:none; }
+
+    @media (min-width:900px) {
+        .bulk-order-app[data-mode="agent"] .bulk-order-client-panel {
+            display:grid;
+            grid-template-columns:130px minmax(240px,320px) minmax(340px,1fr);
+            align-items:end;
+            gap:18px;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-client-panel > h2 { align-self:center; margin:0; font-size:.88rem; }
+        .bulk-order-app[data-mode="agent"] .bulk-order-client-panel > div { margin:0 !important; }
+        .bulk-order-app[data-mode="agent"] #bulkOrderFormBody {
+            display:grid;
+            grid-template-columns:minmax(0,1fr) 355px;
+            gap:18px;
+            align-items:start;
+        }
+        .bulk-order-app[data-mode="agent"] #bulkOrderFormBody > .bulk-order-panel { margin:0; }
+        .bulk-order-app[data-mode="agent"] #bulkCartPanel {
+            position:sticky;
+            top:16px;
+            max-height:calc(100dvh - 145px);
+            overflow:auto;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-menu-layout {
+            display:grid;
+            grid-template-columns:190px minmax(0,1fr);
+            gap:18px;
+            align-items:start;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-category-title { display:block; margin:0 0 9px 4px; }
+        .bulk-order-app[data-mode="agent"] .bulk-order-category-chips {
+            max-height:calc(100dvh - 310px);
+            margin:0;
+            padding:4px 5px 12px 2px;
+            display:flex;
+            flex-direction:column;
+            align-items:stretch;
+            gap:7px;
+            overflow-y:auto;
+            overflow-x:hidden;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-category-chips button {
+            width:100%;
+            min-height:50px;
+            display:flex;
+            align-items:center;
+            justify-content:flex-start;
+            gap:7px;
+            padding:8px 10px;
+            border-color:transparent;
+            border-radius:11px;
+            background:transparent;
+            color:#332b26;
+            text-align:left;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-category-chips button.is-active {
+            position:relative;
+            background:#fff7ed;
+            border-color:#fed7aa;
+            color:#9a3412;
+            box-shadow:0 4px 10px rgba(124,45,18,.07);
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-category-chips button.is-active::after {
+            content:'';
+            position:absolute;
+            left:44px;
+            right:12px;
+            bottom:4px;
+            height:3px;
+            border-radius:999px;
+            background:#ffb000;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-product-list {
+            grid-template-columns:repeat(auto-fill,minmax(185px,1fr));
+            gap:13px;
+            max-height:calc(100dvh - 315px);
+            padding:3px 58px 24px 3px;
+            overflow-y:auto;
+            overflow-x:hidden;
+            scroll-behavior:smooth;
+            overscroll-behavior:contain;
+            scrollbar-gutter:stable;
+        }
+        .bulk-order-app[data-mode="agent"] .bulk-order-scroll-controls { display:flex; }
+    }
+    @media (min-width:1450px) {
+        .bulk-order-app[data-mode="agent"] .bulk-order-menu-layout { grid-template-columns:210px minmax(0,1fr); }
+        .bulk-order-app[data-mode="agent"] .bulk-order-product-list { grid-template-columns:repeat(auto-fill,minmax(205px,1fr)); gap:16px; }
+        .bulk-order-app[data-mode="agent"] .bulk-order-product-media { height:175px; }
+    }
+    @media (max-width:899.98px) {
+        .bulk-order-app[data-mode="agent"] .bulk-order-header { border-radius:12px; }
+        .bulk-order-app[data-mode="agent"] .bulk-order-client-panel { padding:14px; }
+        .bulk-order-app[data-mode="agent"] .bulk-order-product-media { height:130px; }
+        .bulk-order-touch-link span { display:none; }
+        .bulk-order-form-disabled::before { top:56px; max-width:90%; white-space:normal; text-align:center; }
+    }
 </style>
 
-<div class="bulk-order-app" id="bulkOrderApp" data-mode="{{ $isAgent ? 'agent' : 'public' }}">
+<div class="bulk-order-app" id="bulkOrderApp" data-mode="{{ $isAgent ? 'agent' : 'public' }}" data-channel="{{ $isAgent ? 'agent' : ($isKiosk ? 'kiosk' : 'microsite') }}">
     <header class="bulk-order-header">
         @if($isAgent && !empty($ordersUrl))
-            <a href="{{ $ordersUrl }}" class="bulk-order-back-link"><i class="fas fa-arrow-left"></i> Volver a pedidos</a>
+            <div class="bulk-order-header-nav">
+                <a href="{{ $ordersUrl }}" class="bulk-order-back-link"><i class="fas fa-arrow-left"></i> Volver a pedidos</a>
+                <a href="{{ route('pos.create') }}" class="bulk-order-touch-link"><i class="fas fa-desktop"></i><span>Modo pantalla táctil</span></a>
+            </div>
         @endif
         <div class="bulk-order-brand">
             @if(!$isAgent && !empty($logoUrl))
@@ -778,7 +1180,7 @@
             <input type="hidden" id="bulkBranch" value="{{ $defaultBranchId ?? (!empty($branches) ? $branches->first()?->id : '') }}">
             @endif
             @if($isAgent)
-            <section class="bulk-order-panel">
+            <section class="bulk-order-panel bulk-order-client-panel">
                 <h2>Cliente</h2>
                 @if(!empty($branches) && count($branches) > 1)
                     <div style="margin:0 0 14px">
@@ -812,8 +1214,11 @@
             @endif
 
             <div id="bulkOrderFormBody" @if($isAgent || $isKiosk) class="bulk-order-form-disabled" @endif>
-                <section class="bulk-order-panel">
-                    <h2>Menú</h2>
+                <section class="bulk-order-panel bulk-order-menu-panel">
+                    <div class="bulk-order-section-head">
+                        <h2>Menú</h2>
+                        <span class="bulk-order-result-count" id="bulkProductCount">Cargando productos…</span>
+                    </div>
                     <div class="bulk-order-filters">
                         <input type="search" id="bulkSearch" placeholder="¿Qué se te antoja hoy?" autocomplete="off">
                         <div class="bulk-order-filter-label">Explora el menú</div>
@@ -822,13 +1227,25 @@
                         </select>
                     </div>
                     <div class="bulk-order-menu-layout">
-                        <div class="bulk-order-category-chips" id="bulkCategoryChips" aria-label="Categorías"></div>
-                        <div class="bulk-order-product-list" id="bulkProductList"></div>
+                        <aside class="bulk-order-category-rail">
+                            <div class="bulk-order-category-title">Categorías</div>
+                            <div class="bulk-order-category-chips" id="bulkCategoryChips" aria-label="Categorías"></div>
+                        </aside>
+                        <div class="bulk-order-products-stage">
+                            <div class="bulk-order-product-list" id="bulkProductList"></div>
+                            <div class="bulk-order-scroll-controls" aria-label="Desplazar productos">
+                                <button type="button" id="bulkProductsUp" aria-label="Subir en el menú" title="Subir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
+                                <button type="button" id="bulkProductsDown" aria-label="Bajar en el menú" title="Bajar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
                 <section class="bulk-order-panel" id="bulkCartPanel">
-                    <h2>{{ $isAgent ? 'Lista del pedido' : 'Tu lista' }}</h2>
+                    <div class="bulk-order-section-head">
+                        <h2>{{ $isAgent ? 'Lista del pedido' : 'Tu pedido' }}</h2>
+                        <span class="bulk-order-cart-count" id="bulkCartCount">Vacío</span>
+                    </div>
                     <div id="bulkCartItems"></div>
                     <p class="bulk-order-cart-empty" id="bulkCartEmpty">Aún no agregaste productos.</p>
                     <label for="bulkOrderNote" style="display:block;margin-top:12px;font-size:.85rem;color:var(--muted)">Nota general del pedido (opcional)</label>
@@ -892,7 +1309,7 @@
                 <span id="bulkItemsCount">0 productos</span>
                 <strong id="bulkGrandTotal">$0.00</strong>
             </div>
-            <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="bulkSubmitBtn" disabled>Enviar pedido</button>
+            <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="bulkSubmitBtn" disabled>{{ $isKiosk ? 'Revisar y ordenar' : ($isAgent ? 'Registrar pedido' : 'Confirmar pedido') }}</button>
         </div>
     </div>
 
@@ -975,7 +1392,7 @@
     const root = document.getElementById('bulkOrderApp');
     const el = (id) => document.getElementById(id);
     const fmt = (n) => '$' + Number(n).toFixed(2);
-    const submitBtnDefaultLabel = 'Enviar pedido';
+    const submitBtnDefaultLabel = el('bulkSubmitBtn')?.textContent.trim() || 'Confirmar pedido';
 
     function setSubmitting(submitting) {
         isSubmitting = submitting;
@@ -1041,12 +1458,11 @@
                 : p.description;
             html += `<p class="bulk-order-product-desc">${escapeHtml(desc)}</p>`;
         }
-        html += '<div class="bulk-order-product-meta">';
+        let meta = '';
         if (p.measurements) {
-            html += `<span class="bulk-order-tag">📏 ${escapeHtml(p.measurements)}</span>`;
+            meta += `<span class="bulk-order-tag">📏 ${escapeHtml(p.measurements)}</span>`;
         }
-        html += `<span class="bulk-order-tag price-tag">${fmt(p.price)}</span>`;
-        html += '</div>';
+        if (meta) html += `<div class="bulk-order-product-meta">${meta}</div>`;
         return html;
     }
 
@@ -1380,30 +1796,52 @@
 
     function renderProducts() {
         const box = el('bulkProductList');
+        const productCount = el('bulkProductCount');
+        if (productCount) {
+            productCount.textContent = products.length + (products.length === 1 ? ' producto' : ' productos');
+        }
         if (!products.length) {
             box.innerHTML = '<p class="bulk-order-cart-empty">No hay productos con ese filtro.</p>';
+            updateProductScrollControls();
             return;
         }
         box.innerHTML = products.map(p => `
-            <div class="bulk-order-product-row">
-                <button type="button" class="bulk-order-product-media" data-details="${p.id}" aria-label="Ver detalles de ${escapeHtml(p.name)}">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy">` : '<div class="fallback">🍗</div>'}</button>
+            <article class="bulk-order-product-row" data-product-card="${p.id}" role="button" tabindex="0" aria-label="Ver ${escapeHtml(p.name)}, ${fmt(p.price)}">
+                ${p.is_promo ? '<span class="bulk-order-promo-ribbon">Promo</span>' : ''}
+                <div class="bulk-order-product-media">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy">` : '<div class="fallback">🍗</div>'}</div>
                 <div class="bulk-order-product-content">
                     <strong>${escapeHtml(p.name)}</strong>
                     ${productMetaHtml(p)}
-                    <div class="bulk-order-product-actions">
-                        <span style="font-weight:900;color:var(--wa-dark)">${fmt(p.price)}</span>
-                        <button type="button" class="bulk-order-btn bulk-order-btn-primary" data-add="${p.id}">${(p.variations || []).length || (p.extras || []).length ? 'Elegir' : 'Agregar'}</button>
-                    </div>
+                    <span class="bulk-order-product-price ${p.is_promo ? 'is-promo' : ''}">${fmt(p.price)}</span>
                 </div>
-            </div>
+            </article>
         `).join('');
 
-        box.querySelectorAll('[data-add]').forEach(btn => {
-            btn.addEventListener('click', () => openCustomizer(Number(btn.dataset.add)));
+        box.querySelectorAll('[data-product-card]').forEach(card => {
+            const openProduct = () => openCustomizer(Number(card.dataset.productCard));
+            card.addEventListener('click', openProduct);
+            card.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openProduct();
+                }
+            });
         });
-        box.querySelectorAll('[data-details]').forEach(btn => {
-            btn.addEventListener('click', () => openCustomizer(Number(btn.dataset.details)));
-        });
+        box.scrollTop = 0;
+        requestAnimationFrame(updateProductScrollControls);
+    }
+
+    function updateProductScrollControls() {
+        const box = el('bulkProductList');
+        const controls = document.querySelector('.bulk-order-scroll-controls');
+        const up = el('bulkProductsUp');
+        const down = el('bulkProductsDown');
+        if (!box || !controls || !up || !down) return;
+
+        const scrollable = box.scrollHeight > box.clientHeight + 4;
+        controls.classList.toggle('is-hidden', !scrollable);
+        up.disabled = !scrollable || box.scrollTop <= 4;
+        down.disabled = !scrollable || box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
     }
 
     let customizingProduct = null;
@@ -1579,6 +2017,8 @@
         const total = cart.reduce((s, l) => s + l.price * l.quantity, 0);
         const count = cart.reduce((s, l) => s + l.quantity, 0);
         el('bulkItemsCount').textContent = count + (count === 1 ? ' unidad' : ' unidades');
+        const cartCount = el('bulkCartCount');
+        if (cartCount) cartCount.textContent = count ? `${count} ${count === 1 ? 'producto' : 'productos'}` : 'Vacío';
         el('bulkGrandTotal').textContent = fmt(total);
         const cartFab = el('bulkCartFab');
         if (cartFab) {
@@ -1591,6 +2031,17 @@
     el('bulkCartFab')?.addEventListener('click', () => {
         el('bulkCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+
+    el('bulkProductsUp')?.addEventListener('click', () => {
+        const box = el('bulkProductList');
+        box?.scrollBy({ top: -Math.max(260, box.clientHeight * .78), behavior: 'smooth' });
+    });
+    el('bulkProductsDown')?.addEventListener('click', () => {
+        const box = el('bulkProductList');
+        box?.scrollBy({ top: Math.max(260, box.clientHeight * .78), behavior: 'smooth' });
+    });
+    el('bulkProductList')?.addEventListener('scroll', updateProductScrollControls, { passive: true });
+    window.addEventListener('resize', debounce(updateProductScrollControls, 120));
 
     el('bulkSearch').addEventListener('input', debounce(loadCatalog, 300));
     el('bulkCategory').addEventListener('change', loadCatalog);
