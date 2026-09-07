@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryDriver;
 use App\Models\WhatsappCart;
+use App\Services\DeliveryConfirmationService;
 use App\Services\GeoDistanceService;
 use App\Services\OrderLifecycleService;
 use App\Services\ProductImageService;
@@ -33,7 +34,7 @@ class DeliveryController extends Controller
         ]);
     }
 
-    public function confirmDelivery(Request $request, int $id, OrderLifecycleService $lifecycle, ProductImageService $images, GeoDistanceService $geo): JsonResponse
+    public function confirmDelivery(Request $request, int $id, DeliveryConfirmationService $confirmations, OrderLifecycleService $lifecycle, ProductImageService $images, GeoDistanceService $geo): JsonResponse
     {
         $order = WhatsappCart::reportable()->with(['contact', 'branch'])->findOrFail($id);
 
@@ -46,20 +47,15 @@ class DeliveryController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $path = $images->store($request->file('photo'), null, 'delivery-proofs');
-
-        $metadata = $order->metadata ?? [];
-        $metadata['delivery_proof'] = [
-            'photo_path' => $path,
-            'note' => $validated['note'] ?? null,
-            'confirmed_by' => $request->user()->id,
-            'confirmed_at' => now()->toIso8601String(),
-        ];
-        $order->metadata = $metadata;
-        $order->save();
-
         try {
-            $order = $lifecycle->transition($order, WhatsappCart::STATUS_COMPLETED, (int) $request->user()->id);
+            $order = $confirmations->confirm(
+                $order,
+                $request->file('photo'),
+                $validated['note'] ?? null,
+                (int) $request->user()->id,
+                $images,
+                $lifecycle
+            );
         } catch (\InvalidArgumentException $e) {
             // La foto y la nota ya quedaron guardadas aunque el estado no
             // pudiera avanzar (por ejemplo si alguien más ya lo canceló);
@@ -211,6 +207,10 @@ class DeliveryController extends Controller
 
         $proof = $metadata['delivery_proof'] ?? null;
 
+        $confirmationUrl = in_array($order->status, [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED], true)
+            ? null
+            : app(DeliveryConfirmationService::class)->urlFor($order);
+
         return [
             'id' => $order->id,
             'order_number' => $order->getOrderNumber(),
@@ -237,6 +237,10 @@ class DeliveryController extends Controller
             },
             'delivery_fee' => $metadata['delivery_fee'] ?? null,
             'delivery_fee_pending_review' => (bool) ($metadata['delivery_fee_pending_review'] ?? false),
+            // Link público para que el repartidor confirme la entrega él
+            // mismo desde su celular, sin usuario del panel -- se lo
+            // mandamos por WhatsApp junto con los datos del pedido.
+            'confirmation_url' => $confirmationUrl,
             'distance_km' => $distanceKm,
             'maps_url' => $mapsUrl,
             'proof' => $proof ? [

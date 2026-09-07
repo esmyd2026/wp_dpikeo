@@ -123,6 +123,9 @@ function deliveryShareText(order) {
         `Dirección: ${order.address || 'Sin dirección registrada'}`,
         `Pago: ${order.payment_dispatch_label || 'No especificado'}`,
     ];
+    if (order.confirmation_url) {
+        lines.push('', 'Cuando entregues el pedido, confirmá aquí (con una foto):', order.confirmation_url);
+    }
     return lines.join('\n');
 }
 

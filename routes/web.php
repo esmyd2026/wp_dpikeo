@@ -29,6 +29,13 @@ Route::prefix('pedido')->name('bulk-order.')->group(function () {
     Route::post('/{token}', [App\Http\Controllers\BulkOrderController::class, 'submit'])->name('submit');
 });
 
+// El repartidor confirma la entrega desde su propio celular, con un link
+// público que se le manda por WhatsApp al despacharlo -- sin usuario del panel.
+Route::prefix('entrega')->name('delivery-confirmation.')->group(function () {
+    Route::get('/{token}', [App\Http\Controllers\DeliveryConfirmationController::class, 'show'])->name('show');
+    Route::post('/{token}', [App\Http\Controllers\DeliveryConfirmationController::class, 'confirm'])->name('confirm');
+});
+
 Route::get('/orden/{order}/pdf', [App\Http\Controllers\OrderPdfController::class, 'downloadSigned'])
     ->name('order.pdf.signed')
     ->middleware('signed');
