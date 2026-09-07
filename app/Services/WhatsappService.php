@@ -2074,10 +2074,13 @@ class WhatsappService
     }
 
     /**
-     * Le manda al cliente el aviso de protección de datos, una sola vez
-     * (hasta que un admin reinicie su conversación, ver
-     * AbandonedCartService::close). Se manda como mensaje aparte, antes del
-     * saludo/menú, para que quede como el primer mensaje que ve.
+     * Le manda al cliente el aviso de protección de datos, una sola vez por
+     * contacto -- es un consentimiento legal, no algo ligado al pedido, así
+     * que NO se resetea solo porque su carrito se canceló o expiró (ver
+     * AbandonedCartService::close, que ya no lo toca). Un admin puede
+     * reenviarlo a propósito reiniciando la conversación desde el panel. Se
+     * manda como mensaje aparte, antes del saludo/menú, para que quede como
+     * el primer mensaje que ve.
      */
     private function maybeSendPrivacyNotice(WhatsappContact $contact): void
     {

@@ -107,7 +107,6 @@ class AbandonedCartService
 
         if ($contact) {
             $contact->forgetFlowPosition();
-            $contact->forgetPrivacyNoticeSent();
 
             try {
                 $this->notifyContact($contact, $reason);

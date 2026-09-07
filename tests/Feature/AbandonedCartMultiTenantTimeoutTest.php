@@ -110,4 +110,29 @@ class AbandonedCartMultiTenantTimeoutTest extends TestCase
         $this->assertSame('list', $gate['interactive']['type']);
         $this->assertStringNotContainsString('Ya te enviamos el link', json_encode($gate));
     }
+
+    /**
+     * Bug real reportado en vivo: a un cliente que YA había chateado y hecho
+     * un pedido le volvió a llegar el aviso de protección de datos (y el
+     * menú de bienvenida completo) de la nada. Causa: al arreglar el timeout
+     * de carritos abandonados (arriba), este ahora sí se dispara cada 30 min
+     * como corresponde -- y AbandonedCartService::close() borraba también
+     * "privacy_notice_sent_at" (pensado para reiniciar la POSICIÓN en el
+     * flujo, no el consentimiento legal, que es un evento único por
+     * contacto). Antes del fix del timeout esto estaba dormido porque
+     * close() casi nunca se ejecutaba para esta empresa.
+     */
+    public function test_closing_a_stale_cart_never_makes_the_privacy_notice_resend(): void
+    {
+        [, $contact] = $this->makeCompany('empresa-privacidad', 30);
+        $contact->markPrivacyNoticeSent();
+
+        $staleCart = WhatsappCart::create(['contact_id' => $contact->id, 'status' => 'active', 'total' => 0]);
+        $staleCart->forceFill(['updated_at' => now()->subHours(2)])->saveQuietly();
+
+        app(AbandonedCartService::class)->cancelTimedOut();
+
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $staleCart->fresh()->status);
+        $this->assertTrue($contact->fresh()->hasReceivedPrivacyNotice(), 'El aviso de privacidad no debe reenviarse solo porque el carrito expiró.');
+    }
 }

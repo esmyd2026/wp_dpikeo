@@ -131,9 +131,11 @@ class WhatsappContact extends Model
 
     /**
      * true si ya se le envió el aviso de protección de datos alguna vez
-     * (ver WhatsappService::maybeSendPrivacyNotice). Se limpia al reiniciar
-     * la conversación de este contacto (ver AbandonedCartService::close),
-     * para que le vuelva a llegar la próxima vez que escriba.
+     * (ver WhatsappService::maybeSendPrivacyNotice). Es un consentimiento
+     * legal por contacto, no algo ligado a un pedido puntual: NO se borra
+     * solo porque su carrito se cancela/expira (AbandonedCartService::close
+     * ya no lo toca) -- solo un admin puede reenviarlo a propósito
+     * reiniciando la conversación desde el panel.
      */
     public function hasReceivedPrivacyNotice(): bool
     {

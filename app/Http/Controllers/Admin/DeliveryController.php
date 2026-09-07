@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessBranch;
 use App\Models\DeliveryDriver;
 use App\Models\WhatsappCart;
 use App\Services\DeliveryConfirmationService;
@@ -10,6 +11,7 @@ use App\Services\GeoDistanceService;
 use App\Services\OrderLifecycleService;
 use App\Services\ProductImageService;
 use App\Services\WhatsappService;
+use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -91,6 +93,29 @@ class DeliveryController extends Controller
     }
 
     /**
+     * Sucursales activas de la empresa, para que el operador confirme desde
+     * cuál se retira el pedido antes de despacharlo a un repartidor -- por
+     * seguridad, ya que de ahí sale la ruta (origen) que se le manda.
+     */
+    public function branchesForOrder(int $id): JsonResponse
+    {
+        $order = WhatsappCart::reportable()->findOrFail($id);
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+
+        $branches = BusinessBranch::query()
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'address']);
+
+        return response()->json([
+            'branches' => $branches,
+            'current_branch_id' => $order->branch_id,
+        ]);
+    }
+
+    /**
      * Guarda (o reutiliza) el repartidor, y le avisa al cliente por
      * WhatsApp que su pedido va en camino, compartiéndole el contacto del
      * repartidor. La parte de avisarle al repartidor sigue siendo manual
@@ -98,7 +123,7 @@ class DeliveryController extends Controller
      * número): la API de WhatsApp no permite mandarle texto libre a un
      * número que nunca le escribió al bot.
      */
-    public function dispatchToDriver(Request $request, int $id, WhatsappService $whatsapp): JsonResponse
+    public function dispatchToDriver(Request $request, int $id, WhatsappService $whatsapp, GeoDistanceService $geo): JsonResponse
     {
         $order = WhatsappCart::reportable()->with(['contact', 'branch'])->findOrFail($id);
 
@@ -111,13 +136,16 @@ class DeliveryController extends Controller
             'first_name' => ['required_without:driver_id', 'nullable', 'string', 'max:100'],
             'last_name' => ['nullable', 'string', 'max:100'],
             'phone_number' => ['required_without:driver_id', 'nullable', 'string', 'max:30'],
+            // El operador confirma desde qué sucursal se retira el pedido --
+            // de ahí sale el origen de la ruta que se le manda al repartidor.
+            'branch_id' => ['required', 'integer', 'exists:business_branches,id'],
         ]);
 
         if (!empty($validated['driver_id'])) {
             $driver = DeliveryDriver::findOrFail($validated['driver_id']);
         } else {
             $driver = DeliveryDriver::findOrCreateByPhone(
-                $order->business_profile_id,
+                $order->contact?->business_profile_id,
                 $validated['phone_number'],
                 trim((string) $validated['first_name']),
                 $validated['last_name'] ?? null
@@ -125,6 +153,12 @@ class DeliveryController extends Controller
         }
 
         $driver->forceFill(['last_dispatched_at' => now()])->save();
+
+        if ((int) $order->branch_id !== (int) $validated['branch_id']) {
+            $order->branch_id = $validated['branch_id'];
+            $order->save();
+            $order->load('branch');
+        }
 
         $notification = $whatsapp->notifyCustomerOrderOnTheWay($order, $driver);
 
@@ -136,6 +170,8 @@ class DeliveryController extends Controller
         $order->metadata = $metadata;
         $order->save();
 
+        $route = $this->routeInfo($order, $geo);
+
         return response()->json([
             'success' => true,
             'driver' => [
@@ -143,6 +179,9 @@ class DeliveryController extends Controller
                 'name' => $driver->full_name,
                 'phone_number' => $driver->phone_number,
             ],
+            'branch_name' => $order->branch?->name,
+            'distance_km' => $route['distance_km'],
+            'maps_url' => $route['maps_url'],
             'customer_notified' => $notification['sent'],
             'customer_notified_reason' => $notification['reason'],
         ]);
@@ -186,24 +225,7 @@ class DeliveryController extends Controller
 
         $metadata = $order->metadata ?? [];
         $location = $metadata['delivery_location'] ?? [];
-        $lat = $location['latitude'] ?? null;
-        $lon = $location['longitude'] ?? null;
-
-        $distanceKm = null;
-        $mapsUrl = null;
-        if ($lat !== null && $lon !== null) {
-            $mapsUrl = "https://maps.google.com/?q={$lat},{$lon}";
-            if ($order->branch?->latitude && $order->branch?->longitude) {
-                $distanceKm = round($geo->distanceKm(
-                    (float) $order->branch->latitude,
-                    (float) $order->branch->longitude,
-                    (float) $lat,
-                    (float) $lon
-                ), 1);
-            }
-        } elseif (!empty($location['manual_address'])) {
-            $mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' . urlencode($location['manual_address']);
-        }
+        $route = $this->routeInfo($order, $geo);
 
         $proof = $metadata['delivery_proof'] ?? null;
 
@@ -241,13 +263,57 @@ class DeliveryController extends Controller
             // mismo desde su celular, sin usuario del panel -- se lo
             // mandamos por WhatsApp junto con los datos del pedido.
             'confirmation_url' => $confirmationUrl,
-            'distance_km' => $distanceKm,
-            'maps_url' => $mapsUrl,
+            'distance_km' => $route['distance_km'],
+            'maps_url' => $route['maps_url'],
             'proof' => $proof ? [
                 'photo_url' => app(ProductImageService::class)->resolveUrl($proof['photo_path'] ?? null),
                 'note' => $proof['note'] ?? null,
                 'confirmed_at' => $proof['confirmed_at'] ?? null,
             ] : null,
         ];
+    }
+
+    /**
+     * Ruta completa para el repartidor: origen (la sucursal de retirada,
+     * confirmada al despachar) -> destino (la ubicación o dirección que
+     * mandó el cliente). Antes solo se mandaba un pin del destino; ahora,
+     * si hay coordenadas de ambos lados, arma un link de indicaciones de
+     * Google Maps con los dos puntos.
+     *
+     * @return array{distance_km: ?float, maps_url: ?string}
+     */
+    private function routeInfo(WhatsappCart $order, GeoDistanceService $geo): array
+    {
+        $metadata = $order->metadata ?? [];
+        $location = $metadata['delivery_location'] ?? [];
+        $destLat = $location['latitude'] ?? null;
+        $destLon = $location['longitude'] ?? null;
+        $destAddress = $location['manual_address'] ?? null;
+
+        $branch = $order->branch;
+        $hasOriginCoords = $branch?->latitude && $branch?->longitude;
+        $hasDestCoords = $destLat !== null && $destLon !== null;
+
+        $distanceKm = ($hasOriginCoords && $hasDestCoords)
+            ? round($geo->distanceKm((float) $branch->latitude, (float) $branch->longitude, (float) $destLat, (float) $destLon), 1)
+            : null;
+
+        $origin = $hasOriginCoords
+            ? "{$branch->latitude},{$branch->longitude}"
+            : ($branch?->address ? rawurlencode($branch->address) : null);
+
+        $destination = $hasDestCoords
+            ? "{$destLat},{$destLon}"
+            : ($destAddress ? rawurlencode($destAddress) : null);
+
+        $mapsUrl = match (true) {
+            $origin && $destination => "https://www.google.com/maps/dir/?api=1&origin={$origin}&destination={$destination}",
+            (bool) $destination => $hasDestCoords
+                ? "https://maps.google.com/?q={$destination}"
+                : "https://www.google.com/maps/search/?api=1&query={$destination}",
+            default => null,
+        };
+
+        return ['distance_km' => $distanceKm, 'maps_url' => $mapsUrl];
     }
 }

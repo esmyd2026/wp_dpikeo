@@ -114,15 +114,27 @@ function deliveryFormatDate(dateStr) {
     return new Date(dateStr).toLocaleString('es-EC', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function deliveryShareText(order) {
+/**
+ * dispatchResult (opcional) viene de un despacho recién hecho -- trae la
+ * sucursal de retirada que el operador acaba de confirmar y la ruta
+ * (origen sucursal -> destino cliente) ya recalculada con ella. Si no viene
+ * (ej. al reenviar), se usan los últimos datos conocidos del pedido.
+ */
+function deliveryShareText(order, dispatchResult) {
+    const branchName = dispatchResult?.branch_name ?? order.branch;
+    const routeUrl = dispatchResult?.maps_url ?? order.maps_url;
     const lines = [
         '🛵 *Datos para el delivery*',
         '',
         `Pedido: *${order.order_number}*`,
+        branchName ? `Retirar en: ${branchName}` : null,
         `Entregar a: ${order.recipient_name || order.customer?.name || 'Cliente'}`,
         `Dirección: ${order.address || 'Sin dirección registrada'}`,
         `Pago: ${order.payment_dispatch_label || 'No especificado'}`,
-    ];
+    ].filter(line => line !== null);
+    if (routeUrl) {
+        lines.push('', 'Ruta (retiro → entrega):', routeUrl);
+    }
     if (order.confirmation_url) {
         lines.push('', 'Cuando entregues el pedido, confirmá aquí (con una foto):', order.confirmation_url);
     }
@@ -132,7 +144,7 @@ function deliveryShareText(order) {
 function openDeliveryDispatchModal(orderId) {
     const order = deliveryOrders.find(o => o.id === orderId);
     if (!order) return;
-    openDriverDispatchModal(orderId, () => deliveryShareText(order), () => {
+    openDriverDispatchModal(orderId, (driver, dispatchResult) => deliveryShareText(order, dispatchResult), () => {
         deliveryToast('Cliente avisado y datos listos para el repartidor.');
         fetchDeliveryOrders();
     });

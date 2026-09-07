@@ -27,6 +27,11 @@
         <p class="step-hint">Paso 1: elige o agrega el repartidor. Paso 2: se le avisa al cliente que su pedido va en camino (con el contacto del repartidor) y se abre WhatsApp para que le mandes los datos.</p>
 
         <form id="driverDispatchForm">
+            <label for="driverDispatchBranchSelect">Sucursal de retirada</label>
+            <select id="driverDispatchBranchSelect">
+                <option value="">Cargando sucursales…</option>
+            </select>
+
             <label for="driverDispatchSelect">Repartidor</label>
             <select id="driverDispatchSelect">
                 <option value="">Cargando repartidores…</option>
@@ -59,6 +64,7 @@
 <script>
 (function () {
     const driversUrl = @json(route('admin.delivery.drivers'));
+    const branchesUrlTemplate = @json(route('admin.delivery.branches', ['id' => '__ORDER__']));
     const dispatchUrlTemplate = @json(route('admin.delivery.dispatch', ['id' => '__ORDER__']));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
@@ -69,10 +75,31 @@
 
     const overlay = document.getElementById('driverDispatchModal');
     const select = document.getElementById('driverDispatchSelect');
+    const branchSelect = document.getElementById('driverDispatchBranchSelect');
     const newFields = document.getElementById('driverDispatchNewFields');
     const errorBox = document.getElementById('driverDispatchError');
     const form = document.getElementById('driverDispatchForm');
     const submitBtn = document.getElementById('driverDispatchSubmit');
+
+    /** Por seguridad, el operador confirma desde qué sucursal se retira el pedido antes de despacharlo -- de ahí sale el origen de la ruta que se le manda al repartidor. */
+    async function loadBranches(orderId) {
+        branchSelect.innerHTML = '<option value="">Cargando sucursales…</option>';
+        try {
+            const res = await fetch(branchesUrlTemplate.replace('__ORDER__', orderId), { headers: { Accept: 'application/json' } });
+            const data = await res.json();
+            const branches = data.branches || [];
+            branchSelect.innerHTML = '';
+            branches.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                if (data.current_branch_id && String(b.id) === String(data.current_branch_id)) opt.selected = true;
+                branchSelect.appendChild(opt);
+            });
+        } catch (_) {
+            branchSelect.innerHTML = '<option value="">No se pudieron cargar las sucursales</option>';
+        }
+    }
 
     async function loadDrivers() {
         if (cachedDrivers) return cachedDrivers;
@@ -135,10 +162,13 @@
     };
 
     /**
-     * Abre el modal. dispatchTextBuilder recibe {name, phone_number} del
-     * repartidor ya guardado y debe devolver el texto a mandarle por
-     * WhatsApp (cada pantalla arma ese texto con sus propios datos del
-     * pedido). onDone(response) se llama después de un envío exitoso.
+     * Abre el modal. dispatchTextBuilder recibe (driver, dispatchResponse) --
+     * driver es {name, phone_number} del repartidor ya guardado;
+     * dispatchResponse es la respuesta completa del backend (incluye
+     * branch_name/maps_url/distance_km ya recalculados con la sucursal que
+     * el operador acaba de confirmar, por si la pantalla quiere usarlos en
+     * vez de datos previos al despacho). Debe devolver el texto a mandarle
+     * por WhatsApp. onDone(response) se llama después de un envío exitoso.
      */
     window.openDriverDispatchModal = async function (orderId, dispatchTextBuilder, onDone) {
         currentOrderId = orderId;
@@ -150,6 +180,7 @@
         document.getElementById('driverDispatchPhone').value = '';
 
         overlay.classList.add('is-open');
+        loadBranches(orderId);
         const drivers = await loadDrivers();
         renderOptions(drivers);
     };
@@ -165,8 +196,14 @@
         e.preventDefault();
         errorBox.style.display = 'none';
 
+        if (!branchSelect.value) {
+            errorBox.textContent = 'Confirma desde qué sucursal se retira el pedido.';
+            errorBox.style.display = 'block';
+            return;
+        }
+
         const isNew = select.value === '__new__';
-        const body = {};
+        const body = { branch_id: branchSelect.value };
         if (isNew) {
             const firstName = document.getElementById('driverDispatchFirstName').value.trim();
             const localPhone = phoneInput.value.replace(/\D+/g, '');
@@ -208,7 +245,7 @@
             cachedDrivers = null; // se agregó/actualizó un repartidor, refrescar la próxima vez
             closeModal();
 
-            const text = currentDispatchTextBuilder ? currentDispatchTextBuilder(data.driver) : '';
+            const text = currentDispatchTextBuilder ? currentDispatchTextBuilder(data.driver, data) : '';
             window.reopenDriverWhatsapp(data.driver.phone_number, text);
 
             if (currentOnDone) currentOnDone(data);

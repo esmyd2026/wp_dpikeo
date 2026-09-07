@@ -127,6 +127,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/delivery/repartidores', [App\Http\Controllers\Admin\DeliveryController::class, 'drivers'])
         ->middleware(['permission:orders.view,delivery.menu', 'platform.feature:orders'])
         ->name('delivery.drivers');
+    Route::get('/delivery/{id}/sucursales', [App\Http\Controllers\Admin\DeliveryController::class, 'branchesForOrder'])
+        ->middleware(['permission:orders.view,delivery.menu', 'platform.feature:orders'])
+        ->name('delivery.branches');
     Route::post('/delivery/{id}/despachar', [App\Http\Controllers\Admin\DeliveryController::class, 'dispatchToDriver'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('delivery.dispatch');
