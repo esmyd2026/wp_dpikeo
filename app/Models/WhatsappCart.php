@@ -235,4 +235,43 @@ class WhatsappCart extends Model
     {
         return in_array($this->payment_method, ['transferencia', 'tarjeta'], true);
     }
+
+    /**
+     * El costo de envío o de empaque para llevar todavía no lo confirmó caja
+     * -- mientras esto esté pendiente, el total del pedido no es el final.
+     * Ver OrderLifecycleService::sendFulfillmentCostsMessage() (limpia estas
+     * banderas) y applyDeliveryRecipientName()/confirmarPedido() en
+     * WhatsappService (las setean).
+     */
+    public function hasPendingFulfillmentCosts(): bool
+    {
+        $metadata = $this->metadata ?? [];
+
+        if (($metadata['pickup_mode'] ?? null) === 'delivery') {
+            if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
+                return true;
+            }
+        }
+
+        if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /** Desde cuándo espera el costo pendiente (para medir demoras), o null si no hay ninguno registrado. */
+    public function pendingFulfillmentSince(): ?\Illuminate\Support\Carbon
+    {
+        $metadata = $this->metadata ?? [];
+        $raw = $metadata['delivery_fee_pending_since'] ?? $metadata['pickup_fee_pending_since'] ?? null;
+
+        return $raw ? \Illuminate\Support\Carbon::parse($raw) : null;
+    }
+
+    /** Autoservicio del cliente (no un admin): solo antes de que caja marque el pedido como pagado o en preparación. */
+    public function isCancelableBySelfService(): bool
+    {
+        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_PAYMENT_PENDING], true);
+    }
 }

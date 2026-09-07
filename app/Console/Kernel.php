@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('campaigns:send-scheduled')->everyMinute();
         $schedule->command('carts:cancel-abandoned')->everyFiveMinutes();
+        $schedule->command('orders:alert-delayed-fulfillment-costs')->everyFiveMinutes();
         $schedule->command('whatsapp:retry-pending-replies')->everyMinute();
     }
 

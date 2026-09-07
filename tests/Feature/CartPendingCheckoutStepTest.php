@@ -10,6 +10,7 @@ use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -77,19 +78,23 @@ class CartPendingCheckoutStepTest extends TestCase
 
     public function test_greeting_while_browsing_an_empty_cart_does_not_produce_the_contradictory_combined_message(): void
     {
+        // handleTextMessage() no retorna el mensaje -- lo manda directo, hay
+        // que interceptarlo por Http::fake() (un `$response` capturado del
+        // método hubiera sido siempre null y esta prueba habría pasado en
+        // falso sin importar si el bug seguía presente).
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
         [, $contact] = $this->catalogProduct();
         WhatsappCart::create(['contact_id' => $contact->id, 'status' => 'active', 'total' => 0]);
 
         $service = new WhatsappService();
 
-        $response = $this->invoke($service, 'handleTextMessage', [[
+        $this->invoke($service, 'handleTextMessage', [[
             'from' => $contact->phone_number,
             'id' => 'wamid.greeting-test',
             'text' => ['body' => 'hola'],
         ]]);
 
-        $body = json_encode($response);
-        $this->assertStringNotContainsString('solo falta este paso de tu pedido', $body);
-        $this->assertStringNotContainsString('carrito está vacío en este momento', $body);
+        Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'solo falta este paso de tu pedido')
+            || str_contains(json_encode($request->data()), 'carrito está vacío en este momento'));
     }
 }

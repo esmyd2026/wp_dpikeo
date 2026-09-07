@@ -59,6 +59,11 @@ class OrderLifecycleService
         'cancelled' => 'Cancelado ❌',
     ];
 
+    public static function statusLabel(string $status): string
+    {
+        return self::STATUS_NOTIFICATION_LABELS[$status] ?? $status;
+    }
+
     public function transition(WhatsappCart $order, string $nextStatus, ?int $userId = null, ?string $note = null): WhatsappCart
     {
         if (!in_array($nextStatus, self::STATUSES, true)) {
@@ -208,6 +213,7 @@ class OrderLifecycleService
                 $metadata['delivery_fee_pending_review'] = false;
                 $metadata['delivery_fee_confirmed_by'] = $userId;
                 $metadata['delivery_fee_confirmed_at'] = now()->toIso8601String();
+                unset($metadata['delivery_fee_pending_since']);
             }
 
             if ($pickupFee !== null) {
@@ -216,6 +222,7 @@ class OrderLifecycleService
                 $metadata['pickup_fee_applied'] = $pickupFee;
                 $metadata['pickup_fee_confirmed_by'] = $userId;
                 $metadata['pickup_fee_confirmed_at'] = now()->toIso8601String();
+                unset($metadata['pickup_fee_pending_since']);
             }
 
             $order->metadata = $metadata;

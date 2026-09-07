@@ -3444,6 +3444,25 @@ class WhatsappService
         ]);
     }
 
+    /**
+     * Manda texto plano a un número de staff/interno (ej. alerta de pedido
+     * demorado) que no es necesariamente un cliente ya conocido -- mismo
+     * patrón que sendMonitoringWhatsAppMessage(): usa/crea un contacto
+     * liviano para poder reusar el envío normal en vez de pegarle directo a
+     * la API. Requiere useBusinessProfile() ya resuelto por el llamador.
+     */
+    public function sendStaffAlert(string $phone, string $body): bool
+    {
+        $contact = $this->findContactByPhone($phone) ?? WhatsappContact::create([
+            'business_profile_id' => $this->businessProfile?->id,
+            'phone_number' => $phone,
+            'name' => 'Staff',
+            'status' => 'active',
+        ]);
+
+        return (bool) $this->sendTextMessage($contact, $body, false);
+    }
+
     public function sendBotPayload(WhatsappContact $contact, array $payload, bool $humanSent = false): bool
     {
         if (! $contact->phone_number) {
@@ -4567,10 +4586,59 @@ class WhatsappService
         $metadata['delivery_recipient_name'] = trim($name);
         $metadata['delivery_fee'] = $minimumFee;
         $metadata['delivery_fee_pending_review'] = true;
+        $metadata['delivery_fee_pending_since'] ??= now()->toIso8601String();
         $cart->metadata = $metadata;
         $cart->save();
 
         return $this->finalizarCompra($contact);
+    }
+
+    /**
+     * Null si no hay ningún pedido enviado "en curso" (nada que anclar) --
+     * deja seguir el flujo normal (menú, ChatGPT, etc.) sin interrumpir nada.
+     */
+    private function buildActiveOrderStatusResponse(WhatsappContact $contact): ?array
+    {
+        $cart = WhatsappCart::where('contact_id', $contact->id)
+            ->whereIn('status', [
+                WhatsappCart::STATUS_PENDING,
+                WhatsappCart::STATUS_CONFIRMED,
+                WhatsappCart::STATUS_PAYMENT_PENDING,
+                WhatsappCart::STATUS_PAID,
+                WhatsappCart::STATUS_PREPARING,
+                WhatsappCart::STATUS_READY,
+            ])
+            ->latest()
+            ->first();
+
+        if (! $cart) {
+            return null;
+        }
+
+        $statusLabel = OrderLifecycleService::statusLabel($cart->status);
+        $body = "📦 Tienes un pedido en curso: *{$cart->getOrderNumber()}*\n\n"
+            ."Estado actual: *{$statusLabel}*";
+
+        $buttons = [];
+        if ($cart->isCancelableBySelfService()) {
+            $buttons[] = [
+                'type' => 'reply',
+                'reply' => ['id' => 'cancelar_pedido_'.$cart->id, 'title' => '❌ Cancelar pedido'],
+            ];
+        }
+        $buttons[] = [
+            'type' => 'reply',
+            'reply' => ['id' => 'menu_principal', 'title' => '🏠 Menú principal'],
+        ];
+
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => ['text' => $body],
+                'action' => ['buttons' => $buttons],
+            ],
+        ];
     }
 
     /**
@@ -5236,6 +5304,20 @@ class WhatsappService
                         $response = $this->getProductDetails($product->id, $contact);
                         $processHandled = true;
                     }
+                }
+            }
+
+            // El cliente ya tiene un pedido enviado (no un carrito en curso)
+            // que todavía no se completó ni se canceló: en vez de dejar que
+            // cualquier saludo/texto libre caiga al menú genérico como si no
+            // hubiera pasado nada, se lo mantiene "anclado" a ese pedido --
+            // le decimos en qué estado va, y le ofrecemos cancelar solo si
+            // todavía se puede (no si ya está pagado/en preparación/listo).
+            if (! $processHandled && ! $this->isAgentRequestText($text)) {
+                $statusResponse = $this->buildActiveOrderStatusResponse($contact);
+                if ($statusResponse) {
+                    $response = $statusResponse;
+                    $processHandled = true;
                 }
             }
 
@@ -6923,6 +7005,9 @@ class WhatsappService
             unset($metadata['awaiting_client_confirmation'], $metadata['pending_payment_method']);
             $metadata['confirmed_at'] = now()->toIso8601String();
             $metadata['confirmed_via'] = 'whatsapp';
+            if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
+                $metadata['pickup_fee_pending_since'] ??= now()->toIso8601String();
+            }
             $cart->metadata = $metadata;
             $cart->save();
 
@@ -6942,7 +7027,7 @@ class WhatsappService
                 // el comprobante todavía (le estaríamos pidiendo que pague un
                 // monto que va a cambiar). Se le pide en cuanto se confirmen
                 // esos costos, ver WhatsappService::maybeRequestPaymentProofAfterCosts.
-                if ($this->cartHasPendingFulfillmentCosts($cart)) {
+                if ($cart->hasPendingFulfillmentCosts()) {
                     $confirmationBody .= '🕐 Tu pedido se encuentra registrado. Pronto nuestro equipo te confirmará el total a pagar y ahí te pediremos tu comprobante.';
 
                     return [
@@ -8071,22 +8156,6 @@ class WhatsappService
      * Misma lógica que usa buildCostBreakdownText() para decidir si mostrar
      * "por confirmar".
      */
-    private function cartHasPendingFulfillmentCosts(WhatsappCart $cart): bool
-    {
-        $metadata = $cart->metadata ?? [];
-
-        if (($metadata['pickup_mode'] ?? null) === 'delivery') {
-            if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
-                return true;
-            }
-        }
-
-        if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
-            return true;
-        }
-
-        return false;
-    }
 
     /**
      * Se llama después de que un vendedor confirma envío y/o costo para
@@ -8104,7 +8173,7 @@ class WhatsappService
             return null;
         }
 
-        if (! $this->requiresPaymentProofForCart($cart) || $this->cartHasPendingFulfillmentCosts($cart)) {
+        if (! $this->requiresPaymentProofForCart($cart) || $cart->hasPendingFulfillmentCosts()) {
             return null;
         }
 

@@ -56,6 +56,7 @@
                     <a href="{{ route('admin.orders') }}" class="nav-link {{ request()->routeIs('admin.orders*') ? 'active' : '' }}">
                         <i class="fas fa-receipt"></i>
                         <span class="sidebar-text">Pedidos</span>
+                        @if(($delayedOrdersCount ?? 0) > 0)<span class="sidebar-nav-badge" title="Pedido(s) esperando confirmación de costo hace más de 15 minutos">{{ $delayedOrdersCount }}</span>@endif
                     </a>
                 @else
                     <span class="nav-link nav-link-disabled flex-grow-1"><i class="fas fa-receipt"></i><span class="sidebar-text">Pedidos</span></span>

@@ -59,6 +59,22 @@ class AppServiceProvider extends ServiceProvider
                     );
                 }
 
+                if (app(PermissionService::class)->userCan($user, 'orders.menu')) {
+                    try {
+                        $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+                        if ($businessProfileId) {
+                            $view->with(
+                                'delayedOrdersCount',
+                                app(\App\Services\OrderDelayAlertService::class)->countOverdueForCompany($businessProfileId)
+                            );
+                        }
+                    } catch (\Throwable $e) {
+                        // Sin empresa activa resoluble (ver comentario más abajo
+                        // sobre WHATSAPP_PRIMARY_PROFILE_NOT_CONFIGURED): el
+                        // sidebar simplemente no muestra el contador.
+                    }
+                }
+
                 $authorizedCompanies = $user->authorizedCompanies();
                 $view->with('authorizedCompanies', $authorizedCompanies);
 
