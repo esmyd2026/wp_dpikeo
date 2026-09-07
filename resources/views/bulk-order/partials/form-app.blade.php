@@ -120,13 +120,13 @@
         background: #f0f2f5;
         color: #111;
     }
-    .bulk-order-product-media { height:132px; background:linear-gradient(145deg,#ffe4c2,#ffd166); overflow:hidden; }
+    .bulk-order-product-media { height:132px; background:#fff; overflow:hidden; }
     button.bulk-order-product-media { width:100%; border:0; padding:0; cursor:pointer; position:relative; text-align:inherit; }
     button.bulk-order-product-media::after { content:'Ver detalles'; position:absolute; right:9px; bottom:9px; padding:5px 8px; border-radius:999px; background:rgba(0,0,0,.68); color:#fff; font-size:.68rem; font-weight:800; opacity:0; transform:translateY(4px); transition:.18s ease; }
     button.bulk-order-product-media:hover::after, button.bulk-order-product-media:focus-visible::after { opacity:1; transform:translateY(0); }
     .bulk-order-product-media img { width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s ease; }
     .bulk-order-product-row:hover .bulk-order-product-media img { transform:scale(1.04); }
-    .bulk-order-product-media .fallback { height:100%;display:grid;place-items:center;font-size:2.8rem; }
+    .bulk-order-product-media .fallback { height:100%;display:grid;place-items:center;font-size:2.8rem;background:#f8fafc; }
     .bulk-order-product-content { padding:0 12px 12px; }
     .bulk-order-product-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; }
     .bulk-order-product-price {
@@ -163,7 +163,7 @@
         background:#fff;
     }
     .bulk-order-cart-main { display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:10px; align-items:center; }
-    .bulk-order-cart-thumb { width:58px; height:58px; overflow:hidden; border-radius:10px; background:#fff0e6; display:grid; place-items:center; }
+    .bulk-order-cart-thumb { width:58px; height:58px; overflow:hidden; border:1px solid #f1f1ef; border-radius:10px; background:#fff; display:grid; place-items:center; }
     .bulk-order-cart-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
     .bulk-order-cart-thumb .fallback { font-size:1.55rem; }
     .bulk-order-cart-info { min-width:0; }
@@ -319,7 +319,7 @@
         margin:0 -18px 16px;
         display:grid;
         place-items:center;
-        background:#f7f2ed;
+        background:#fff;
         border-bottom:1px solid #eee5dc;
     }
     .bulk-order-modal-hero img {
@@ -329,7 +329,7 @@
         max-height:320px;
         object-fit:contain;
     }
-    .bulk-order-modal-hero .fallback { height:150px; display:grid; place-items:center; font-size:4rem; background:linear-gradient(145deg,#ffe4c2,#ffd166); }
+    .bulk-order-modal-hero .fallback { height:150px; display:grid; place-items:center; font-size:4rem; background:#f8fafc; }
     .bulk-order-modal-description { margin:8px 0 0; color:#555; line-height:1.48; font-size:.9rem; }
     .bulk-order-close { border:0;background:#f3f4f6;border-radius:50%;width:34px;height:34px;font-size:1.2rem;cursor:pointer; }
     .bulk-order-choice { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #f1f5f9;font-size:.9rem; }
@@ -672,7 +672,7 @@
     }
     .bulk-order-app[data-mode="public"] .bulk-order-product-media {
         height: 160px;
-        background: linear-gradient(145deg, #ffe3c7, #ffb266);
+        background: #fff;
     }
     .bulk-order-app[data-mode="public"] .bulk-order-product-content { padding: 13px; }
     .bulk-order-app[data-mode="public"] .bulk-order-product-row strong { font-size: 1rem; }
@@ -901,7 +901,7 @@
     .bulk-order-app[data-mode="public"] .bulk-order-product-media img { object-fit:contain; }
     .bulk-order-app[data-mode="public"] .bulk-order-product-media {
         padding:12px;
-        background:linear-gradient(180deg,#fff,#f8f5f1);
+        background:#fff;
     }
     .bulk-order-app[data-mode="public"] .bulk-order-product-row:active { transform:scale(.985); }
     .bulk-order-app[data-mode="public"] .bulk-order-btn-primary { min-height:42px; }
@@ -1037,7 +1037,7 @@
     .bulk-order-app[data-mode="agent"] .bulk-order-product-media {
         height:155px;
         padding:10px;
-        background:linear-gradient(180deg,#fff,#f8f5f1);
+        background:#fff;
     }
     .bulk-order-app[data-mode="agent"] .bulk-order-product-media img { object-fit:contain; }
     .bulk-order-app[data-mode="agent"] .bulk-order-product-row {
