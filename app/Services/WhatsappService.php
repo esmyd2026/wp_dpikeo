@@ -8478,6 +8478,7 @@ class WhatsappService
         })->afterResponse();
 
         $this->syncOrderDetails($cart);
+        $this->alertStaffOfPaymentProof($cart, $contact);
 
         Log::info('[registrarComprobantePago] Comprobante asociado al pedido', [
             'cart_id' => $cart->id,
@@ -8487,6 +8488,31 @@ class WhatsappService
         ]);
 
         return $this->buildPaymentProofSuccessPayload($contact, $cart);
+    }
+
+    /**
+     * Sin esto, el operador solo se enteraba de que llegó un comprobante si
+     * entraba manualmente al detalle del pedido en el panel -- mismo canal
+     * (delivery_dispatch_numbers) que ya se usa para alertar pedidos
+     * demorados, ver OrderDelayAlertService.
+     */
+    private function alertStaffOfPaymentProof(WhatsappCart $cart, WhatsappContact $contact): void
+    {
+        $numbers = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
+        if ($numbers === []) {
+            return;
+        }
+
+        $clientLabel = $contact->name ?: $contact->phone_number;
+        $body = "📎 *Comprobante de pago recibido*\n\n"
+            ."📦 Pedido: {$cart->getOrderNumber()}\n"
+            ."👤 Cliente: {$clientLabel}\n"
+            .'💰 Total: $'.number_format((float) $cart->total, 2)."\n\n"
+            .'Revísalo en el panel de Pedidos.';
+
+        foreach ($numbers as $number) {
+            $this->sendStaffAlert($number, $body);
+        }
     }
 
     private function triggerAgentHandoff(WhatsappContact $contact, string $phone, string $source = 'unknown'): void
