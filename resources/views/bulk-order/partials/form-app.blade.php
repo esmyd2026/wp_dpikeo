@@ -368,15 +368,27 @@
         padding: 40px 20px;
     }
     .bulk-order-success .icon { font-size: 3rem; margin-bottom: 12px; }
-    .bulk-order-contact-picker { position: relative; }
-    .bulk-order-contact-intro { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:-2px 0 10px; }
-    .bulk-order-contact-intro p { margin:0; color:#64748b; font-size:.82rem; line-height:1.35; }
-    .bulk-order-contact-add { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; border:1px solid #fdba74; border-radius:9px; padding:8px 10px; background:#fff7ed; color:#9a3412; cursor:pointer; font:inherit; font-size:.78rem; font-weight:800; }
-    .bulk-order-contact-add:hover { background:#ffedd5; }
-    .bulk-order-contact-search { position:relative; }
-    .bulk-order-contact-search i { position:absolute; left:13px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; }
-    .bulk-order-contact-search input { padding-left:38px; border-color:#cbd5e1; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-    .bulk-order-contact-search input:focus { outline:none; border-color:var(--wa); box-shadow:0 0 0 3px rgba(232,93,4,.12); }
+    .bulk-order-contact-picker { position:relative; }
+    .bulk-order-contact-label { display:block; margin-bottom:7px; color:#334155; font-size:.78rem; font-weight:850; }
+    .bulk-order-contact-search {
+        position:relative;
+        display:flex;
+        align-items:center;
+        min-height:48px;
+        border:1px solid #cbd5e1;
+        border-radius:11px;
+        background:#fff;
+        box-shadow:0 2px 8px rgba(15,23,42,.05);
+        transition:border-color .16s ease, box-shadow .16s ease;
+    }
+    .bulk-order-contact-search:focus-within { border-color:var(--wa); box-shadow:0 0 0 4px rgba(232,93,4,.11); }
+    .bulk-order-contact-search > i:first-child { width:44px; color:#64748b; text-align:center; pointer-events:none; }
+    .bulk-order-contact-search input { min-width:0; flex:1; border:0; padding:13px 4px; background:transparent; box-shadow:none; color:#172033; font:inherit; font-size:.9rem; }
+    .bulk-order-contact-search input:focus { outline:none; box-shadow:none; }
+    .bulk-order-contact-search input::placeholder { color:#94a3b8; }
+    .bulk-order-contact-chevron { width:42px; color:#94a3b8; text-align:center; pointer-events:none; transition:transform .16s ease; }
+    .bulk-order-contact-search.is-open .bulk-order-contact-chevron { transform:rotate(180deg); }
+    .bulk-order-contact-help { margin:7px 2px 0; color:#64748b; font-size:.74rem; line-height:1.35; }
     .bulk-order-contact-selected {
         display: flex; align-items: center; justify-content: space-between; gap: 10px;
         padding: 10px 12px; border: 1px solid #bbf7d0; background: #f0fdf4; border-radius: 10px;
@@ -384,18 +396,28 @@
     .bulk-order-contact-selected strong { display: block; color: #14532d; }
     .bulk-order-contact-selected small { color: #166534; }
     .bulk-order-contact-results {
-        position: absolute; left: 0; right: 0; top: calc(100% + 4px);
-        background: #fff; border: 1px solid var(--border); border-radius: 10px;
-        max-height: 220px; overflow: auto; z-index: 10; display: none;
-        box-shadow: 0 8px 24px rgba(0,0,0,.12);
+        position:absolute; left:0; right:0; top:calc(100% + 7px);
+        max-height:320px; overflow:auto; z-index:30; display:none;
+        padding:6px;
+        background:#fff; border:1px solid #dbe2ea; border-radius:13px;
+        box-shadow:0 18px 44px rgba(15,23,42,.16);
     }
     .bulk-order-contact-results button {
-        display: block; width: 100%; text-align: left; border: none; background: #fff;
-        padding: 10px 12px; cursor: pointer; font: inherit;
+        display:flex; width:100%; align-items:center; gap:10px; text-align:left;
+        border:0; border-radius:9px; background:#fff; padding:10px; cursor:pointer; font:inherit;
     }
-    .bulk-order-contact-results button:hover { background: #f0f2f5; }
-    .bulk-order-contact-empty { padding:13px 12px; color:#64748b; font-size:.83rem; line-height:1.4; }
-    .bulk-order-contact-empty button { display:inline; width:auto; margin-top:8px; padding:6px 8px; border-radius:7px; color:#9a3412; background:#fff7ed; font-size:.75rem; font-weight:800; }
+    .bulk-order-contact-results button:hover,
+    .bulk-order-contact-results button.is-active { background:#f8fafc; box-shadow:inset 3px 0 0 var(--wa); }
+    .bulk-order-contact-avatar { display:grid; flex:0 0 36px; width:36px; height:36px; place-items:center; border-radius:10px; background:#ecfdf5; color:#047857; font-size:.78rem; font-weight:900; }
+    .bulk-order-contact-option-copy { min-width:0; flex:1; }
+    .bulk-order-contact-option-copy strong { display:block; overflow:hidden; color:#172033; font-size:.85rem; text-overflow:ellipsis; white-space:nowrap; }
+    .bulk-order-contact-option-copy small { display:block; margin-top:3px; overflow:hidden; color:#64748b; font-size:.73rem; text-overflow:ellipsis; white-space:nowrap; }
+    .bulk-order-contact-check { color:var(--wa); opacity:0; }
+    .bulk-order-contact-results button:hover .bulk-order-contact-check,
+    .bulk-order-contact-results button.is-active .bulk-order-contact-check { opacity:1; }
+    .bulk-order-contact-empty { padding:12px 10px 8px; color:#64748b; font-size:.8rem; line-height:1.4; }
+    .bulk-order-contact-create-option { margin-top:5px; border-top:1px solid #eef2f7 !important; border-radius:0 0 9px 9px !important; color:#9a3412; font-size:.8rem; font-weight:850; }
+    .bulk-order-contact-create-option i { display:grid; flex:0 0 34px; width:34px; height:34px; place-items:center; border-radius:9px; background:#fff7ed; color:#ea580c; }
     .bulk-order-contact-modal { z-index:60; align-items:center; padding:16px; }
     .bulk-order-contact-modal-card { width:min(100%,420px); padding:0; border-radius:18px; overflow:hidden; background:#fff; box-shadow:0 22px 70px rgba(41,17,5,.36); }
     .bulk-order-contact-modal-head { padding:18px 18px 14px; color:#fff; background:linear-gradient(120deg,#942d08,#ef6a18); }
@@ -1205,9 +1227,14 @@
                         </div>
                     </div>
                     <div id="contactSearchBox">
-                        <div class="bulk-order-contact-intro"><p>Busca al cliente para asignar este pedido.</p><button type="button" class="bulk-order-contact-add" id="openContactCreate"><i class="fas fa-user-plus"></i> Nuevo</button></div>
-                        <div class="bulk-order-contact-search"><i class="fas fa-search"></i><input type="search" id="contactSearch" placeholder="Nombre, WhatsApp o cédula" autocomplete="off"></div>
-                        <div class="bulk-order-contact-results" id="contactResults"></div>
+                        <label class="bulk-order-contact-label" for="contactSearch">Selecciona un cliente</label>
+                        <div class="bulk-order-contact-search" id="contactSearchControl">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search" id="contactSearch" placeholder="Buscar por nombre, cédula o WhatsApp" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="contactResults">
+                            <i class="fas fa-chevron-down bulk-order-contact-chevron" aria-hidden="true"></i>
+                        </div>
+                        <p class="bulk-order-contact-help">Escribe para buscar o abre la lista. Si no existe, podrás registrarlo enseguida.</p>
+                        <div class="bulk-order-contact-results" id="contactResults" role="listbox" aria-label="Clientes encontrados"></div>
                     </div>
                 </div>
             </section>
@@ -1346,6 +1373,7 @@
             <form id="contactCreateForm">
                 <div class="bulk-order-contact-form">
                     <label>Nombre completo<input id="contactCreateName" name="name" required minlength="2" maxlength="120" autocomplete="name" placeholder="Ej.: María Pérez"></label>
+                    <label>Cédula o identificación <span style="font-weight:500;color:#94a3b8">(opcional)</span><input id="contactCreateNationalId" name="national_id" maxlength="20" autocomplete="off" placeholder="Ej.: 0912345678"></label>
                     <label>WhatsApp <span style="font-weight:500;color:#94a3b8">(opcional)</span><input id="contactCreatePhone" name="phone" inputmode="tel" maxlength="30" autocomplete="tel" placeholder="Ej.: 593 99 123 4567"><small style="font-weight:500;color:#94a3b8">Si lo ingresas, usaremos entre 8 y 15 dígitos.</small></label>
                     <label>Dirección o referencia <span id="contactAddressOptional" style="font-weight:500;color:#94a3b8">(opcional)</span><textarea id="contactCreateAddress" name="address" rows="2" maxlength="500" placeholder="Ej.: Av. principal y calle 2"></textarea></label>
                     <label class="bulk-order-invoice-toggle"><input type="checkbox" id="contactRequiresInvoice" name="requires_invoice"> Solicita factura</label>
@@ -1388,6 +1416,8 @@
     let selectedContact = initialContact ? { ...initialContact } : null;
     let isSubmitting = false;
     let kioskServiceType = null;
+    let contactSearchRequest = 0;
+    let activeContactOption = -1;
 
     const root = document.getElementById('bulkOrderApp');
     const el = (id) => document.getElementById(id);
@@ -1644,46 +1674,79 @@
         el('contactSearchBox').style.display = has ? 'none' : 'block';
         if (has) {
             el('selectedContactName').textContent = selectedContact.name;
-            el('selectedContactPhone').textContent = selectedContact.phone || '';
+            el('selectedContactPhone').textContent = [
+                selectedContact.identity ? 'Identificación: ' + selectedContact.identity : '',
+                selectedContact.phone ? 'WhatsApp: ' + selectedContact.phone : '',
+            ].filter(Boolean).join(' · ') || 'Cliente presencial';
         } else {
             el('contactSearch').value = '';
-            el('contactResults').style.display = 'none';
+            setContactResultsOpen(false);
         }
         updateFormEnabled();
     }
 
-    async function searchContacts(q) {
-        if (!contactsSearchUrl || q.trim().length < 2) {
-            el('contactResults').style.display = 'none';
-            return;
-        }
-        const res = await fetch(contactsSearchUrl + '?q=' + encodeURIComponent(q.trim()));
-        const data = await res.json();
+    function setContactResultsOpen(open) {
         const box = el('contactResults');
-        const list = data.contacts || [];
-        if (!list.length) {
-            box.innerHTML = '<div class="bulk-order-contact-empty">No encontramos un cliente con esos datos.<br><button type="button" data-create-from-search>Agregar cliente nuevo</button></div>';
-            box.style.display = 'block';
-            box.querySelector('[data-create-from-search]')?.addEventListener('click', () => openContactCreate(q));
-            return;
+        const input = el('contactSearch');
+        const control = el('contactSearchControl');
+        if (!box || !input || !control) return;
+        box.style.display = open ? 'block' : 'none';
+        input.setAttribute('aria-expanded', open ? 'true' : 'false');
+        control.classList.toggle('is-open', open);
+        if (!open) activeContactOption = -1;
+    }
+
+    function contactInitials(name) {
+        return String(name || 'Cliente').trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase() || 'CL';
+    }
+
+    function selectContactButton(button) {
+        selectedContact = {
+            id: Number(button.dataset.contactId),
+            name: button.dataset.contactName,
+            phone: button.dataset.contactPhone,
+            identity: button.dataset.contactIdentity,
+        };
+        renderSelectedContact();
+    }
+
+    async function searchContacts(q) {
+        const box = el('contactResults');
+        if (!contactsSearchUrl || !box) return;
+        const term = q.trim();
+        const requestId = ++contactSearchRequest;
+        box.innerHTML = '<div class="bulk-order-contact-empty"><i class="fas fa-spinner fa-spin"></i> Buscando clientes…</div>';
+        setContactResultsOpen(true);
+
+        try {
+            const res = await fetch(contactsSearchUrl + '?q=' + encodeURIComponent(term));
+            if (!res.ok) throw new Error('No se pudo consultar clientes.');
+            const data = await res.json();
+            if (requestId !== contactSearchRequest) return;
+            const list = data.contacts || [];
+            const emptyState = list.length ? '' : '<div class="bulk-order-contact-empty">No encontramos coincidencias. Puedes registrar al cliente sin salir del pedido.</div>';
+            const options = list.map(c => {
+                const details = [c.identity ? 'Cédula: ' + c.identity : '', c.phone ? 'WhatsApp: ' + c.phone : ''].filter(Boolean).join(' · ') || 'Cliente presencial';
+                return `
+                    <button type="button" role="option" data-contact-id="${c.id}" data-contact-name="${escapeHtml(c.name)}" data-contact-phone="${escapeHtml(c.phone || '')}" data-contact-identity="${escapeHtml(c.identity || '')}">
+                        <span class="bulk-order-contact-avatar">${escapeHtml(contactInitials(c.name))}</span>
+                        <span class="bulk-order-contact-option-copy"><strong>${escapeHtml(c.name)}</strong><small>${escapeHtml(details)}</small></span>
+                        <i class="fas fa-check bulk-order-contact-check" aria-hidden="true"></i>
+                    </button>`;
+            }).join('');
+            const createLabel = term ? `Registrar nuevo cliente con “${escapeHtml(term)}”` : 'Registrar un cliente nuevo';
+            box.innerHTML = emptyState + options + `
+                <button type="button" class="bulk-order-contact-create-option" data-create-from-search>
+                    <i class="fas fa-user-plus" aria-hidden="true"></i><span>${createLabel}</span>
+                </button>`;
+            setContactResultsOpen(true);
+            box.querySelectorAll('[data-contact-id]').forEach(btn => btn.addEventListener('click', () => selectContactButton(btn)));
+            box.querySelector('[data-create-from-search]')?.addEventListener('click', () => openContactCreate(term));
+        } catch (error) {
+            if (requestId !== contactSearchRequest) return;
+            box.innerHTML = `<div class="bulk-order-contact-empty">${escapeHtml(error.message || 'No se pudo consultar clientes.')}</div>`;
+            setContactResultsOpen(true);
         }
-        box.innerHTML = list.map(c => `
-            <button type="button" data-contact-id="${c.id}" data-contact-name="${escapeHtml(c.name)}" data-contact-phone="${escapeHtml(c.phone || '')}">
-                <strong>${escapeHtml(c.name)}</strong><br>
-                <small style="color:#667781">${escapeHtml(c.phone || '')}</small>
-            </button>
-        `).join('');
-        box.style.display = 'block';
-        box.querySelectorAll('[data-contact-id]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                selectedContact = {
-                    id: Number(btn.dataset.contactId),
-                    name: btn.dataset.contactName,
-                    phone: btn.dataset.contactPhone,
-                };
-                renderSelectedContact();
-            });
-        });
     }
 
     function openContactCreate(prefill = '') {
@@ -1691,6 +1754,7 @@
         const modal = el('contactCreateModal');
         if (!modal) return;
         el('contactCreateName').value = '';
+        el('contactCreateNationalId').value = '';
         el('contactCreatePhone').value = '';
         el('contactCreateAddress').value = '';
         el('contactRequiresInvoice').checked = false;
@@ -1698,7 +1762,13 @@
         el('contactBillingId').value = '';
         el('contactBillingEmail').value = '';
         const compactValue = String(prefill).trim();
-        if (/^[+\d\s()-]+$/.test(compactValue)) el('contactCreatePhone').value = compactValue;
+        if (/^\+/.test(compactValue)) {
+            el('contactCreatePhone').value = compactValue;
+        } else if (/^\d{8,20}$/.test(compactValue.replace(/\s+/g, ''))) {
+            el('contactCreateNationalId').value = compactValue.replace(/\s+/g, '');
+        } else if (compactValue) {
+            el('contactCreateName').value = compactValue;
+        }
         syncInvoiceFields();
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
@@ -1715,6 +1785,9 @@
     function syncInvoiceFields() {
         const requested = el('contactRequiresInvoice')?.checked;
         el('contactInvoiceFields')?.classList.toggle('is-open', !!requested);
+        if (requested && el('contactBillingType')?.value === 'cedula' && !el('contactBillingId').value.trim()) {
+            el('contactBillingId').value = el('contactCreateNationalId').value.trim();
+        }
         el('contactBillingId').required = !!requested;
         el('contactBillingEmail').required = !!requested;
         el('contactCreateAddress').required = !!requested;
@@ -1732,6 +1805,7 @@
                 headers: { 'Content-Type':'application/json', 'Accept':'application/json', 'X-CSRF-TOKEN':csrf },
                 body: JSON.stringify({
                     name: el('contactCreateName').value.trim(),
+                    national_id: el('contactCreateNationalId').value.trim() || null,
                     phone: el('contactCreatePhone').value.trim(),
                     address: el('contactCreateAddress').value.trim() || null,
                     requires_invoice: el('contactRequiresInvoice').checked,
@@ -2075,20 +2149,46 @@
 
     if (isAgent) {
         el('contactSearch').addEventListener('input', debounce((e) => searchContacts(e.target.value), 300));
+        el('contactSearch').addEventListener('focus', (event) => searchContacts(event.target.value));
+        el('contactSearch').addEventListener('keydown', (event) => {
+            const options = Array.from(el('contactResults').querySelectorAll('button'));
+            if (event.key === 'Escape') {
+                setContactResultsOpen(false);
+                return;
+            }
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (!options.length) return;
+                const direction = event.key === 'ArrowDown' ? 1 : -1;
+                activeContactOption = (activeContactOption + direction + options.length) % options.length;
+                options.forEach((option, index) => option.classList.toggle('is-active', index === activeContactOption));
+                options[activeContactOption].scrollIntoView({ block: 'nearest' });
+                return;
+            }
+            if (event.key === 'Enter' && activeContactOption >= 0 && options[activeContactOption]) {
+                event.preventDefault();
+                options[activeContactOption].click();
+            }
+        });
         el('changeContactBtn').addEventListener('click', () => {
             selectedContact = null;
             renderSelectedContact();
+            setTimeout(() => el('contactSearch').focus(), 0);
         });
-        el('openContactCreate')?.addEventListener('click', () => openContactCreate());
         el('closeContactCreate')?.addEventListener('click', closeContactCreate);
         el('contactCreateForm')?.addEventListener('submit', createContact);
         el('contactRequiresInvoice')?.addEventListener('change', syncInvoiceFields);
+        el('contactCreateNationalId')?.addEventListener('input', () => {
+            if (el('contactRequiresInvoice').checked && el('contactBillingType').value === 'cedula') {
+                el('contactBillingId').value = el('contactCreateNationalId').value.trim();
+            }
+        });
         el('contactCreateModal')?.addEventListener('click', (event) => {
             if (event.target === el('contactCreateModal')) closeContactCreate();
         });
         document.addEventListener('click', (e) => {
             if (!el('contactPicker').contains(e.target)) {
-                el('contactResults').style.display = 'none';
+                setContactResultsOpen(false);
             }
         });
         renderSelectedContact();

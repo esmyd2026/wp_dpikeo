@@ -31,7 +31,7 @@ class BulkOrderService
 
     public function issueToken(WhatsappContact $contact): ?BulkOrderToken
     {
-        if (!$this->isAvailable()) {
+        if (! $this->isAvailable()) {
             return null;
         }
 
@@ -82,7 +82,7 @@ class BulkOrderService
             ->with('items')
             ->first();
 
-        if (!$cart) {
+        if (! $cart) {
             return [];
         }
 
@@ -126,7 +126,7 @@ class BulkOrderService
         }
 
         if ($search !== null && trim($search) !== '') {
-            $term = '%' . trim($search) . '%';
+            $term = '%'.trim($search).'%';
             $query->where(function ($q) use ($term) {
                 $q->where('name', 'like', $term)
                     ->orWhere('sku', 'like', $term)
@@ -176,12 +176,12 @@ class BulkOrderService
      */
     public function submitFromForm(BulkOrderToken $token, array $items, ?string $orderNote = null): WhatsappCart
     {
-        if (!$token->isValid()) {
+        if (! $token->isValid()) {
             throw new InvalidArgumentException('El enlace expiró o ya fue utilizado.');
         }
 
         $contact = $token->contact;
-        if (!$contact) {
+        if (! $contact) {
             throw new InvalidArgumentException('Cliente no encontrado.');
         }
 
@@ -231,7 +231,7 @@ class BulkOrderService
             $metadata['branch_confirmed'] = true;
             $metadata['service_type'] = $fulfillment['service_type'] ?? null;
             $metadata['pickup_mode'] = $fulfillment['pickup_mode'] ?? null;
-            if (!empty($fulfillment['table_reference'])) {
+            if (! empty($fulfillment['table_reference'])) {
                 $metadata['table_reference'] = $fulfillment['table_reference'];
             }
         }
@@ -268,32 +268,32 @@ class BulkOrderService
     }
 
     /**
-     * @return array<int, array{id: int, name: string, phone: string|null}>
+     * @return array<int, array{id: int, name: string, phone: string|null, identity: string|null}>
      */
     public function searchContacts(string $query, int $limit = 20, ?int $businessProfileId = null): array
     {
         $term = trim($query);
-        if (mb_strlen($term) < 2) {
-            return [];
-        }
-
-        $like = '%' . $term . '%';
+        $like = '%'.$term.'%';
 
         return WhatsappContact::query()
             ->where('status', 'active')
             ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
-            ->where(function ($q) use ($like) {
-                $q->where('name', 'like', $like)
-                    ->orWhere('phone_number', 'like', $like)
-                    ->orWhere('national_id', 'like', $like);
+            ->when($term !== '', function ($q) use ($like) {
+                $q->where(function ($contactQuery) use ($like) {
+                    $contactQuery->where('name', 'like', $like)
+                        ->orWhere('phone_number', 'like', $like)
+                        ->orWhere('national_id', 'like', $like)
+                        ->orWhere('billing_id', 'like', $like);
+                });
             })
             ->orderBy('name')
             ->limit(max(1, min(30, $limit)))
-            ->get(['id', 'name', 'phone_number'])
+            ->get(['id', 'name', 'phone_number', 'national_id', 'billing_id'])
             ->map(fn (WhatsappContact $c) => [
                 'id' => $c->id,
                 'name' => $c->name ?: 'Cliente',
-                'phone' => $c->phone_number,
+                'phone' => str_starts_with((string) $c->phone_number, 'POS-') ? null : $c->phone_number,
+                'identity' => $c->national_id ?: $c->billing_id,
             ])
             ->values()
             ->all();
@@ -381,7 +381,7 @@ class BulkOrderService
                     ->where('stock', '>', 0)
                     ->first();
 
-                if (!$price) {
+                if (! $price) {
                     throw new InvalidArgumentException('Uno de los productos ya no está disponible.');
                 }
 
@@ -416,8 +416,8 @@ class BulkOrderService
                 }
 
                 $noteParts = array_filter([
-                    $variation ? 'Opción: ' . $variation['title'] : null,
-                    $extraTitles !== [] ? 'Extras: ' . implode(', ', $extraTitles) : null,
+                    $variation ? 'Opción: '.$variation['title'] : null,
+                    $extraTitles !== [] ? 'Extras: '.implode(', ', $extraTitles) : null,
                     $customerNote ?: null,
                 ]);
                 $lineNote = $noteParts !== [] ? implode(' · ', $noteParts) : null;
@@ -535,12 +535,12 @@ class BulkOrderService
     /** @return array<int, array{title: string, price: float}> */
     private function pricedOptions(mixed $options): array
     {
-        if (!is_array($options)) {
+        if (! is_array($options)) {
             return [];
         }
 
         return collect($options)
-            ->filter(fn ($item) => is_array($item) && !empty($item['title']))
+            ->filter(fn ($item) => is_array($item) && ! empty($item['title']))
             ->map(fn ($item) => [
                 'title' => trim((string) $item['title']),
                 'price' => (float) ($item['price'] ?? 0),

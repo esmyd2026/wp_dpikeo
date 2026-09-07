@@ -687,6 +687,139 @@
         .modal-panel { max-height: 96vh; }
         .modal-body { padding: .75rem; }
     }
+
+    /* Móvil: ningún aviso, tarjeta o modal debe ampliar el viewport. */
+    .orders-page { min-width: 0; }
+    .order-card,
+    .modal-panel,
+    .modal-header,
+    .modal-body,
+    .modal-footer,
+    .order-command-center,
+    .order-section,
+    .order-section-body { max-width: 100%; }
+    .modal-body { overflow-x: hidden; overscroll-behavior: contain; }
+    .modal-body img,
+    .modal-body video,
+    .modal-body iframe { max-width: 100%; height: auto; }
+    .modal-body input,
+    .modal-body select,
+    .modal-body textarea { max-width: 100%; }
+    .modal-heading,
+    .modal-header .sub,
+    .order-section-head-main,
+    .order-section-body,
+    .order-disclosure summary,
+    .order-callout,
+    .fulfillment-val,
+    .status-option-copy,
+    .order-customer,
+    .order-meta span { overflow-wrap: anywhere; }
+
+    @media (max-width: 575.98px) {
+        .orders-page { width: 100%; overflow: hidden; }
+        .orders-top { padding: 0 .15rem; }
+        .orders-top .lead { font-size: .8rem; line-height: 1.4; }
+        .orders-priority { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .orders-toolbar { padding: .7rem; gap: .55rem; }
+        .orders-guide { align-items: flex-start; padding: .7rem .75rem; }
+        .order-card { width: 100%; padding: .78rem; border-radius: 12px; }
+        .order-customer-row { align-items: center; justify-content: space-between; gap: .35rem .6rem; }
+        .order-customer { flex: 1 1 150px; font-size: .94rem; }
+        .order-total { flex: 0 0 auto; font-size: .94rem; }
+        .order-meta { display: grid; grid-template-columns: 1fr; gap: .3rem; }
+        .order-stage-button { width: 100%; min-height: 48px; }
+        .order-stage-action { margin-left: auto; }
+        .order-card-actions { grid-template-columns: 1fr; }
+        .order-card-actions .primary { grid-column: auto; grid-row: auto; }
+        .order-card-actions .o-btn { width: 100%; min-height: 42px; white-space: normal; }
+
+        .modal-overlay {
+            align-items: flex-end;
+            padding: 0;
+        }
+        .modal-panel,
+        .status-modal-panel {
+            width: 100%;
+            max-width: 100%;
+            max-height: min(94dvh, 94vh);
+            border-radius: 18px 18px 0 0;
+            transform: translateY(24px);
+        }
+        .modal-header { padding: .82rem .9rem; gap: .65rem; }
+        .modal-title-row { align-items: flex-start; gap: .38rem; }
+        .modal-header h3 { flex: 1 1 170px; font-size: 1rem; line-height: 1.2; }
+        .modal-header .sub { font-size: .72rem; line-height: 1.35; }
+        .modal-close { width: 40px; height: 40px; }
+        .modal-body { padding: .65rem; }
+        .modal-footer {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: .45rem;
+            padding: .7rem;
+        }
+        .modal-footer .o-btn,
+        .status-confirm-button { width: 100%; min-width: 0; min-height: 44px; justify-content: center; white-space: normal; }
+        #orderModalFooter .o-btn.primary { order: -1; }
+
+        .status-current { align-items: flex-start; flex-direction: column; gap: .28rem; }
+        .status-options { grid-template-columns: 1fr; gap: .45rem; }
+        .status-option {
+            min-height: 68px;
+            grid-template-columns: 34px minmax(0, 1fr) 18px;
+            gap: .55rem;
+            padding: .62rem;
+        }
+        .status-option-copy strong { padding-right: 2.8rem; }
+        .status-option-copy small { font-size: .68rem; }
+        .status-confirmation { font-size: .73rem; line-height: 1.4; }
+
+        .order-ticket-head,
+        .order-section-head,
+        .payment-proof-top { align-items: flex-start; flex-wrap: wrap; padding: .7rem .75rem; }
+        .order-compact-line { padding: .65rem .75rem; }
+        .order-compact-line-name,
+        .order-compact-line-meta,
+        .order-compact-line-note { overflow-wrap: anywhere; }
+        .order-quick-actions { padding: .75rem; }
+        .order-quick-actions-row { align-items: stretch; flex-direction: column; }
+        .order-quick-actions .o-btn { width: 100%; min-height: 42px; justify-content: center; }
+        .order-section-body,
+        .order-disclosure-body { padding: .75rem; }
+        .order-disclosure summary { padding: .72rem .75rem; }
+        .fulfillment-grid { grid-template-columns: 1fr; }
+        .fulfillment-full { grid-column: auto; }
+        .payment-proof-title-wrap { width: 100%; }
+        .payment-proof-badge { margin-left: 56px; }
+        .payment-proof-meta,
+        .payment-proof-actions { padding-left: .75rem; padding-right: .75rem; }
+        .payment-proof-preview { margin-left: .75rem; margin-right: .75rem; }
+        .payment-proof-actions { display: grid; grid-template-columns: 1fr; }
+        .payment-proof-btn { width: 100%; min-height: 42px; justify-content: center; }
+
+        .orders-refresh-banner {
+            right: 10px;
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            left: 10px;
+            width: auto;
+            max-width: none;
+            justify-content: center;
+            padding: .72rem .85rem;
+            border-radius: 12px;
+            text-align: center;
+            line-height: 1.3;
+            transform: translateY(28px);
+        }
+        .orders-refresh-banner.is-visible { transform: translateY(0); }
+        .toast-orders {
+            right: 10px;
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            left: 10px;
+            max-width: none;
+            overflow-wrap: anywhere;
+            text-align: center;
+        }
+    }
 </style>
 
 <div class="orders-page">

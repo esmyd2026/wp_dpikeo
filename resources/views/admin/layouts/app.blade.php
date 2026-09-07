@@ -1022,6 +1022,13 @@
             cursor: pointer;
             animation: waToastIn .35s cubic-bezier(.21, 1.02, .73, 1);
             border-left: 4px solid #f15c6d;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .wa-agent-toast-body {
+            min-width: 0;
+            flex: 1;
         }
 
         .wa-agent-toast-icon {
@@ -1041,6 +1048,60 @@
         .wa-agent-toast-title { font-size: 14px; font-weight: 700; color: #111b21; margin: 0 0 2px; }
         .wa-agent-toast-text { font-size: 13px; color: #667781; margin: 0; line-height: 1.35; }
         .wa-agent-toast-time { font-size: 11px; color: #8696a0; margin-top: 4px; }
+
+        @media (max-width: 575.98px) {
+            .wa-agent-toast-stack {
+                top: calc(64px + env(safe-area-inset-top));
+                right: 10px;
+                bottom: auto;
+                left: 10px;
+                width: auto;
+                max-width: none;
+                max-height: calc(100dvh - 78px);
+                overflow-y: auto;
+                gap: 8px;
+            }
+
+            .wa-agent-toast {
+                gap: 10px;
+                padding: 11px 12px;
+                border-radius: 12px;
+            }
+
+            .wa-agent-toast-icon {
+                width: 38px;
+                height: 38px;
+                font-size: 15px;
+            }
+
+            .wa-agent-toast-title,
+            .wa-agent-toast-text,
+            .wa-agent-toast-time {
+                overflow-wrap: anywhere;
+                white-space: normal;
+            }
+
+            .wa-agent-notifications-panel {
+                position: fixed;
+                top: 64px;
+                right: 8px;
+                left: 8px;
+                width: auto;
+                max-width: none;
+                max-height: calc(100dvh - 76px);
+                border-radius: 12px;
+            }
+
+            .wa-agent-notifications-list {
+                max-height: calc(100dvh - 190px);
+            }
+
+            .wa-agent-notification-item { padding: 11px 12px; }
+            .wa-agent-notification-item > div:last-child { min-width: 0; }
+            .wa-agent-notification-item .ni-title,
+            .wa-agent-notification-item .ni-text,
+            .wa-agent-notification-item .ni-time { overflow-wrap: anywhere; }
+        }
 
         @keyframes waToastIn {
             from { opacity: 0; transform: translateX(28px) scale(.94); }

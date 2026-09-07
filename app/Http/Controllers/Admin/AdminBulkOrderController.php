@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\WhatsappContact;
 use App\Models\BusinessBranch;
+use App\Models\WhatsappContact;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
 use App\Support\CompanyContext;
@@ -36,7 +36,8 @@ class AdminBulkOrderController extends Controller
                 $initialContact = [
                     'id' => $contact->id,
                     'name' => $contact->name ?: 'Cliente',
-                    'phone' => $contact->phone_number,
+                    'phone' => str_starts_with((string) $contact->phone_number, 'POS-') ? null : $contact->phone_number,
+                    'identity' => $contact->national_id ?: $contact->billing_id,
                 ];
             }
         }
@@ -71,6 +72,7 @@ class AdminBulkOrderController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'min:2', 'max:120'],
+            'national_id' => ['nullable', 'string', 'max:20'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
             'requires_invoice' => ['nullable', 'boolean'],
@@ -88,12 +90,14 @@ class AdminBulkOrderController extends Controller
         }
 
         $requiresInvoice = $request->boolean('requires_invoice');
-        if ($requiresInvoice && !filled($validated['address'] ?? null)) {
+        $nationalId = preg_replace('/\s+/', '', trim((string) ($validated['national_id'] ?? ''))) ?: null;
+        if ($requiresInvoice && ! filled($validated['address'] ?? null)) {
             return response()->json(['ok' => false, 'message' => 'La dirección es obligatoria para factura.'], 422);
         }
 
         $attributes = [
             'name' => trim($validated['name']),
+            'national_id' => $nationalId,
             'address' => filled($validated['address'] ?? null) ? trim($validated['address']) : null,
             'status' => 'active',
             'bot_enabled' => $phone !== '',
@@ -108,11 +112,33 @@ class AdminBulkOrderController extends Controller
             ]);
         }
 
-        $contact = $phone !== ''
-            ? WhatsappContact::query()->firstOrCreate(['phone_number' => $phone, 'business_profile_id' => $this->businessProfileId()], $attributes)
-            : WhatsappContact::query()->create(array_merge($attributes, ['phone_number' => 'POS-'.now()->format('YmdHis').'-'.Str::lower(Str::random(5))]));
+        $businessProfileId = $this->businessProfileId();
+        $contact = null;
 
-        if (!$contact->wasRecentlyCreated && $requiresInvoice) {
+        if ($phone !== '') {
+            $contact = WhatsappContact::query()
+                ->where('business_profile_id', $businessProfileId)
+                ->where('phone_number', $phone)
+                ->first();
+        }
+
+        if (! $contact && $nationalId) {
+            $contact = WhatsappContact::query()
+                ->where('business_profile_id', $businessProfileId)
+                ->where(function ($query) use ($nationalId) {
+                    $query->where('national_id', $nationalId)
+                        ->orWhere('billing_id', $nationalId);
+                })
+                ->first();
+        }
+
+        if (! $contact) {
+            $contact = WhatsappContact::query()->create(array_merge($attributes, [
+                'phone_number' => $phone !== '' ? $phone : 'POS-'.now()->format('YmdHis').'-'.Str::lower(Str::random(5)),
+            ]));
+        }
+
+        if (! $contact->wasRecentlyCreated && $requiresInvoice) {
             // Si la ficha ya existe, actualizamos únicamente datos solicitados
             // explícitamente para la factura; no alteramos su historial.
             $contact->update([
@@ -127,11 +153,12 @@ class AdminBulkOrderController extends Controller
         return response()->json([
             'ok' => true,
             'created' => $contact->wasRecentlyCreated,
-            'message' => $contact->wasRecentlyCreated ? 'Cliente agregado.' : 'Ese número ya estaba registrado; se seleccionó su ficha.',
+            'message' => $contact->wasRecentlyCreated ? 'Cliente agregado y seleccionado.' : 'El cliente ya estaba registrado; seleccionamos su ficha.',
             'contact' => [
                 'id' => $contact->id,
                 'name' => $contact->name ?: 'Cliente',
-                'phone' => $contact->phone_number,
+                'phone' => str_starts_with((string) $contact->phone_number, 'POS-') ? null : $contact->phone_number,
+                'identity' => $contact->national_id ?: $contact->billing_id,
                 'requires_invoice' => $requiresInvoice,
             ],
         ]);
