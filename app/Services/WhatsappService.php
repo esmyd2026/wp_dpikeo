@@ -7060,6 +7060,20 @@ class WhatsappService
             $cart->save();
             $this->syncOrderDetails($cart);
 
+            // Igual que en la rama de comprobante de pago: si todavía falta
+            // que caja confirme el costo de envío/empaque, el total no es el
+            // final -- no tiene sentido ofrecerle botones de "¿qué más
+            // deseas hacer?" como si ya estuviera todo resuelto. Se le avisa
+            // claro que falta ese paso y se le pide esperar, sin botones.
+            if ($cart->hasPendingFulfillmentCosts()) {
+                $confirmationBody .= '🕐 Estamos por confirmarte el total a pagar de tu pedido (incluye el costo de envío o de empaque). En cuanto lo tengamos, te avisamos por este mismo chat.';
+
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => $confirmationBody],
+                ];
+            }
+
             $confirmationBody .= 'Te contactaremos pronto para coordinar los siguientes pasos.';
 
             return [

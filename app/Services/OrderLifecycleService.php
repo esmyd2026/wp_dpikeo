@@ -250,7 +250,7 @@ class OrderLifecycleService
 
             dispatch(function () use ($orderId, $includesDelivery, $includesPickup) {
                 try {
-                    $order = WhatsappCart::with('contact')->find($orderId);
+                    $order = WhatsappCart::with(['contact', 'items'])->find($orderId);
                     $contact = $order?->contact;
 
                     if (!$contact) {
@@ -315,6 +315,11 @@ class OrderLifecycleService
 
         $addressLine = ($includesDelivery && $address) ? "Dirección: {$address}\n" : '';
         $recipientLine = ($includesDelivery && $recipient) ? "Recibe: {$recipient}\n" : '';
+        // Sin esto, el cliente veía saltar de los costos de envío/empaque
+        // directo al total final, sin poder ver de dónde salía el resto del
+        // monto (el costo de los productos en sí).
+        $productsSubtotal = $order->items->sum(fn ($item) => (float) $item->price * $item->quantity);
+        $subtotalLine = "Subtotal productos: $" . number_format($productsSubtotal, 2) . "\n";
         $deliveryLine = $includesDelivery ? "Costo de envío: $" . number_format($deliveryFee, 2) . "\n" : '';
         $pickupLine = $includesPickup ? "Costo para llevar: $" . number_format($pickupFee, 2) . "\n" : '';
 
@@ -329,7 +334,7 @@ class OrderLifecycleService
             : '';
 
         $lines = "📦 Pedido *{$order->getOrderNumber()}*\n\n"
-            . $addressLine . $recipientLine . $deliveryLine . $pickupLine
+            . $addressLine . $recipientLine . $subtotalLine . $deliveryLine . $pickupLine
             . "Total a pagar: $" . number_format((float) $order->total, 2)
             . $bankLine;
 
@@ -337,6 +342,7 @@ class OrderLifecycleService
             'order_number' => $order->getOrderNumber(),
             'address_line' => $addressLine,
             'recipient_line' => $recipientLine,
+            'subtotal_line' => $subtotalLine,
             'delivery_line' => $deliveryLine,
             'pickup_line' => $pickupLine,
             'total' => number_format((float) $order->total, 2),
