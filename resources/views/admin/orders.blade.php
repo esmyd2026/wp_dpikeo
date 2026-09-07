@@ -5,6 +5,7 @@
 @section('content')
 @php
     use App\Services\OrderAdminService;
+    use App\Services\OrderLifecycleService;
 
     $statusLabels = [
         'pending' => 'Nuevo · por revisar',
@@ -17,6 +18,10 @@
         'paid' => 'Pago recibido',
     ];
     $statusOptions = ['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'];
+    $statusTransitions = [];
+    foreach ($statusOptions as $statusOption) {
+        $statusTransitions[$statusOption] = OrderLifecycleService::allowedTransitionsFor($statusOption);
+    }
     $statusMeta = [
         'pending' => ['icon' => 'fa-inbox', 'description' => 'Pedido recién recibido; todavía debe revisarse.'],
         'confirmed' => ['icon' => 'fa-circle-check', 'description' => 'El pedido fue revisado y aceptado.'],
@@ -191,6 +196,10 @@
         transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
     }
     .order-stage-button:hover { border-color: #0f766e; box-shadow: 0 4px 12px rgba(15,118,110,.12); transform: translateY(-1px); }
+    .order-stage-button.is-locked {
+        cursor: default; background: #f8fafc; box-shadow: none; transform: none;
+    }
+    .order-stage-button.is-locked:hover { border-color: #dbe3ea; box-shadow: none; transform: none; }
     .order-stage-button:focus-visible { outline: 3px solid rgba(15,118,110,.18); border-color: #0f766e; }
     .order-stage-icon {
         width: 28px; height: 28px; border-radius: 8px; display: inline-flex;
@@ -928,6 +937,7 @@
                                 || $order->hasPaymentProof()
                                 || $order->isAwaitingPaymentProof()
                                 || $fulfillmentServiceType;
+                            $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
                         @endphp
                         <article class="order-card status-{{ $order->status }}" id="order-row-{{ $order->id }}"
                             data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? ''))) }}">
@@ -983,7 +993,7 @@
                             <div class="order-card-side">
                                 <div class="order-stage">
                                 <span class="order-stage-label">Etapa del pedido</span>
-                                @if($canUpdate)
+                                @if($canUpdate && !empty($allowedStatusTransitions))
                                     <button type="button" class="order-stage-button status-{{ $order->status }}"
                                         id="status-button-{{ $order->id }}"
                                         data-current-status="{{ $order->status }}"
@@ -994,6 +1004,12 @@
                                         <span class="order-stage-value">{{ $statusLabels[$order->status] ?? $order->status }}</span>
                                         <span class="order-stage-action">Cambiar <i class="fas fa-chevron-right"></i></span>
                                     </button>
+                                @elseif($canUpdate)
+                                    <div class="order-stage-button status-{{ $order->status }} is-locked" aria-label="Etapa final: {{ $statusLabels[$order->status] ?? $order->status }}">
+                                        <span class="order-stage-icon"><i class="fas {{ $statusMeta[$order->status]['icon'] ?? 'fa-circle' }}"></i></span>
+                                        <span class="order-stage-value">{{ $statusLabels[$order->status] ?? $order->status }}</span>
+                                        <span class="order-stage-action"><i class="fas fa-lock"></i> Estado final</span>
+                                    </div>
                                 @else
                                     <span class="o-tag">{{ $statusLabels[$order->status] ?? $order->status }}</span>
                                 @endif
@@ -1105,6 +1121,7 @@
 <script>
 const STATUS_LABELS = @json($statusLabels);
 const STATUS_META = @json($statusMeta);
+const STATUS_TRANSITIONS = @json($statusTransitions);
 const INVOICE_LABELS = @json($invoiceLabels);
 const SECTION_HINTS = @json($sectionHints);
 const FIELD_HINTS = @json($fieldHints);
@@ -1631,6 +1648,11 @@ function addOrderNote(e, type) {
 
 function openStatusModal(orderId, triggerEl) {
     const currentStatus = triggerEl.getAttribute('data-current-status');
+    const allowedStatuses = STATUS_TRANSITIONS[currentStatus] || [];
+    if (!allowedStatuses.length) {
+        showToast('Este pedido ya está en un estado final y no admite más cambios.', 'error');
+        return;
+    }
     pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null };
 
     document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);
@@ -1644,24 +1666,19 @@ function openStatusModal(orderId, triggerEl) {
 
     document.querySelectorAll('#statusOptions .status-option').forEach(option => {
         const isCurrent = option.dataset.status === currentStatus;
-        option.disabled = isCurrent;
+        const isAllowed = allowedStatuses.includes(option.dataset.status);
+        option.hidden = !isAllowed;
+        option.disabled = !isAllowed;
         option.classList.remove('is-selected');
-        option.classList.toggle('is-current', isCurrent);
+        option.classList.remove('is-current');
         option.setAttribute('aria-checked', 'false');
         option.querySelector('.status-option-current')?.remove();
-
-        if (isCurrent) {
-            const badge = document.createElement('span');
-            badge.className = 'status-option-current';
-            badge.textContent = 'Actual';
-            option.appendChild(badge);
-        }
     });
 
     const modal = document.getElementById('statusModal');
     modal.classList.add('is-open');
     document.body.style.overflow = 'hidden';
-    setTimeout(() => modal.querySelector('.status-option:not(:disabled)')?.focus(), 80);
+    setTimeout(() => modal.querySelector('.status-option:not([hidden]):not(:disabled)')?.focus(), 80);
 }
 
 function selectOrderStatus(status, optionEl) {
@@ -1724,6 +1741,12 @@ function confirmOrderStatusChange() {
             triggerEl.setAttribute('data-current-status', newStatus);
             triggerEl.querySelector('.order-stage-value').textContent = STATUS_LABELS[newStatus] || newStatus;
             triggerEl.querySelector('.order-stage-icon').innerHTML = `<i class="fas ${STATUS_META[newStatus]?.icon || 'fa-circle'}"></i>`;
+            if (!(STATUS_TRANSITIONS[newStatus] || []).length) {
+                triggerEl.classList.add('is-locked');
+                triggerEl.removeAttribute('onclick');
+                triggerEl.removeAttribute('aria-haspopup');
+                triggerEl.querySelector('.order-stage-action').innerHTML = '<i class="fas fa-lock"></i> Estado final';
+            }
             const card = document.getElementById('order-row-' + orderId);
             if (card) {
                 Array.from(card.classList)

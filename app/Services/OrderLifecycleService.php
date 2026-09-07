@@ -64,9 +64,22 @@ class OrderLifecycleService
         return self::STATUS_NOTIFICATION_LABELS[$status] ?? $status;
     }
 
+    /**
+     * Estados a los que puede avanzar un pedido desde su etapa actual.
+     *
+     * La interfaz administrativa consume esta misma regla para no ofrecer
+     * cambios que luego serían rechazados por transition().
+     *
+     * @return array<int, string>
+     */
+    public static function allowedTransitionsFor(string $status): array
+    {
+        return self::ALLOWED_TRANSITIONS[$status] ?? [];
+    }
+
     public function transition(WhatsappCart $order, string $nextStatus, ?int $userId = null, ?string $note = null): WhatsappCart
     {
-        if (!in_array($nextStatus, self::STATUSES, true)) {
+        if (! in_array($nextStatus, self::STATUSES, true)) {
             throw new InvalidArgumentException('El estado seleccionado no es válido.');
         }
 
@@ -80,11 +93,11 @@ class OrderLifecycleService
                 return $order;
             }
 
-            if (!in_array($nextStatus, self::ALLOWED_TRANSITIONS[$current] ?? [], true)) {
+            if (! in_array($nextStatus, self::ALLOWED_TRANSITIONS[$current] ?? [], true)) {
                 throw new InvalidArgumentException("No se puede cambiar un pedido de {$current} a {$nextStatus}.");
             }
 
-            if ($this->requiresReservation($nextStatus) && !$this->isReserved($order)) {
+            if ($this->requiresReservation($nextStatus) && ! $this->isReserved($order)) {
                 $this->reserveInventory($order, $userId);
             }
 
@@ -141,11 +154,11 @@ class OrderLifecycleService
                 $order = WhatsappCart::with('contact')->find($orderId);
                 $contact = $order?->contact;
 
-                if (!$contact || !$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+                if (! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
                     return;
                 }
 
-                if (!$contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
+                if (! $contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
                     return;
                 }
 
@@ -235,9 +248,9 @@ class OrderLifecycleService
         $contact = $order->contact;
         $reason = null;
 
-        if (!$contact || !$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+        if (! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
             $reason = 'no_phone';
-        } elseif (!$contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
+        } elseif (! $contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
             $reason = 'window_closed';
         }
 
@@ -253,7 +266,7 @@ class OrderLifecycleService
                     $order = WhatsappCart::with(['contact', 'items'])->find($orderId);
                     $contact = $order?->contact;
 
-                    if (!$contact) {
+                    if (! $contact) {
                         return;
                     }
 
@@ -267,7 +280,7 @@ class OrderLifecycleService
                     $whatsapp->useBusinessProfile($contact->businessProfile);
                     $proofText = $whatsapp->maybeRequestPaymentProofAfterCosts($order);
                     if ($proofText) {
-                        $body .= "\n\n" . $proofText;
+                        $body .= "\n\n".$proofText;
                     }
 
                     $whatsapp->sendBotPayload($contact, [
@@ -319,9 +332,9 @@ class OrderLifecycleService
         // directo al total final, sin poder ver de dónde salía el resto del
         // monto (el costo de los productos en sí).
         $productsSubtotal = $order->items->sum(fn ($item) => (float) $item->price * $item->quantity);
-        $subtotalLine = "Subtotal productos: $" . number_format($productsSubtotal, 2) . "\n";
-        $deliveryLine = $includesDelivery ? "Costo de envío: $" . number_format($deliveryFee, 2) . "\n" : '';
-        $pickupLine = $includesPickup ? "Costo para llevar: $" . number_format($pickupFee, 2) . "\n" : '';
+        $subtotalLine = 'Subtotal productos: $'.number_format($productsSubtotal, 2)."\n";
+        $deliveryLine = $includesDelivery ? 'Costo de envío: $'.number_format($deliveryFee, 2)."\n" : '';
+        $pickupLine = $includesPickup ? 'Costo para llevar: $'.number_format($pickupFee, 2)."\n" : '';
 
         // Si el pedido se paga por transferencia/depósito, el cliente necesita
         // saber a qué cuenta mandar el pago justo cuando se le confirma el
@@ -334,9 +347,9 @@ class OrderLifecycleService
             : '';
 
         $lines = "📦 Pedido *{$order->getOrderNumber()}*\n\n"
-            . $addressLine . $recipientLine . $subtotalLine . $deliveryLine . $pickupLine
-            . "Total a pagar: $" . number_format((float) $order->total, 2)
-            . $bankLine;
+            .$addressLine.$recipientLine.$subtotalLine.$deliveryLine.$pickupLine
+            .'Total a pagar: $'.number_format((float) $order->total, 2)
+            .$bankLine;
 
         return MessageTemplate::render('fulfillment_costs_confirmed', [
             'order_number' => $order->getOrderNumber(),
@@ -377,7 +390,7 @@ class OrderLifecycleService
      */
     public function releaseInventoryIfReserved(WhatsappCart $order, ?int $userId = null): void
     {
-        if (!$this->isReserved($order)) {
+        if (! $this->isReserved($order)) {
             return;
         }
 
@@ -398,7 +411,7 @@ class OrderLifecycleService
 
     private function isReserved(WhatsappCart $order): bool
     {
-        return !empty($order->metadata['inventory_reserved_at']);
+        return ! empty($order->metadata['inventory_reserved_at']);
     }
 
     private function reserveInventory(WhatsappCart $order, ?int $userId): void
@@ -417,7 +430,7 @@ class OrderLifecycleService
 
         foreach ($needed as $productId => $quantity) {
             $product = $products->get($productId);
-            if (!$product || !$product->is_active || $product->stock < $quantity) {
+            if (! $product || ! $product->is_active || $product->stock < $quantity) {
                 $name = $product?->name ?? 'un producto';
                 throw new InvalidArgumentException("Stock insuficiente para {$name}.");
             }
@@ -464,7 +477,7 @@ class OrderLifecycleService
 
         foreach ($needed as $productId => $quantity) {
             $product = $products->get($productId);
-            if (!$product) {
+            if (! $product) {
                 continue;
             }
             $before = (int) $product->stock;

@@ -18,6 +18,20 @@ class OrderLifecycleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_admin_status_options_use_the_same_allowed_transitions_as_the_lifecycle(): void
+    {
+        $this->assertSame(
+            [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED],
+            OrderLifecycleService::allowedTransitionsFor(WhatsappCart::STATUS_READY)
+        );
+        $this->assertSame([], OrderLifecycleService::allowedTransitionsFor(WhatsappCart::STATUS_COMPLETED));
+        $this->assertSame([], OrderLifecycleService::allowedTransitionsFor(WhatsappCart::STATUS_CANCELLED));
+        $this->assertNotContains(
+            WhatsappCart::STATUS_PAID,
+            OrderLifecycleService::allowedTransitionsFor(WhatsappCart::STATUS_COMPLETED)
+        );
+    }
+
     public function test_confirmation_reserves_stock_and_cancellation_releases_it(): void
     {
         [$product, $contact] = $this->catalogProduct(stock: 4);
