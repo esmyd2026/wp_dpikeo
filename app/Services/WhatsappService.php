@@ -3627,15 +3627,25 @@ class WhatsappService
 
         $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
 
+        $bodyText = $this->getCheckoutStepMessage(
+            'payment_method',
+            "💳 *Selecciona el método de pago*\n\nAntes de continuar, elige cómo deseas realizar el pago:"
+        );
+
+        // Este es el arranque de un pedido nuevo (una vez por carrito): es el
+        // momento natural para avisar el límite de tiempo, antes de que el
+        // cliente empiece a elegir productos sin saber que tiene un plazo.
+        $timeoutMinutes = app(AbandonedCartService::class)->timeoutMinutes($this->businessProfile?->id);
+        if ($timeoutMinutes) {
+            $bodyText .= "\n\n⏰ Tenés {$timeoutMinutes} minutos para completar tu pedido -- si no lo confirmás en ese tiempo, esta sesión se cancela automáticamente y tendrás que empezar de nuevo.";
+        }
+
         return [
             'type' => 'interactive',
             'interactive' => [
                 'type' => 'list',
                 'body' => [
-                    'text' => $this->getCheckoutStepMessage(
-                        'payment_method',
-                        "💳 *Selecciona el método de pago*\n\nAntes de continuar, elige cómo deseas realizar el pago:"
-                    ),
+                    'text' => $bodyText,
                 ],
                 'action' => [
                     'button' => 'Seleccionar método de pago',

@@ -25,10 +25,17 @@ class AbandonedCartService
     /**
      * Minutos configurados por el admin para considerar un pedido
      * abandonado, o null si la función está desactivada (valor por defecto).
+     * Cada empresa tiene su propia configuración -- sin $businessProfileId
+     * (uso legacy/sin tenant resoluble) cae al primer registro global como
+     * único fallback razonable.
      */
-    public function timeoutMinutes(): ?int
+    public function timeoutMinutes(?int $businessProfileId = null): ?int
     {
-        $config = WhatsappChatbotConfig::first();
+        $config = $businessProfileId
+            ? WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first()
+            : null;
+        $config ??= WhatsappChatbotConfig::first();
+
         $minutes = (int) ($config?->metadata['abandoned_cart_timeout_minutes'] ?? 0);
 
         return $minutes > 0 ? $minutes : null;
@@ -36,24 +43,32 @@ class AbandonedCartService
 
     /**
      * Cancela los carritos que llevan más tiempo sin actividad que el límite
-     * configurado y avisa al cliente. No hace nada si no hay límite
-     * configurado. Devuelve cuántos carritos cerró.
+     * configurado y avisa al cliente. Cada carrito se mide contra el límite
+     * de SU PROPIA empresa (ver timeoutMinutes()) -- antes se usaba un único
+     * límite global (el de la primera empresa de la tabla) para todos los
+     * carritos de toda la plataforma, así que una empresa sin este límite
+     * configurado podía desactivarlo sin querer para las demás, y una
+     * empresa con un límite distinto nunca lo veía aplicado. Devuelve
+     * cuántos carritos cerró.
      */
     public function cancelTimedOut(): int
     {
-        $minutes = $this->timeoutMinutes();
-        if (!$minutes) {
-            return 0;
-        }
-
         $staleCarts = WhatsappCart::query()
             ->whereIn('status', self::STALE_STATUSES)
-            ->where('updated_at', '<', now()->subMinutes($minutes))
             ->with('contact')
             ->get();
 
         $count = 0;
         foreach ($staleCarts as $cart) {
+            $minutes = $this->timeoutMinutes($cart->contact?->business_profile_id);
+            if (!$minutes) {
+                continue;
+            }
+
+            if ($cart->updated_at && $cart->updated_at->gt(now()->subMinutes($minutes))) {
+                continue;
+            }
+
             if ($this->close($cart, 'auto_timeout')) {
                 $count++;
             }
