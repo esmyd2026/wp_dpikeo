@@ -53,6 +53,7 @@ class OrderExportService
     public function queryFromRequest(Request $request): Builder
     {
         $query = WhatsappCart::reportable()
+            ->forActiveCompany()
             ->with(['items.price', 'contact'])
             ->orderBy('created_at', 'desc');
 
@@ -70,7 +71,7 @@ class OrderExportService
 
         $search = trim((string) $request->input('q', ''));
         if ($search !== '') {
-            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $like = '%'.addcslashes($search, '%_\\').'%';
             $query->where(function ($orderQuery) use ($like) {
                 $orderQuery->whereHas('contact', function ($contactQuery) use ($like) {
                     $contactQuery
@@ -147,10 +148,10 @@ class OrderExportService
     {
         $orders = $this->queryFromRequest($request)->get();
         $rows = $this->buildRows($orders);
-        $filename = 'pedidos-detalle-' . now()->format('Y-m-d_His') . '.xlsx';
+        $filename = 'pedidos-detalle-'.now()->format('Y-m-d_His').'.xlsx';
 
         return response()->streamDownload(function () use ($rows) {
-            $spreadsheet = new Spreadsheet();
+            $spreadsheet = new Spreadsheet;
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('Pedidos');
 
@@ -160,7 +161,7 @@ class OrderExportService
             }
 
             $lastColumn = Coordinate::stringFromColumnIndex(count($headers));
-            $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray([
+            $sheet->getStyle('A1:'.$lastColumn.'1')->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
                 'fill' => [
                     'fillType' => Fill::FILL_SOLID,

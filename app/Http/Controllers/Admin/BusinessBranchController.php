@@ -23,7 +23,7 @@ class BusinessBranchController extends Controller
             'profile' => $context->businessProfile,
             'activeCompany' => $context->company,
             'branches' => BusinessBranch::query()
-                ->when($context->businessProfileId(), fn ($q) => $q->where('business_profile_id', $context->businessProfileId()))
+                ->forUserAccess(auth()->user(), $context->businessProfileId())
                 ->withCount('orders')
                 ->with('hours')
                 ->orderByDesc('is_default')
@@ -36,6 +36,7 @@ class BusinessBranchController extends Controller
     {
         $profile = CompanyContext::current()->businessProfile;
         abort_unless($profile, 422, 'Esta empresa todavía no tiene un número de WhatsApp conectado.');
+        abort_unless(auth()->user()->hasAllBranchAccess($profile->id), 403, 'Solo un administrador con acceso a todas las sucursales puede crear locales.');
         $data = $this->validated($request);
 
         DB::transaction(function () use ($profile, $data, $request) {
@@ -54,7 +55,8 @@ class BusinessBranchController extends Controller
     private function authorizeBranch(BusinessBranch $branch): void
     {
         $businessProfileId = CompanyContext::current()->businessProfileId();
-        abort_unless(!$businessProfileId || (int) $branch->business_profile_id === (int) $businessProfileId, 404);
+        abort_unless($businessProfileId && (int) $branch->business_profile_id === (int) $businessProfileId, 404);
+        abort_unless(auth()->user()->canAccessBranch($branch), 404);
     }
 
     public function update(Request $request, BusinessBranch $branch): RedirectResponse
@@ -126,7 +128,7 @@ class BusinessBranchController extends Controller
             // empresa, nunca contra el total global (si no, la primera
             // sucursal de una empresa nueva no quedaría como predeterminada
             // solo porque otra empresa ya tenía las suyas).
-            'is_default' => $request->boolean('is_default') || ($branch?->is_default ?? !BusinessBranch::query()
+            'is_default' => $request->boolean('is_default') || ($branch?->is_default ?? ! BusinessBranch::query()
                 ->where('business_profile_id', $branch?->business_profile_id ?? CompanyContext::current()->businessProfileId())
                 ->exists()),
             'is_active' => $request->boolean('is_active'),
@@ -155,9 +157,9 @@ class BusinessBranchController extends Controller
             $opensAt = $isClosed ? null : (($row['opens_at'] ?? null) ?: null);
             $closesAt = $isClosed ? null : (($row['closes_at'] ?? null) ?: null);
 
-            if (!$isClosed && $opensAt && $closesAt && $closesAt <= $opensAt) {
+            if (! $isClosed && $opensAt && $closesAt && $closesAt <= $opensAt) {
                 throw ValidationException::withMessages([
-                    "hours.{$day}.closes_at" => 'La hora de cierre de ' . BusinessBranchHour::DAYS[$day] . ' debe ser posterior a la de apertura.',
+                    "hours.{$day}.closes_at" => 'La hora de cierre de '.BusinessBranchHour::DAYS[$day].' debe ser posterior a la de apertura.',
                 ]);
             }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\BusinessBranch;
 use App\Models\Company;
 use App\Models\WhatsappBusinessProfile;
 use Illuminate\Support\Facades\Log;
@@ -18,9 +19,7 @@ use Throwable;
  */
 class MetaEmbeddedSignupService
 {
-    public function __construct(private readonly MetaGraphService $graph)
-    {
-    }
+    public function __construct(private readonly MetaGraphService $graph) {}
 
     /**
      * $connectionMode distingue únicamente cómo quedó registrada la conexión
@@ -81,10 +80,10 @@ class MetaEmbeddedSignupService
                 ]
             );
 
-            throw new RuntimeException('No se pudo completar la conexión con Meta: ' . $e->getMessage());
+            throw new RuntimeException('No se pudo completar la conexión con Meta: '.$e->getMessage());
         }
 
-        return WhatsappBusinessProfile::updateOrCreate(
+        $profile = WhatsappBusinessProfile::updateOrCreate(
             ['company_id' => $company->id, 'phone_number_id' => $phoneNumberId],
             [
                 'business_name' => $company->name,
@@ -99,5 +98,9 @@ class MetaEmbeddedSignupService
                 'metadata' => ['last_error' => null],
             ]
         );
+
+        BusinessBranch::ensureDefaultForProfile($profile);
+
+        return $profile;
     }
 }

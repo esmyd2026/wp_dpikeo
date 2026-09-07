@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BusinessBranch;
 use App\Models\InventoryMovement;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
@@ -98,6 +99,10 @@ class OrderLifecycleTest extends TestCase
             'business_name' => 'DPIKEOS', 'display_name' => 'DPIKEOS', 'phone_number' => '593990000001',
             'whatsapp_business_id' => 'test-business', 'access_token' => 'test',
             'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
+        ]);
+        BusinessBranch::create([
+            'business_profile_id' => $profile->id, 'name' => 'Principal', 'code' => 'PRINCIPAL',
+            'is_default' => true, 'is_active' => true,
         ]);
         $menu = WhatsappMenu::create([
             'business_profile_id' => $profile->id, 'title' => 'Menú', 'type' => 'list',

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BusinessBranch extends Model
@@ -25,6 +26,28 @@ class BusinessBranch extends Model
         'delivery_fee_minimum' => 'float',
     ];
 
+    public static function ensureDefaultForProfile(WhatsappBusinessProfile $profile): self
+    {
+        return static::firstOrCreate(
+            ['business_profile_id' => $profile->id, 'code' => 'MATRIZ'],
+            [
+                'name' => 'Matriz',
+                'phone' => $profile->phone_number,
+                'is_default' => true,
+                'is_active' => true,
+                'dine_in_enabled' => true,
+            ]
+        );
+    }
+
+    public function scopeForUserAccess($query, User $user, ?int $businessProfileId)
+    {
+        $query->where('business_profile_id', $businessProfileId);
+        $branchIds = $user->accessibleBranchIds($businessProfileId);
+
+        return $branchIds === null ? $query : $query->whereIn('id', $branchIds);
+    }
+
     public function businessProfile(): BelongsTo
     {
         return $this->belongsTo(WhatsappBusinessProfile::class);
@@ -33,6 +56,11 @@ class BusinessBranch extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(WhatsappCart::class, 'branch_id');
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'business_branch_user')->withTimestamps();
     }
 
     public function hours(): HasMany

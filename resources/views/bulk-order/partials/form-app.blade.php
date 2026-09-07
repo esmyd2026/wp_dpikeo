@@ -1201,6 +1201,22 @@
             </section>
             <input type="hidden" id="bulkBranch" value="{{ $defaultBranchId ?? (!empty($branches) ? $branches->first()?->id : '') }}">
             @endif
+            @if(!$isAgent && !$isKiosk)
+                @if(!empty($branches) && count($branches) > 1)
+                    <section class="bulk-order-panel">
+                        <h2>¿Dónde retirás o recibís tu pedido?</h2>
+                        <label for="bulkBranch" style="display:block;margin-bottom:6px;font-size:.78rem;font-weight:800;color:#475569">Selecciona una sucursal</label>
+                        <select id="bulkBranch" required style="width:100%;border:1px solid #cbd5e1;border-radius:9px;padding:11px;background:#fff;font:inherit">
+                            <option value="">Elegir sucursal…</option>
+                            @foreach($branches as $branch)
+                                <option value="{{ $branch->id }}">{{ $branch->name }}{{ $branch->code ? ' · '.$branch->code : '' }}</option>
+                            @endforeach
+                        </select>
+                    </section>
+                @else
+                    <input type="hidden" id="bulkBranch" value="{{ !empty($branches) ? $branches->first()?->id : '' }}">
+                @endif
+            @endif
             @if($isAgent)
             <section class="bulk-order-panel bulk-order-client-panel">
                 <h2>Cliente</h2>
@@ -2256,6 +2272,11 @@
             toast('Elige si es para llevar o para servir');
             return;
         }
+        if (!isAgent && !isKiosk && !Number(el('bulkBranch')?.value)) {
+            toast('Selecciona la sucursal que atenderá tu pedido');
+            el('bulkBranch')?.focus();
+            return;
+        }
         setSubmitting(true);
         const abortController = new AbortController();
         const submitTimeout = setTimeout(() => abortController.abort(), 120000);
@@ -2274,6 +2295,9 @@
                 payload.contact_id = selectedContact.id;
                 payload.notify_whatsapp = el('bulkNotifyWhatsapp').checked;
                 payload.requires_invoice = !!selectedContact.requires_invoice;
+                payload.branch_id = Number(el('bulkBranch')?.value) || null;
+            }
+            if (!isAgent && !isKiosk) {
                 payload.branch_id = Number(el('bulkBranch')?.value) || null;
             }
             if (isKiosk) {

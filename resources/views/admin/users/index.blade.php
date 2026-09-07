@@ -559,7 +559,8 @@
                 $day = $stats[$user->id] ?? ['messages_sent' => 0, 'clients_served' => 0, 'agent_requests_closed' => 0, 'clients' => []];
                 $clients = $day['clients'] ?? [];
                 $hasActivity = ($day['messages_sent'] ?? 0) > 0 || ($day['clients_served'] ?? 0) > 0;
-                $roleSlug = $user->roleModel?->slug ?? $user->role ?? 'admin';
+                $activeRole = $user->getAttribute('active_role');
+                $roleSlug = $activeRole?->slug ?? $user->role ?? 'admin';
                 $roleClass = match ($roleSlug) {
                     'super_admin' => 'super',
                     'agent' => 'agent',
@@ -573,7 +574,7 @@
                 <div class="user-info">
                     <div class="user-main-head">
                         <h3 class="user-name">{{ $user->name }}</h3>
-                        <span class="user-role {{ $roleClass }}">{{ $user->roleLabel() }}</span>
+                        <span class="user-role {{ $roleClass }}">{{ $activeRole?->name ?? $user->roleLabel($activeCompany) }}</span>
                         <span class="user-status {{ $user->isActive() ? 'on' : 'off' }}">
                             {{ $user->isActive() ? 'Activo' : 'Inactivo' }}
                         </span>
@@ -581,6 +582,7 @@
                     <div class="user-meta">
                         <span><span class="uname">{{ $user->username }}</span></span>
                         <span><i class="far fa-envelope"></i> {{ $user->email }}</span>
+                        <span><i class="fas fa-store"></i> {{ $user->accessibleBranchIds($businessProfileId) === null ? 'Todas las sucursales' : $user->branches->where('business_profile_id', $businessProfileId)->pluck('name')->join(', ') }}</span>
                     </div>
                     <div class="user-metrics mt-2">
                         <div class="u-metric {{ $day['messages_sent'] ? 'highlight' : '' }}">

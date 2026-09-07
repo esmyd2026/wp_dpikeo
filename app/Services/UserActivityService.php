@@ -29,7 +29,7 @@ class UserActivityService
      *     }>
      * }>
      */
-    public function dailyStatsForUsers(Collection $users, ?Carbon $date = null): Collection
+    public function dailyStatsForUsers(Collection $users, ?Carbon $date = null, ?int $businessProfileId = null): Collection
     {
         if ($users->isEmpty()) {
             return collect();
@@ -44,12 +44,14 @@ class UserActivityService
             ->select('admin_user_id', 'contact_id')
             ->whereNotNull('admin_user_id')
             ->whereIn('admin_user_id', $userIds)
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->whereBetween('created_at', [$from, $to])
             ->get()
             ->groupBy('admin_user_id');
 
         $agentClosed = WhatsappContact::query()
             ->select('id', 'name', 'phone_number', 'metadata')
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->where(function ($query) use ($userIds) {
                 foreach ($userIds as $userId) {
                     $query->orWhereRaw(
@@ -63,7 +65,7 @@ class UserActivityService
             ->map(function ($group) use ($from, $to) {
                 return $group->filter(function ($contact) use ($from, $to) {
                     $handledAt = $contact->metadata['agent_handled_at'] ?? null;
-                    if (!$handledAt) {
+                    if (! $handledAt) {
                         return false;
                     }
 

@@ -53,6 +53,8 @@
         margin: 1.25rem 0;
     }
     .uf-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .uf-branches { display:grid;gap:.5rem;margin-top:.55rem; }
+    .uf-branch { display:flex;align-items:center;gap:.55rem;padding:.65rem .75rem;border:1px solid #e2e8f0;border-radius:10px;background:#fff; }
     .btn-uf-save {
         background: linear-gradient(135deg, #128c7e, #075e54);
         color: #fff;
@@ -98,10 +100,28 @@
                         @if($role->slug === 'super_admin' && !auth()->user()->isSuperAdmin())
                             @continue
                         @endif
-                        <option value="{{ $role->id }}" @selected(old('role_id', $user->role_id) == $role->id)>{{ $role->name }}</option>
+                        <option value="{{ $role->id }}" @selected(old('role_id', $activeRoleId) == $role->id)>{{ $role->name }}</option>
                     @endforeach
                 </select>
             </div>
+            @if($branches->isNotEmpty())
+                @php($allBranchAccess = old('all_branches', $selectedBranchIds === null))
+                <div class="uf-field">
+                    <label>Sucursales autorizadas</label>
+                    <label class="uf-check" style="margin-bottom:.55rem">
+                        <input type="checkbox" id="allBranches" name="all_branches" value="1" @checked($allBranchAccess)>
+                        <span>Acceso a todas las sucursales, incluidas las nuevas</span>
+                    </label>
+                    <div class="uf-branches" id="branchChoices">
+                        @foreach($branches as $branch)
+                            <label class="uf-branch"><input type="checkbox" name="branch_ids[]" value="{{ $branch->id }}" @checked(in_array($branch->id, old('branch_ids', $selectedBranchIds ?? [])))> <span>{{ $branch->name }}</span></label>
+                        @endforeach
+                    </div>
+                    @error('branch_ids')<small class="text-danger">{{ $message }}</small>@enderror
+                </div>
+            @else
+                <input type="hidden" name="all_branches" value="1">
+            @endif
             <label class="uf-check">
                 <input type="checkbox" name="is_active" value="1" @checked(old('is_active', $user->is_active ?? true))>
                 <span class="text-sm text-gray-700">Usuario activo — puede iniciar sesión</span>
@@ -123,4 +143,12 @@
         </form>
     </div>
 </div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const all = document.getElementById('allBranches');
+    const choices = document.querySelectorAll('#branchChoices input');
+    const sync = () => choices.forEach(input => input.disabled = !!all?.checked);
+    all?.addEventListener('change', sync); sync();
+});
+</script>
 @endsection

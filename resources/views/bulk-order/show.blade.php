@@ -14,6 +14,7 @@
         'submitUrl' => $submitUrl,
         'contactName' => $contactName,
         'existingCartItems' => $existingCartItems,
+        'branches' => $branches,
         'headerTitle' => $businessName,
     ])
 </body>

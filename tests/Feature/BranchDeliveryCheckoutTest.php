@@ -19,13 +19,28 @@ class BranchDeliveryCheckoutTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_single_active_branch_is_assigned_without_asking_customer(): void
+    {
+        [$product, $contact, $branch, $otherBranch] = $this->fixture();
+        $otherBranch->update(['is_active' => false]);
+        $cart = $this->cartWithItem($contact, $product);
+
+        $response = $this->invoke(new WhatsappService, 'finalizarCompra', [$contact]);
+
+        $cart->refresh();
+        $this->assertSame($branch->id, $cart->branch_id);
+        $this->assertTrue($cart->metadata['branch_confirmed']);
+        $this->assertSame('button', $response['interactive']['type']);
+        $this->assertStringContainsString('llevar o para servir', $response['interactive']['body']['text']);
+    }
+
     public function test_full_checkout_walks_through_branch_service_type_and_delivery_address(): void
     {
         [$product, $contact, $branchUrdesa, $branchSur] = $this->fixture();
         $branchUrdesa->update(['delivery_fee_minimum' => 2.50]);
 
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         // Paso 1: sin sucursal previa recordada, debe mostrar la LISTA de sucursales.
         $step1 = $this->invoke($service, 'finalizarCompra', [$contact]);
@@ -33,8 +48,8 @@ class BranchDeliveryCheckoutTest extends TestCase
         $rows = $step1['interactive']['action']['sections'][0]['rows'];
         $this->assertCount(2, $rows);
         $rowIds = array_column($rows, 'id');
-        $this->assertContains('sucursal_set_' . $branchUrdesa->id . '_' . $cart->id, $rowIds);
-        $this->assertContains('sucursal_set_' . $branchSur->id . '_' . $cart->id, $rowIds);
+        $this->assertContains('sucursal_set_'.$branchUrdesa->id.'_'.$cart->id, $rowIds);
+        $this->assertContains('sucursal_set_'.$branchSur->id.'_'.$cart->id, $rowIds);
 
         // Elegir Urdesa.
         $step2 = $this->invoke($service, 'setSucursalPedido', [$contact, $branchUrdesa->id, $cart->id]);
@@ -138,7 +153,7 @@ class BranchDeliveryCheckoutTest extends TestCase
         [$product, $contact, $branchUrdesa] = $this->fixture();
         $branchUrdesa->update(['delivery_fee_minimum' => 2.00]);
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $this->invoke($service, 'setSucursalPedido', [$contact, $branchUrdesa->id, $cart->id]);
         $this->invoke($service, 'setTipoServicio', [$contact, $cart->id, 'llevar']);
@@ -172,7 +187,7 @@ class BranchDeliveryCheckoutTest extends TestCase
     {
         [$product, $contact] = $this->fixture();
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $branch = BusinessBranch::query()->first();
         $this->invoke($service, 'setSucursalPedido', [$contact, $branch->id, $cart->id]);
@@ -185,7 +200,7 @@ class BranchDeliveryCheckoutTest extends TestCase
         $this->assertSame('button', $step['interactive']['type']);
         $this->assertStringContainsString('Ya casi terminamos', $step['interactive']['body']['text']);
         $buttonIds = array_column(array_column($step['interactive']['action']['buttons'], 'reply'), 'id');
-        $this->assertContains('nota_omitir_' . $cart->id, $buttonIds);
+        $this->assertContains('nota_omitir_'.$cart->id, $buttonIds);
 
         // Nota: "para servir" salta el método de pago y cierra el pedido con
         // finalizePayAtRegisterOrder(), pero esa función llama a
@@ -202,15 +217,15 @@ class BranchDeliveryCheckoutTest extends TestCase
         $contact->rememberBranch($branchUrdesa->id);
 
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $step = $this->invoke($service, 'finalizarCompra', [$contact]);
         $this->assertSame('button', $step['interactive']['type']);
         $this->assertStringContainsString('Urdesa', $step['interactive']['body']['text']);
 
         $buttonIds = array_column(array_column($step['interactive']['action']['buttons'], 'reply'), 'id');
-        $this->assertContains('sucursal_mantener_' . $cart->id, $buttonIds);
-        $this->assertContains('sucursal_cambiar_' . $cart->id, $buttonIds);
+        $this->assertContains('sucursal_mantener_'.$cart->id, $buttonIds);
+        $this->assertContains('sucursal_cambiar_'.$cart->id, $buttonIds);
 
         $next = $this->invoke($service, 'confirmarSucursalMantenida', [$contact, $cart->id]);
         $cart->refresh();
@@ -223,7 +238,7 @@ class BranchDeliveryCheckoutTest extends TestCase
     {
         [$product, $contact] = $this->fixture();
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         // El carrito queda con el paso de sucursal pendiente (nunca se resolvió).
         $this->assertTrue($this->invoke($service, 'cartHasPendingCheckoutStep', [$cart]));
@@ -250,7 +265,7 @@ class BranchDeliveryCheckoutTest extends TestCase
         // igual que con una dirección escrita.
         [$product, $contact, $branchUrdesa] = $this->fixture();
         $cart = $this->cartWithItem($contact, $product);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $this->invoke($service, 'setSucursalPedido', [$contact, $branchUrdesa->id, $cart->id]);
         $this->invoke($service, 'setTipoServicio', [$contact, $cart->id, 'llevar']);

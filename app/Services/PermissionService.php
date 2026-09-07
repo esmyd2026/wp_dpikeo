@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Support\CompanyContext;
 use Illuminate\Support\Facades\Cache;
 
 class PermissionService
@@ -34,7 +35,7 @@ class PermissionService
 
         foreach (config('permissions.default_roles', []) as $slug => $definition) {
             $role = Role::updateOrCreate(
-                ['slug' => $slug],
+                ['slug' => $slug, 'company_id' => null],
                 [
                     'name' => $definition['name'],
                     'description' => $definition['description'] ?? null,
@@ -91,10 +92,19 @@ class PermissionService
             return Permission::pluck('key')->all();
         }
 
+        $company = null;
+        try {
+            $company = CompanyContext::current()->company;
+        } catch (\Throwable) {
+            // Los comandos y pruebas sin sesión conservan el rol legado.
+        }
+
+        $companyKey = $company?->id ?? 'global';
+
         return Cache::remember(
-            'user_permissions_' . $user->id,
+            'user_permissions_'.$user->id.'_'.$companyKey,
             300,
-            fn () => $user->roleModel?->permissionKeys() ?? []
+            fn () => $user->roleForCompany($company)?->permissionKeys() ?? []
         );
     }
 
@@ -109,6 +119,10 @@ class PermissionService
 
     public function forgetUserCache(User $user): void
     {
-        Cache::forget('user_permissions_' . $user->id);
+        Cache::forget('user_permissions_'.$user->id);
+        Cache::forget('user_permissions_'.$user->id.'_global');
+        $user->companies()->pluck('companies.id')->each(
+            fn ($companyId) => Cache::forget('user_permissions_'.$user->id.'_'.$companyId)
+        );
     }
 }

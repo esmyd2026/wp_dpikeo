@@ -10,6 +10,7 @@ use App\Services\OrderPdfService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -28,14 +29,16 @@ class PosOrderController extends Controller
         $activeCompany = CompanyContext::current()->company;
 
         $branches = BusinessBranch::query()
+            ->forUserAccess($request->user(), CompanyContext::current()->businessProfileId())
             ->where('is_active', true)
-            ->when(CompanyContext::current()->businessProfileId(), fn ($q) => $q->where('business_profile_id', CompanyContext::current()->businessProfileId()))
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
 
-        $defaultBranchId = $request->session()->get('pos_branch_id')
-            ?? $branches->first()?->id;
+        $sessionBranchId = (int) $request->session()->get('pos_branch_id');
+        $defaultBranchId = $branches->contains('id', $sessionBranchId)
+            ? $sessionBranchId
+            : $branches->first()?->id;
 
         return view('pos.kiosk', [
             'catalogUrl' => route('admin.orders.bulk.catalog'),
@@ -62,20 +65,31 @@ class PosOrderController extends Controller
             'service_type' => ['required', 'string', 'in:llevar,servir'],
             'table_reference' => ['nullable', 'string', 'max:120'],
             'payment_method' => ['required', 'string', 'in:efectivo,transferencia,tarjeta'],
-            'branch_id' => ['nullable', 'integer', 'exists:business_branches,id'],
+            'branch_id' => ['nullable', 'integer', Rule::exists('business_branches', 'id')
+                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+                ->where('is_active', true)],
         ]);
 
         $contact = WhatsappContact::query()
             ->where('business_profile_id', CompanyContext::current()->businessProfileId())
             ->findOrFail($validated['contact_id']);
 
-        $branchId = $validated['branch_id']
-            ?? $request->session()->get('pos_branch_id')
-            ?? BusinessBranch::query()
-                ->where('is_active', true)
-                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
-                ->orderByDesc('is_default')
-                ->value('id');
+        $accessibleBranches = BusinessBranch::query()
+            ->forUserAccess($request->user(), CompanyContext::current()->businessProfileId())
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->get(['id']);
+        $requestedBranchId = $validated['branch_id'] ?? null;
+        $sessionBranchId = (int) $request->session()->get('pos_branch_id');
+        $branchId = $requestedBranchId
+            ?? ($accessibleBranches->contains('id', $sessionBranchId) ? $sessionBranchId : null)
+            ?? ($accessibleBranches->count() === 1 ? $accessibleBranches->first()->id : null);
+
+        if ($branchId) {
+            $branch = BusinessBranch::findOrFail($branchId);
+            abort_unless($request->user()->canAccessBranch($branch), 403);
+        }
 
         try {
             $cart = $this->bulkOrders->submitFromAdmin(

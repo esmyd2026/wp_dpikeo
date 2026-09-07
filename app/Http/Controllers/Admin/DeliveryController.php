@@ -14,6 +14,7 @@ use App\Services\WhatsappService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -38,7 +39,7 @@ class DeliveryController extends Controller
 
     public function confirmDelivery(Request $request, int $id, DeliveryConfirmationService $confirmations, OrderLifecycleService $lifecycle, ProductImageService $images, GeoDistanceService $geo): JsonResponse
     {
-        $order = WhatsappCart::reportable()->with(['contact', 'branch'])->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch'])->findOrFail($id);
 
         if (($order->metadata['pickup_mode'] ?? null) !== 'delivery') {
             return response()->json(['success' => false, 'message' => 'Este pedido no es de delivery.'], 422);
@@ -64,7 +65,7 @@ class DeliveryController extends Controller
             // se lo hacemos saber al vendedor en vez de perder el comprobante.
             return response()->json([
                 'success' => false,
-                'message' => 'Comprobante guardado, pero no se pudo marcar como entregado: ' . $e->getMessage(),
+                'message' => 'Comprobante guardado, pero no se pudo marcar como entregado: '.$e->getMessage(),
             ], 422);
         }
 
@@ -79,6 +80,7 @@ class DeliveryController extends Controller
     public function drivers(): JsonResponse
     {
         $drivers = DeliveryDriver::query()
+            ->where('business_profile_id', CompanyContext::current()->businessProfileId())
             ->active()
             ->orderByDesc('last_dispatched_at')
             ->orderBy('first_name')
@@ -99,11 +101,11 @@ class DeliveryController extends Controller
      */
     public function branchesForOrder(int $id): JsonResponse
     {
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
         $businessProfileId = CompanyContext::current()->businessProfileId();
 
         $branches = BusinessBranch::query()
-            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->forUserAccess(auth()->user(), $businessProfileId)
             ->where('is_active', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
@@ -125,23 +127,29 @@ class DeliveryController extends Controller
      */
     public function dispatchToDriver(Request $request, int $id, WhatsappService $whatsapp, GeoDistanceService $geo): JsonResponse
     {
-        $order = WhatsappCart::reportable()->with(['contact', 'branch'])->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch'])->findOrFail($id);
 
         if (($order->metadata['pickup_mode'] ?? null) !== 'delivery') {
             return response()->json(['success' => false, 'message' => 'Este pedido no es de delivery.'], 422);
         }
 
         $validated = $request->validate([
-            'driver_id' => ['nullable', 'integer', 'exists:delivery_drivers,id'],
+            'driver_id' => ['nullable', 'integer', Rule::exists('delivery_drivers', 'id')
+                ->where('business_profile_id', CompanyContext::current()->businessProfileId())],
             'first_name' => ['required_without:driver_id', 'nullable', 'string', 'max:100'],
             'last_name' => ['nullable', 'string', 'max:100'],
             'phone_number' => ['required_without:driver_id', 'nullable', 'string', 'max:30'],
             // El operador confirma desde qué sucursal se retira el pedido --
             // de ahí sale el origen de la ruta que se le manda al repartidor.
-            'branch_id' => ['required', 'integer', 'exists:business_branches,id'],
+            'branch_id' => ['required', 'integer', Rule::exists('business_branches', 'id')
+                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+                ->where('is_active', true)],
         ]);
 
-        if (!empty($validated['driver_id'])) {
+        $selectedBranch = BusinessBranch::findOrFail($validated['branch_id']);
+        abort_unless($request->user()->canAccessBranch($selectedBranch), 403);
+
+        if (! empty($validated['driver_id'])) {
             $driver = DeliveryDriver::findOrFail($validated['driver_id']);
         } else {
             $driver = DeliveryDriver::findOrCreateByPhone(
@@ -191,6 +199,7 @@ class DeliveryController extends Controller
     private function ordersPayload(GeoDistanceService $geo): array
     {
         return WhatsappCart::reportable()
+            ->forActiveCompany()
             ->where('metadata->pickup_mode', 'delivery')
             ->with(['contact', 'branch'])
             ->orderByRaw("CASE status
@@ -248,11 +257,11 @@ class DeliveryController extends Controller
             ],
             'address' => $location['manual_address'] ?? null,
             'recipient_name' => $metadata['delivery_recipient_name'] ?? null,
-            'last_dispatch_driver' => DeliveryDriver::summaryFor($metadata['last_dispatch_driver_id'] ?? null),
+            'last_dispatch_driver' => DeliveryDriver::summaryFor($metadata['last_dispatch_driver_id'] ?? null, $order->contact?->business_profile_id),
             // Pensado para el repartidor: si es efectivo, cuánto cobrar al
             // entregar; si ya se pagó por transferencia/tarjeta, que no cobre nada.
             'payment_dispatch_label' => match ($order->payment_method) {
-                'efectivo' => 'Efectivo — cobrar $' . number_format((float) $order->total, 2) . ' al entregar',
+                'efectivo' => 'Efectivo — cobrar $'.number_format((float) $order->total, 2).' al entregar',
                 'transferencia' => 'Transferencia o depósito (ya pagado, no cobrar)',
                 'tarjeta' => 'Tarjeta (ya pagado, no cobrar)',
                 default => 'No especificado',

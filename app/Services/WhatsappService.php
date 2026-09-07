@@ -3557,9 +3557,10 @@ class WhatsappService
     }
 
     /**
-     * Título del botón "Ver carrito" con un badge de cantidad de productos
-     * cuando hay algo agregado, para que el cliente note de un vistazo que
-     * ya tiene artículos esperando en el carrito.
+     * Título del botón que lleva al carrito, con un badge de cantidad de
+     * productos cuando hay algo agregado. Dice "Finalizar compra" (no "Ver
+     * carrito") porque este botón salta directo al resumen de checkout --
+     * pedido explícito del negocio para no meter un paso intermedio.
      */
     private function cartButtonTitle(int $itemCount): string
     {
@@ -3568,11 +3569,12 @@ class WhatsappService
         }
 
         // WhatsApp corta (o rechaza) títulos de botón de más de 20
-        // caracteres: se limita a 2 dígitos para que el título completo
-        // nunca pase de 19, sin importar cuántas unidades tenga el carrito.
+        // caracteres: se limita a 2 dígitos y se omite el espacio antes del
+        // paréntesis para que el título completo nunca pase de 20, sin
+        // importar cuántas unidades tenga el carrito.
         $badge = min($itemCount, 99);
 
-        return "🛒 Ver carrito ({$badge})";
+        return "Finalizar compra({$badge})";
     }
 
     private function cartItemCount(?WhatsappContact $contact): int
@@ -3908,63 +3910,6 @@ class WhatsappService
                 }
             }
 
-            // Paso 2.5 (RESPALDO): en el flujo normal, el método de pago ya
-            // se preguntó antes, al pedir cantidad o agregar el primer
-            // producto (ver interceptForPaymentMethod). Este bloque solo
-            // actúa si por algún motivo un carrito llega hasta acá sin
-            // payment_method guardado todavía.
-            if (($cart->metadata['service_type'] ?? null) === 'llevar' && empty($cart->payment_method)) {
-                $metadata = $cart->metadata ?? [];
-                $metadata['pending_payment_method'] = true;
-                $cart->metadata = $metadata;
-                $cart->save();
-
-                Log::info('[finalizarCompra] 💳 Solicitando método de pago', [
-                    'cart_id' => $cart->id,
-                    'contact_id' => $contact->id,
-                ]);
-
-                $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
-
-                return [
-                    'type' => 'interactive',
-                    'interactive' => [
-                        'type' => 'list',
-                        'body' => [
-                            'text' => $this->getCheckoutStepMessage(
-                                'payment_method',
-                                "💳 *Selecciona el método de pago*\n\nPor favor, elige cómo deseas realizar el pago:"
-                            ),
-                        ],
-                        'action' => [
-                            'button' => 'Seleccionar método de pago',
-                            'sections' => [
-                                [
-                                    'title' => 'Métodos de pago disponibles',
-                                    'rows' => array_values(array_filter([
-                                        $this->isPaymentMethodEnabled('transferencia') ? [
-                                            'id' => 'pago_transferencia_'.$cart->id,
-                                            'title' => '🏦 Transferencia',
-                                            'description' => 'Transferencia o depósito · envías el comprobante',
-                                        ] : null,
-                                        $this->isPaymentMethodEnabled('efectivo') ? [
-                                            'id' => 'pago_efectivo_'.$cart->id,
-                                            'title' => '💵 Pago en efectivo',
-                                            'description' => 'Pago en efectivo al recibir el pedido',
-                                        ] : null,
-                                        ($this->isPaymentMethodEnabled('tarjeta') && $cardPaymentUrl !== '') ? [
-                                            'id' => 'pago_tarjeta_'.$cart->id,
-                                            'title' => '💳 Pago con tarjeta',
-                                            'description' => 'Te mandamos un link para pagar en línea',
-                                        ] : null,
-                                    ])),
-                                ],
-                            ],
-                        ],
-                    ],
-                ];
-            }
-
             // Paso 3: retiro en local o delivery (solo aplica si es para
             // llevar). También se puede desactivar desde el editor visual.
             if (($cart->metadata['service_type'] ?? null) === 'llevar'
@@ -3985,6 +3930,42 @@ class WhatsappService
             if (($cart->metadata['pickup_mode'] ?? null) === 'delivery'
                 && empty($cart->metadata['delivery_location'] ?? null)) {
                 return $this->buildDeliveryLocationRequest($cart);
+            }
+
+            // El método de pago se solicita después de definir cómo se
+            // entregará el pedido. Así delivery puede pedir primero ubicación
+            // y receptor, y retiro no salta prematuramente al pago.
+            if (($cart->metadata['service_type'] ?? null) === 'llevar'
+                && ! empty($cart->note)
+                && empty($cart->payment_method)) {
+                $metadata = $cart->metadata ?? [];
+                $metadata['pending_payment_method'] = true;
+                $cart->metadata = $metadata;
+                $cart->save();
+
+                $cardPaymentUrl = trim((string) ($this->scopedChatbotConfig()?->metadata['card_payment_url'] ?? ''));
+
+                return [
+                    'type' => 'interactive',
+                    'interactive' => [
+                        'type' => 'list',
+                        'body' => ['text' => $this->getCheckoutStepMessage(
+                            'payment_method',
+                            "💳 *Selecciona el método de pago*\n\nPor favor, elige cómo deseas realizar el pago:"
+                        )],
+                        'action' => [
+                            'button' => 'Seleccionar método de pago',
+                            'sections' => [[
+                                'title' => 'Métodos de pago disponibles',
+                                'rows' => array_values(array_filter([
+                                    $this->isPaymentMethodEnabled('transferencia') ? ['id' => 'pago_transferencia_'.$cart->id, 'title' => '🏦 Transferencia', 'description' => 'Transferencia o depósito · envías el comprobante'] : null,
+                                    $this->isPaymentMethodEnabled('efectivo') ? ['id' => 'pago_efectivo_'.$cart->id, 'title' => '💵 Pago en efectivo', 'description' => 'Pago en efectivo al recibir el pedido'] : null,
+                                    ($this->isPaymentMethodEnabled('tarjeta') && $cardPaymentUrl !== '') ? ['id' => 'pago_tarjeta_'.$cart->id, 'title' => '💳 Pago con tarjeta', 'description' => 'Te mandamos un link para pagar en línea'] : null,
+                                ])),
+                            ]],
+                        ],
+                    ],
+                ];
             }
 
             // Si el carrito no tiene nota, solicitar la nota
@@ -4097,6 +4078,13 @@ class WhatsappService
                             [
                                 'type' => 'reply',
                                 'reply' => [
+                                    'id' => 'seguir_comprando',
+                                    'title' => '🛍️ Seguir comprando',
+                                ],
+                            ],
+                            [
+                                'type' => 'reply',
+                                'reply' => [
                                     'id' => 'cancelar_pedido_'.$cart->id,
                                     'title' => '❌ Cancelar pedido',
                                 ],
@@ -4125,9 +4113,28 @@ class WhatsappService
      */
     private function buildSucursalStep(WhatsappContact $contact, WhatsappCart $cart)
     {
+        $branches = BusinessBranch::where('business_profile_id', $this->businessProfile->id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get();
+
+        if ($branches->count() === 1) {
+            return $this->setSucursalPedido($contact, (int) $branches->first()->id, $cart->id);
+        }
+
+        if ($branches->isEmpty()) {
+            $branch = BusinessBranch::ensureDefaultForProfile($this->businessProfile);
+
+            return $this->setSucursalPedido($contact, (int) $branch->id, $cart->id);
+        }
+
         $lastBranchId = $contact->getLastBranchId();
         $lastBranch = $lastBranchId
-            ? BusinessBranch::where('id', $lastBranchId)->where('is_active', true)->first()
+            ? BusinessBranch::where('id', $lastBranchId)
+                ->where('business_profile_id', $this->businessProfile->id)
+                ->where('is_active', true)
+                ->first()
             : null;
 
         if ($lastBranch) {
@@ -4169,13 +4176,10 @@ class WhatsappService
             ->get();
 
         if ($branches->isEmpty()) {
-            // No hay sucursales configuradas todavía: no bloquear el pedido.
-            $metadata = $cart->metadata ?? [];
-            $metadata['branch_confirmed'] = true;
-            $cart->metadata = $metadata;
-            $cart->save();
+            $branch = BusinessBranch::ensureDefaultForProfile($this->businessProfile);
+            $cart->loadMissing('contact');
 
-            return $this->finalizarCompra($cart->contact);
+            return $this->setSucursalPedido($cart->contact, (int) $branch->id, $cart->id);
         }
 
         return [
@@ -4205,7 +4209,10 @@ class WhatsappService
         }
 
         $lastBranchId = $contact->getLastBranchId();
-        $branch = $lastBranchId ? BusinessBranch::where('id', $lastBranchId)->where('is_active', true)->first() : null;
+        $branch = $lastBranchId ? BusinessBranch::where('id', $lastBranchId)
+            ->where('business_profile_id', $this->businessProfile->id)
+            ->where('is_active', true)
+            ->first() : null;
 
         if (! $branch) {
             return $this->buildSucursalList($cart);
@@ -4438,6 +4445,10 @@ class WhatsappService
         }
 
         if (! $includeTotal) {
+            if ($pending) {
+                $lines .= ucfirst(implode(' y ', $pending)).": por confirmar\n";
+            }
+
             return $lines."\n";
         }
 
@@ -5982,7 +5993,9 @@ class WhatsappService
         DB::transaction(function () use ($contact, $items, $order, $messageId, &$cart) {
             $cart = WhatsappCart::create([
                 'contact_id' => $contact->id,
-                'status' => WhatsappCart::STATUS_PENDING,
+                // Aún falta confirmar sucursal y forma de entrega. Solo se
+                // convierte en pedido pendiente al terminar el checkout.
+                'status' => 'active',
                 'total' => 0,
                 'note' => $order['text'] ?? null,
                 'metadata' => [
@@ -6150,14 +6163,9 @@ class WhatsappService
             return;
         }
 
-        $orderNumber = $this->finalizeBulkWebOrder($cart);
-        $cart->refresh();
-        $community = $this->scopedChatbotConfig()?->community_name;
-        $greeting = $community ? "¡Pedido recibido! Gracias por ser parte de {$community}. ✨" : '¡Pedido recibido! ✨';
-        $this->sendMessage($from, [
-            'type' => 'text',
-            'text' => ['body' => "{$greeting}\n\n*N.º {$orderNumber}*\nTotal: *$".number_format((float) $cart->total, 2)."*\n\nEl equipo confirmará disponibilidad, preparación y entrega por este chat."],
-        ]);
+        // El Flow también debe respetar la sucursal y el checkout normal. Con
+        // una sola se asigna automáticamente; con varias se muestra la lista.
+        $this->sendMessage($from, $this->finalizarCompra($contact));
     }
 
     private function getProductDetails($productId, ?WhatsappContact $contact = null)
@@ -7390,6 +7398,13 @@ class WhatsappService
                             [
                                 'type' => 'reply',
                                 'reply' => [
+                                    'id' => 'seguir_comprando',
+                                    'title' => '🛍️ Seguir comprando',
+                                ],
+                            ],
+                            [
+                                'type' => 'reply',
+                                'reply' => [
                                     'id' => 'cancelar_pedido_'.$cart->id,
                                     'title' => '❌ Cancelar pedido',
                                 ],
@@ -7497,6 +7512,13 @@ class WhatsappService
                                 'reply' => [
                                     'id' => 'confirmar_pedido_'.$cart->id,
                                     'title' => '✅ Confirmar pedido',
+                                ],
+                            ],
+                            [
+                                'type' => 'reply',
+                                'reply' => [
+                                    'id' => 'seguir_comprando',
+                                    'title' => '🛍️ Seguir comprando',
                                 ],
                             ],
                             [

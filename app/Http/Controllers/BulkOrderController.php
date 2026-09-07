@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BusinessBranch;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,12 @@ class BulkOrderController extends Controller
 
         $contact = $record->contact;
         $businessProfile = $contact->businessProfile;
+        $branches = BusinessBranch::query()
+            ->where('business_profile_id', $contact->business_profile_id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'is_default']);
 
         return view('bulk-order.show', [
             'token' => $token,
@@ -25,6 +32,7 @@ class BulkOrderController extends Controller
             'businessName' => $businessProfile?->business_name ?: 'Pedido en línea',
             'expiresAt' => $record->expires_at,
             'existingCartItems' => $bulkOrders->existingCartItems($contact),
+            'branches' => $branches,
             // Keep the API calls on the exact host where the storefront was opened.
             // This avoids a public ngrok page trying to fetch its catalog from localhost.
             'catalogUrl' => route('bulk-order.catalog', ['token' => $token], false),
@@ -60,13 +68,15 @@ class BulkOrderController extends Controller
             'items.*.extras.*' => ['string', 'max:120'],
             'items.*.note' => ['nullable', 'string', 'max:500'],
             'order_note' => ['nullable', 'string', 'max:1000'],
+            'branch_id' => ['nullable', 'integer'],
         ]);
 
         try {
             $cart = $bulkOrders->submitFromForm(
                 $record,
                 $validated['items'],
-                $validated['order_note'] ?? null
+                $validated['order_note'] ?? null,
+                $validated['branch_id'] ?? null,
             );
 
             $bulkOrders->notifyContactViaWhatsapp($cart);

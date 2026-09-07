@@ -2,18 +2,27 @@
 
 namespace App\Models;
 
+use App\Support\CompanyContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 class WhatsappCart extends Model
 {
     const STATUS_PENDING = 'pending';
+
     const STATUS_CONFIRMED = 'confirmed';
+
     const STATUS_PREPARING = 'preparing';
+
     const STATUS_READY = 'ready';
+
     const STATUS_COMPLETED = 'completed';
+
     const STATUS_CANCELLED = 'cancelled';
+
     const STATUS_PAYMENT_PENDING = 'payment_pending';
+
     const STATUS_PAID = 'paid';
 
     protected $fillable = [
@@ -40,18 +49,42 @@ class WhatsappCart extends Model
 
     protected static function booted(): void
     {
-        // Pedidos que nacen desde WhatsApp o un Flow no presentan selector de
-        // local. Se asignan de forma consistente a la sucursal predeterminada.
+        // Solo se asigna automáticamente cuando la empresa tiene una única
+        // sucursal activa. Con varias, el canal de compra debe pedir una
+        // selección explícita al cliente u operador.
         static::creating(function (self $cart): void {
             if ($cart->branch_id) {
                 return;
             }
 
-            $cart->branch_id = BusinessBranch::query()
+            $businessProfileId = WhatsappContact::query()
+                ->whereKey($cart->contact_id)
+                ->value('business_profile_id');
+
+            if (! $businessProfileId) {
+                return;
+            }
+
+            $branches = BusinessBranch::query()
+                ->where('business_profile_id', $businessProfileId)
                 ->where('is_active', true)
                 ->orderByDesc('is_default')
                 ->orderBy('id')
-                ->value('id');
+                ->limit(2)
+                ->pluck('id');
+
+            if ($branches->isEmpty()) {
+                $profile = WhatsappBusinessProfile::find($businessProfileId);
+                if ($profile) {
+                    $cart->branch_id = BusinessBranch::ensureDefaultForProfile($profile)->id;
+                }
+
+                return;
+            }
+
+            if ($branches->count() === 1) {
+                $cart->branch_id = (int) $branches->first();
+            }
         });
     }
 
@@ -92,21 +125,30 @@ class WhatsappCart extends Model
     public function scopeForActiveCompany($query)
     {
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return $query;
         }
 
         try {
-            $businessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+            $businessProfileId = CompanyContext::current()->businessProfileId();
         } catch (\Throwable $e) {
-            return $query;
+            // En aislamiento multiempresa es preferible no devolver nada a
+            // exponer pedidos de otro tenant cuando el contexto esté incompleto.
+            return $query->whereRaw('1 = 0');
         }
 
-        if (!$businessProfileId) {
-            return $query;
+        if (! $businessProfileId) {
+            return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereHas('contact', fn ($q) => $q->where('business_profile_id', $businessProfileId));
+        $query->whereHas('contact', fn ($q) => $q->where('business_profile_id', $businessProfileId));
+
+        $branchIds = $user->accessibleBranchIds($businessProfileId);
+        if ($branchIds !== null) {
+            $query->whereIn('branch_id', $branchIds);
+        }
+
+        return $query;
     }
 
     public function isPending()
@@ -177,13 +219,13 @@ class WhatsappCart extends Model
 
     public function hasPaymentProof(): bool
     {
-        return !empty($this->metadata['payment_proof']);
+        return ! empty($this->metadata['payment_proof']);
     }
 
     public function isAwaitingPaymentProof(): bool
     {
         return $this->payment_status === 'awaiting_proof'
-            || !empty($this->metadata['pending_payment_proof']);
+            || ! empty($this->metadata['pending_payment_proof']);
     }
 
     public function attachPaymentProof(array $proofData): void
@@ -208,7 +250,7 @@ class WhatsappCart extends Model
     public function getOrderNumber(): string
     {
         return $this->metadata['order_details']['order_number']
-            ?? 'ORD-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+            ?? 'ORD-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
     }
 
     public function paymentProofMessage(): ?WhatsappMessage
@@ -261,12 +303,12 @@ class WhatsappCart extends Model
     }
 
     /** Desde cuándo espera el costo pendiente (para medir demoras), o null si no hay ninguno registrado. */
-    public function pendingFulfillmentSince(): ?\Illuminate\Support\Carbon
+    public function pendingFulfillmentSince(): ?Carbon
     {
         $metadata = $this->metadata ?? [];
         $raw = $metadata['delivery_fee_pending_since'] ?? $metadata['pickup_fee_pending_since'] ?? null;
 
-        return $raw ? \Illuminate\Support\Carbon::parse($raw) : null;
+        return $raw ? Carbon::parse($raw) : null;
     }
 
     /** Autoservicio del cliente (no un admin): solo antes de que caja marque el pedido como pagado o en preparación. */

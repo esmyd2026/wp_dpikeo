@@ -50,7 +50,12 @@ class User extends Authenticatable
 
     public function companies(): BelongsToMany
     {
-        return $this->belongsToMany(Company::class);
+        return $this->belongsToMany(Company::class)->withPivot('role_id')->withTimestamps();
+    }
+
+    public function branches(): BelongsToMany
+    {
+        return $this->belongsToMany(BusinessBranch::class, 'business_branch_user')->withTimestamps();
     }
 
     /**
@@ -74,6 +79,65 @@ class User extends Authenticatable
         return $this->companies()->whereKey($company->id)->exists();
     }
 
+    /**
+     * Sin filas explícitas para una empresa significa "todas sus sucursales".
+     * Esto conserva el acceso de usuarios existentes y permite que una nueva
+     * sucursal quede disponible automáticamente para administradores generales.
+     */
+    public function hasAllBranchAccess(?int $businessProfileId): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        return ! $this->branches()
+            ->where('business_branches.business_profile_id', $businessProfileId)
+            ->exists();
+    }
+
+    public function accessibleBranchIds(?int $businessProfileId): ?array
+    {
+        if ($this->hasAllBranchAccess($businessProfileId)) {
+            return null;
+        }
+
+        return $this->branches()
+            ->where('business_branches.business_profile_id', $businessProfileId)
+            ->pluck('business_branches.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    public function canAccessBranch(BusinessBranch $branch): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $company = $branch->businessProfile?->company;
+        if (! $company || ! $this->canAccessCompany($company)) {
+            return false;
+        }
+
+        $ids = $this->accessibleBranchIds($branch->business_profile_id);
+
+        return $ids === null || in_array((int) $branch->id, $ids, true);
+    }
+
+    public function roleForCompany(?Company $company): ?Role
+    {
+        if (! $company || $this->isSuperAdmin()) {
+            return $this->roleModel;
+        }
+
+        $membership = $this->companies()
+            ->whereKey($company->id)
+            ->first();
+        $roleId = $membership?->pivot?->role_id;
+
+        return $roleId ? Role::find($roleId) : $this->roleModel;
+    }
+
     public function isActive(): bool
     {
         return ($this->is_active ?? true) === true;
@@ -93,9 +157,9 @@ class User extends Authenticatable
         return app(PermissionService::class)->userCan($this, $key);
     }
 
-    public function roleLabel(): string
+    public function roleLabel(?Company $company = null): string
     {
-        return $this->roleModel?->name
+        return $this->roleForCompany($company)?->name
             ?? match ($this->role) {
                 'super_admin' => 'Super Administrador',
                 'admin' => 'Administrador',

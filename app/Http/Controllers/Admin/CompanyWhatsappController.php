@@ -3,8 +3,20 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\BusinessBranch;
 use App\Models\Company;
+use App\Models\Franchise;
+use App\Models\MarketingFlow;
+use App\Models\MarketingFlowEdge;
+use App\Models\MarketingFlowNode;
+use App\Models\MarketingFlowStep;
+use App\Models\MarketingFlowVersion;
 use App\Models\WhatsappBusinessProfile;
+use App\Models\WhatsappChatbotConfig;
+use App\Models\WhatsappContact;
+use App\Models\WhatsappMenu;
+use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappPrice;
 use App\Services\MetaEmbeddedSignupService;
 use App\Services\MetaGraphService;
 use Illuminate\Http\Request;
@@ -56,7 +68,7 @@ class CompanyWhatsappController extends Controller
         $baseSlug = $slug;
         $suffix = 1;
         while (Company::where('slug', $slug)->exists()) {
-            $slug = "{$baseSlug}-" . ++$suffix;
+            $slug = "{$baseSlug}-".++$suffix;
         }
 
         $company = Company::create([
@@ -69,8 +81,8 @@ class CompanyWhatsappController extends Controller
         // Sin esto, un admin no-super_admin que crea una empresa quedaría
         // sin acceso a la que acaba de crear.
         $user = auth()->user();
-        if (!$user->isSuperAdmin()) {
-            $company->users()->attach($user->id);
+        if (! $user->isSuperAdmin()) {
+            $company->users()->attach($user->id, ['role_id' => $user->role_id]);
         }
 
         return redirect()->route('admin.empresas.whatsapp', $company)
@@ -164,7 +176,7 @@ class CompanyWhatsappController extends Controller
             ->where('phone_number_id', $validated['phone_number_id'])
             ->first();
 
-        if (!$profile) {
+        if (! $profile) {
             $profile = new WhatsappBusinessProfile([
                 'company_id' => $company->id,
                 'business_name' => $company->name,
@@ -180,7 +192,7 @@ class CompanyWhatsappController extends Controller
         // El token no se muestra en el formulario por seguridad. Si el campo
         // llega vacío, se asume que el usuario no quiso cambiarlo y se deja
         // el que ya estaba guardado.
-        if (!empty($validated['access_token'])) {
+        if (! empty($validated['access_token'])) {
             $profile->access_token = $validated['access_token'];
             $profile->connected_at = now();
             $profile->status = WhatsappBusinessProfile::STATUS_CONNECTED;
@@ -188,6 +200,7 @@ class CompanyWhatsappController extends Controller
         }
 
         $profile->save();
+        BusinessBranch::ensureDefaultForProfile($profile);
 
         return redirect()->route('admin.empresas.whatsapp', $company)
             ->with('success', 'Credenciales de WhatsApp guardadas correctamente.');
@@ -217,7 +230,7 @@ class CompanyWhatsappController extends Controller
         $this->authorizeCompany($company);
         $this->authorizeProfile($company, $profile);
 
-        if (!$profile->phone_number_id || !$profile->access_token) {
+        if (! $profile->phone_number_id || ! $profile->access_token) {
             return response()->json([
                 'ok' => false,
                 'message' => 'Esta conexión no tiene Phone Number ID o token guardado; no hay nada que probar.',
@@ -251,7 +264,7 @@ class CompanyWhatsappController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Conexión con problemas: ' . $e->getMessage(),
+                'message' => 'Conexión con problemas: '.$e->getMessage(),
                 'checked_at' => $profile->last_verified_at->toIso8601String(),
             ]);
         }
@@ -326,23 +339,23 @@ class CompanyWhatsappController extends Controller
             return back()->with('error', 'Desconectá este número antes de eliminarlo.');
         }
 
-        if (\App\Models\WhatsappContact::where('business_profile_id', $profile->id)->exists()) {
+        if (WhatsappContact::where('business_profile_id', $profile->id)->exists()) {
             return back()->with('error', 'No se puede eliminar: este número tiene contactos o pedidos asociados. Para conservar ese historial, dejalo desconectado en vez de borrarlo.');
         }
 
         DB::transaction(function () use ($profile) {
-            \App\Models\WhatsappPrice::where('business_profile_id', $profile->id)->delete();
-            \App\Models\WhatsappMenuItem::where('business_profile_id', $profile->id)->delete();
-            \App\Models\WhatsappMenu::where('business_profile_id', $profile->id)->delete();
-            \App\Models\WhatsappChatbotConfig::where('business_profile_id', $profile->id)->delete();
-            \App\Models\Franchise::where('business_profile_id', $profile->id)->delete();
-            \App\Models\BusinessBranch::where('business_profile_id', $profile->id)->delete();
+            WhatsappPrice::where('business_profile_id', $profile->id)->delete();
+            WhatsappMenuItem::where('business_profile_id', $profile->id)->delete();
+            WhatsappMenu::where('business_profile_id', $profile->id)->delete();
+            WhatsappChatbotConfig::where('business_profile_id', $profile->id)->delete();
+            Franchise::where('business_profile_id', $profile->id)->delete();
+            BusinessBranch::where('business_profile_id', $profile->id)->delete();
 
-            foreach (\App\Models\MarketingFlow::where('business_profile_id', $profile->id)->get() as $flow) {
-                \App\Models\MarketingFlowStep::where('flow_id', $flow->id)->delete();
-                \App\Models\MarketingFlowEdge::where('flow_id', $flow->id)->delete();
-                \App\Models\MarketingFlowNode::where('flow_id', $flow->id)->delete();
-                \App\Models\MarketingFlowVersion::where('flow_id', $flow->id)->delete();
+            foreach (MarketingFlow::where('business_profile_id', $profile->id)->get() as $flow) {
+                MarketingFlowStep::where('flow_id', $flow->id)->delete();
+                MarketingFlowEdge::where('flow_id', $flow->id)->delete();
+                MarketingFlowNode::where('flow_id', $flow->id)->delete();
+                MarketingFlowVersion::where('flow_id', $flow->id)->delete();
                 $flow->delete();
             }
 

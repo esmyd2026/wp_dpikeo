@@ -43,13 +43,15 @@ class DeliveryDriver extends Model
      *
      * @return array{id:int,name:string,phone_number:string}|null
      */
-    public static function summaryFor(?int $driverId): ?array
+    public static function summaryFor(?int $driverId, ?int $businessProfileId = null): ?array
     {
         if (!$driverId) {
             return null;
         }
 
-        $driver = static::find($driverId);
+        $driver = static::query()
+            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->find($driverId);
         if (!$driver) {
             return null;
         }

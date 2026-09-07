@@ -41,6 +41,7 @@ class KitchenBoardController extends Controller
     public function print(int $id): View
     {
         $order = WhatsappCart::reportable()
+            ->forActiveCompany()
             ->with(['items.product', 'contact', 'branch'])
             ->findOrFail($id);
 
@@ -64,7 +65,7 @@ class KitchenBoardController extends Controller
             'status' => ['required', 'string', 'in:preparing,ready,completed'],
         ]);
 
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
 
         try {
             $order = $lifecycle->transition($order, $validated['status'], (int) $request->user()->id);

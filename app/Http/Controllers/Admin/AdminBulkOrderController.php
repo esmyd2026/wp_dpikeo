@@ -11,6 +11,7 @@ use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class AdminBulkOrderController extends Controller
@@ -49,7 +50,7 @@ class AdminBulkOrderController extends Controller
             'contactsSearchUrl' => route('admin.orders.bulk.contacts'),
             'contactsCreateUrl' => route('admin.orders.bulk.contacts.store'),
             'ordersUrl' => route('admin.orders'),
-            'branches' => BusinessBranch::query()->where('is_active', true)->where('business_profile_id', $this->businessProfileId())->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code']),
+            'branches' => BusinessBranch::query()->forUserAccess($request->user(), $this->businessProfileId())->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']),
         ]);
     }
 
@@ -189,12 +190,19 @@ class AdminBulkOrderController extends Controller
             'order_note' => ['nullable', 'string', 'max:1000'],
             'notify_whatsapp' => ['sometimes', 'boolean'],
             'requires_invoice' => ['sometimes', 'boolean'],
-            'branch_id' => ['nullable', 'integer', 'exists:business_branches,id'],
+            'branch_id' => ['nullable', 'integer', Rule::exists('business_branches', 'id')
+                ->where('business_profile_id', $this->businessProfileId())
+                ->where('is_active', true)],
         ]);
 
         $contact = WhatsappContact::query()
             ->where('business_profile_id', $this->businessProfileId())
             ->findOrFail($validated['contact_id']);
+
+        if (! empty($validated['branch_id'])) {
+            $branch = BusinessBranch::findOrFail($validated['branch_id']);
+            abort_unless($request->user()->canAccessBranch($branch), 403);
+        }
 
         try {
             $cart = $this->bulkOrders->submitFromAdmin(

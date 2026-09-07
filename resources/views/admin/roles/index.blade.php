@@ -232,7 +232,7 @@
                                                     @if($role->slug === 'super_admin' && !auth()->user()->isSuperAdmin())
                                                         @continue
                                                     @endif
-                                                    <option value="{{ $role->id }}" @selected($user->role_id === $role->id)>{{ $role->name }}</option>
+                                                    <option value="{{ $role->id }}" @selected($user->getAttribute('active_role_id') === $role->id)>{{ $role->name }}</option>
                                                 @endforeach
                                             </select>
                                             <button type="submit" class="btn btn-sm btn-outline-primary">Aplicar</button>

@@ -174,7 +174,7 @@ class BulkOrderService
     /**
      * @param  array<int, array{product_id: int, quantity: int, variation?: string|null, extras?: array<int, string>, note?: string|null}>  $items
      */
-    public function submitFromForm(BulkOrderToken $token, array $items, ?string $orderNote = null): WhatsappCart
+    public function submitFromForm(BulkOrderToken $token, array $items, ?string $orderNote = null, ?int $branchId = null): WhatsappCart
     {
         if (! $token->isValid()) {
             throw new InvalidArgumentException('El enlace expiró o ya fue utilizado.');
@@ -192,6 +192,8 @@ class BulkOrderService
             [
                 'source' => 'bulk_web_form',
                 'bulk_order_token_id' => $token->id,
+                'branch_id' => $branchId,
+                'branch_confirmed' => true,
                 'submitted_at' => now()->toIso8601String(),
             ]
         );
@@ -339,12 +341,7 @@ class BulkOrderService
                 ->where('status', 'active')
                 ->update(['status' => 'abandoned']);
 
-            $branchId = isset($metadata['branch_id']) && BusinessBranch::query()
-                ->whereKey((int) $metadata['branch_id'])
-                ->where('is_active', true)
-                ->exists()
-                ? (int) $metadata['branch_id']
-                : BusinessBranch::query()->where('is_active', true)->orderByDesc('is_default')->value('id');
+            $branchId = $this->resolveBranchId($contact, $metadata['branch_id'] ?? null);
 
             $cart = WhatsappCart::create([
                 'contact_id' => $contact->id,
@@ -470,6 +467,42 @@ class BulkOrderService
 
             return $cart->load('items');
         });
+    }
+
+    private function resolveBranchId(WhatsappContact $contact, mixed $requestedBranchId): int
+    {
+        $branches = BusinessBranch::query()
+            ->where('business_profile_id', $contact->business_profile_id)
+            ->where('is_active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->get(['id']);
+
+        if ($branches->isEmpty()) {
+            $profile = $contact->businessProfile;
+            if (! $profile) {
+                throw new InvalidArgumentException('No se pudo determinar la empresa que recibirá el pedido.');
+            }
+
+            // Resguardo para conexiones antiguas o importadas que todavía no
+            // tengan local: se crea su propia Matriz, nunca se toma una global.
+            return (int) BusinessBranch::ensureDefaultForProfile($profile)->id;
+        }
+
+        if ($requestedBranchId !== null && $requestedBranchId !== '') {
+            $requested = (int) $requestedBranchId;
+            if ($branches->contains(fn (BusinessBranch $branch) => (int) $branch->id === $requested)) {
+                return $requested;
+            }
+
+            throw new InvalidArgumentException('La sucursal seleccionada no pertenece a esta empresa o está inactiva.');
+        }
+
+        if ($branches->count() === 1) {
+            return (int) $branches->first()->id;
+        }
+
+        throw new InvalidArgumentException('Selecciona la sucursal que atenderá el pedido.');
     }
 
     public function notifyContactViaWhatsapp(WhatsappCart $cart): void

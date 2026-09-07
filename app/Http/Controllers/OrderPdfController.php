@@ -10,7 +10,7 @@ class OrderPdfController extends Controller
 {
     public function downloadAdmin(int $id, OrderPdfService $pdf): Response
     {
-        $order = WhatsappCart::reportable()->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
 
         return $pdf->download($order);
     }

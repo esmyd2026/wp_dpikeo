@@ -10,6 +10,7 @@ class Role extends Model
 {
     protected $fillable = [
         'slug',
+        'company_id',
         'name',
         'description',
         'is_system',
@@ -27,6 +28,11 @@ class Role extends Model
     public function users(): HasMany
     {
         return $this->hasMany(User::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function permissionKeys(): array
