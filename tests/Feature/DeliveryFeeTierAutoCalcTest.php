@@ -9,6 +9,7 @@ use App\Models\WhatsappCart;
 use App\Models\WhatsappContact;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -50,6 +51,17 @@ class DeliveryFeeTierAutoCalcTest extends TestCase
         return [$branch, $contact];
     }
 
+    /** OSRM real queda fuera de los tests -- se simula una distancia por calle fija (2 km) para que sean deterministas. */
+    private function fakeOsrm(float $km = 2.0): void
+    {
+        Http::fake([
+            'router.project-osrm.org/*' => Http::response([
+                'code' => 'Ok',
+                'routes' => [['distance' => $km * 1000, 'duration' => 300]],
+            ], 200),
+        ]);
+    }
+
     private function cartAwaitingRecipientName(WhatsappContact $contact, BusinessBranch $branch, array $location): WhatsappCart
     {
         return WhatsappCart::create([
@@ -64,6 +76,7 @@ class DeliveryFeeTierAutoCalcTest extends TestCase
 
     public function test_fee_is_calculated_automatically_when_the_customer_shared_real_coordinates_and_a_tier_matches(): void
     {
+        $this->fakeOsrm(2.0);
         [$branch, $contact] = $this->fixture();
         BusinessBranchDeliveryFeeTier::create(['business_branch_id' => $branch->id, 'from_km' => 0, 'to_km' => 999, 'price' => 3.50]);
         $cart = $this->cartAwaitingRecipientName($contact, $branch, ['latitude' => -2.1600, 'longitude' => -79.9100]);
@@ -81,6 +94,7 @@ class DeliveryFeeTierAutoCalcTest extends TestCase
 
     public function test_falls_back_to_manual_review_when_the_distance_is_outside_every_configured_tier(): void
     {
+        $this->fakeOsrm(2.0);
         [$branch, $contact] = $this->fixture();
         BusinessBranchDeliveryFeeTier::create(['business_branch_id' => $branch->id, 'from_km' => 0, 'to_km' => 0.01, 'price' => 3.50]);
         $cart = $this->cartAwaitingRecipientName($contact, $branch, ['latitude' => -2.1600, 'longitude' => -79.9100]);
@@ -96,6 +110,7 @@ class DeliveryFeeTierAutoCalcTest extends TestCase
 
     public function test_falls_back_to_manual_review_when_the_branch_has_no_tiers_configured(): void
     {
+        $this->fakeOsrm(2.0);
         [$branch, $contact] = $this->fixture();
         $cart = $this->cartAwaitingRecipientName($contact, $branch, ['latitude' => -2.1600, 'longitude' => -79.9100]);
 

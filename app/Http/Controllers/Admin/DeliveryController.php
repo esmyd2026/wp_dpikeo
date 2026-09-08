@@ -303,9 +303,17 @@ class DeliveryController extends Controller
         $hasOriginCoords = $branch?->latitude && $branch?->longitude;
         $hasDestCoords = $destLat !== null && $destLon !== null;
 
-        $distanceKm = ($hasOriginCoords && $hasDestCoords)
-            ? round($geo->distanceKm((float) $branch->latitude, (float) $branch->longitude, (float) $destLat, (float) $destLon), 1)
-            : null;
+        // Preferí la distancia ya calculada en el checkout (real, por
+        // calle, con el margen de seguridad -- ver
+        // WhatsappService::applyDeliveryRecipientName). Esta pantalla se
+        // refresca sola cada 15s, así que NO se vuelve a consultar el
+        // servicio externo acá: si no quedó guardada (pedido armado desde
+        // el panel, o dirección escrita a mano), se muestra la línea recta
+        // solo como referencia visual para el operador.
+        $distanceKm = $metadata['delivery_distance_km']
+            ?? (($hasOriginCoords && $hasDestCoords)
+                ? round($geo->distanceKm((float) $branch->latitude, (float) $branch->longitude, (float) $destLat, (float) $destLon), 1)
+                : null);
 
         $origin = $hasOriginCoords
             ? "{$branch->latitude},{$branch->longitude}"

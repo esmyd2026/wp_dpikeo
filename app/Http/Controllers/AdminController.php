@@ -422,234 +422,160 @@ class AdminController extends Controller
             ->orderBy('created_at')
             ->get();
 
-        // Calcular estadísticas del contacto actual
+        // Todas las estadísticas de abajo se calculan en memoria sobre esta
+        // misma colección -- antes cada métrica hacía su propia consulta a
+        // la base de datos (más de 20 en total), y "tiempo de respuesta"
+        // hacía además una consulta POR CADA mensaje del cliente (repetido
+        // dentro de un loop de 7 días, y otra vez por cada mensaje del
+        // sistema para la tasa de respuesta del cliente): con una
+        // conversación de actividad moderada eran cientos de consultas
+        // extra solo para abrir un chat. La tabla de mensajes de un
+        // contacto es chica (decenas de filas), así que traerla una sola
+        // vez y filtrar en memoria es muchísimo más rápido.
         $now = Carbon::now();
         $thirtyDaysAgo = $now->copy()->subDays(30);
         $sixtyDaysAgo = $now->copy()->subDays(60);
 
-        // Total de mensajes del contacto
-        $totalMessages = WhatsappMessage::where('contact_id', $contactId)->count();
-        $lastMonthMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)->count();
-        $previousMonthMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        $isClient = fn ($m) => $m->sender_type === 'client';
+        $isSystem = fn ($m) => $m->sender_type === 'system';
+
+        $totalMessages = $messages->count();
+        $lastMonth = $messages->filter(fn ($m) => $m->created_at->gte($thirtyDaysAgo))->values();
+        $previousMonth = $messages->filter(fn ($m) => $m->created_at->gte($sixtyDaysAgo) && $m->created_at->lt($thirtyDaysAgo))->values();
+        $lastMonthMessages = $lastMonth->count();
+        $previousMonthMessages = $previousMonth->count();
         $messageGrowth = $previousMonthMessages > 0
             ? round((($lastMonthMessages - $previousMonthMessages) / $previousMonthMessages) * 100, 1)
             : 0;
 
         // Tasa de respuesta (mensajes del sistema / mensajes del cliente)
-        $totalResponses = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
-        $totalInbound = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
+        $totalResponses = $lastMonth->filter($isSystem)->count();
+        $totalInbound = $lastMonth->filter($isClient)->count();
         $responseRate = $totalInbound > 0 ? round(($totalResponses / $totalInbound) * 100, 1) : 0;
 
-        $previousResponses = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'system')
-            ->whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])
-            ->count();
-        $previousInbound = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])
-            ->count();
+        $previousResponses = $previousMonth->filter($isSystem)->count();
+        $previousInbound = $previousMonth->filter($isClient)->count();
         $previousResponseRate = $previousInbound > 0 ? ($previousResponses / $previousInbound) * 100 : 0;
         $responseRateGrowth = $previousResponseRate > 0
             ? round((($responseRate - $previousResponseRate) / $previousResponseRate) * 100, 1)
             : 0;
 
-        // Tiempo promedio de respuesta (calcular tiempo entre mensaje del cliente y respuesta del sistema)
+        // Tiempo promedio de respuesta: para cada mensaje del cliente
+        // (últimos 30 días), el próximo mensaje del sistema que le sigue,
+        // sin importar el día.
+        $nextSystemAfter = $this->nextMessageBySenderType($messages, 'system');
         $responseTimes = [];
-        $clientMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->orderBy('created_at')
-            ->get();
-
-        foreach ($clientMessages as $clientMsg) {
-            $nextSystemMsg = WhatsappMessage::where('contact_id', $contactId)
-                ->where('sender_type', 'system')
-                ->where('created_at', '>', $clientMsg->created_at)
-                ->orderBy('created_at')
-                ->first();
-
-            if ($nextSystemMsg) {
-                $responseTimes[] = $clientMsg->created_at->diffInMinutes($nextSystemMsg->created_at);
+        foreach ($messages as $i => $msg) {
+            if (! $isClient($msg) || $msg->created_at->lt($thirtyDaysAgo)) {
+                continue;
+            }
+            if ($nextSystemMsg = $nextSystemAfter[$i] ?? null) {
+                $responseTimes[] = $msg->created_at->diffInMinutes($nextSystemMsg->created_at);
             }
         }
-
         $avgResponseTime = count($responseTimes) > 0
             ? round(array_sum($responseTimes) / count($responseTimes), 1).'m'
             : '0m';
 
         // Mensajes con botones/interactivos
-        $buttonMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->where(function ($q) {
-                $q->where('type', 'button')
-                    ->orWhere('type', 'interactive')
-                    ->orWhere(function ($subQ) {
-                        $subQ->whereRaw('JSON_VALID(content) = 1')
-                            ->where(function ($jsonQ) {
-                                $jsonQ->whereRaw("JSON_EXTRACT(content, '$.type') = 'button_reply'")
-                                    ->orWhereRaw("JSON_EXTRACT(content, '$.type') = 'list_reply'");
-                            });
-                    });
-            })
-            ->count();
+        $isButtonMessage = function ($m) {
+            if (in_array($m->type, ['button', 'interactive'], true)) {
+                return true;
+            }
+            $decoded = json_decode((string) $m->content, true);
+
+            return is_array($decoded) && in_array($decoded['type'] ?? null, ['button_reply', 'list_reply'], true);
+        };
+        $buttonMessages = $lastMonth->filter($isButtonMessage)->count();
         $buttonMessagesRate = $lastMonthMessages > 0 ? round(($buttonMessages / $lastMonthMessages) * 100, 1) : 0;
 
         // Tasa de interacción
-        $interactions = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
-        $totalOutbound = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
+        $interactions = $totalInbound;
+        $totalOutbound = $totalResponses;
         $interactionRate = $totalOutbound > 0 ? round(($interactions / $totalOutbound) * 100, 1) : 0;
 
         // Mensajes por día de la semana (últimos 7 días)
+        $messagesByDate = $messages->groupBy(fn ($m) => $m->created_at->format('Y-m-d'));
         $messagesByDay = [];
         $days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
         for ($i = 6; $i >= 0; $i--) {
             $date = $now->copy()->subDays($i);
             $dayName = $days[$date->dayOfWeek];
-            $sent = WhatsappMessage::where('contact_id', $contactId)
-                ->where('sender_type', 'system')
-                ->whereDate('created_at', $date->format('Y-m-d'))
-                ->count();
-            $received = WhatsappMessage::where('contact_id', $contactId)
-                ->where('sender_type', 'client')
-                ->whereDate('created_at', $date->format('Y-m-d'))
-                ->count();
+            $dayMessages = $messagesByDate->get($date->format('Y-m-d')) ?? collect();
             $messagesByDay[] = [
                 'day' => $dayName,
-                'sent' => $sent,
-                'received' => $received,
+                'sent' => $dayMessages->filter($isSystem)->count(),
+                'received' => $dayMessages->filter($isClient)->count(),
             ];
         }
 
-        // Tiempo de respuesta por día
+        // Tiempo de respuesta por día (el próximo mensaje del sistema, solo si es del mismo día)
         $responseTimeByDay = [];
         for ($i = 6; $i >= 0; $i--) {
             $date = $now->copy()->subDays($i);
             $dayName = $days[$date->dayOfWeek];
+            $dayMessages = ($messagesByDate->get($date->format('Y-m-d')) ?? collect())->values();
+            $dayNextSystemAfter = $this->nextMessageBySenderType($dayMessages, 'system');
+
             $dayResponseTimes = [];
-
-            $dayClientMessages = WhatsappMessage::where('contact_id', $contactId)
-                ->where('sender_type', 'client')
-                ->whereDate('created_at', $date->format('Y-m-d'))
-                ->orderBy('created_at')
-                ->get();
-
-            foreach ($dayClientMessages as $clientMsg) {
-                $nextSystemMsg = WhatsappMessage::where('contact_id', $contactId)
-                    ->where('sender_type', 'system')
-                    ->where('created_at', '>', $clientMsg->created_at)
-                    ->whereDate('created_at', $date->format('Y-m-d'))
-                    ->orderBy('created_at')
-                    ->first();
-
-                if ($nextSystemMsg) {
-                    $dayResponseTimes[] = $clientMsg->created_at->diffInMinutes($nextSystemMsg->created_at);
+            foreach ($dayMessages as $j => $msg) {
+                if (! $isClient($msg)) {
+                    continue;
+                }
+                if ($nextSystemMsg = $dayNextSystemAfter[$j] ?? null) {
+                    $dayResponseTimes[] = $msg->created_at->diffInMinutes($nextSystemMsg->created_at);
                 }
             }
 
-            $avgTime = count($dayResponseTimes) > 0
-                ? round(array_sum($dayResponseTimes) / count($dayResponseTimes), 1)
-                : 0;
-
             $responseTimeByDay[] = [
                 'day' => $dayName,
-                'time' => $avgTime,
+                'time' => count($dayResponseTimes) > 0 ? round(array_sum($dayResponseTimes) / count($dayResponseTimes), 1) : 0,
             ];
         }
 
         // Distribución de tipos de mensajes
-        $messageTypes = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('type, COUNT(*) as count')
-            ->groupBy('type')
-            ->get()
-            ->pluck('count', 'type')
-            ->toArray();
+        $messageTypes = $lastMonth->groupBy('type')->map->count()->toArray();
 
         // NUEVOS INDICADORES ÚTILES
 
         // 1. Mensajes enviados vs recibidos (últimos 30 días)
-        $sentMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
-        $receivedMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
+        $sentMessages = $totalResponses;
+        $receivedMessages = $totalInbound;
         $sentReceivedRatio = $receivedMessages > 0 ? round($sentMessages / $receivedMessages, 2) : 0;
 
         // 2. Última actividad
-        $lastMessage = WhatsappMessage::where('contact_id', $contactId)
-            ->orderByDesc('created_at')
-            ->first();
+        $lastMessage = $messages->last();
         $lastActivity = $lastMessage ? $lastMessage->created_at->diffForHumans() : 'Nunca';
         $lastActivityDate = $lastMessage ? $lastMessage->created_at->format('d/m/Y H:i') : 'N/A';
 
         // 3. Hora de mayor actividad (últimos 30 días)
-        $messagesByHour = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('HOUR(created_at) as hour, COUNT(*) as count')
-            ->groupBy('hour')
-            ->orderByDesc('count')
-            ->first();
-        $peakHour = $messagesByHour ? $messagesByHour->hour.':00' : 'N/A';
+        $messagesByHour = $lastMonth->groupBy(fn ($m) => $m->created_at->hour)->map->count();
+        $peakHour = $messagesByHour->isNotEmpty() ? $messagesByHour->sortDesc()->keys()->first().':00' : 'N/A';
 
         // 4. Día más activo de la semana (últimos 30 días)
-        $messagesByWeekday = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('DAYOFWEEK(created_at) as weekday, COUNT(*) as count')
-            ->groupBy('weekday')
-            ->orderByDesc('count')
-            ->first();
         $weekdayNames = ['', 'Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        $mostActiveDay = $messagesByWeekday ? $weekdayNames[$messagesByWeekday->weekday] : 'N/A';
+        $messagesByWeekday = $lastMonth->groupBy(fn ($m) => $m->created_at->dayOfWeek + 1)->map->count();
+        $mostActiveDay = $messagesByWeekday->isNotEmpty() ? $weekdayNames[$messagesByWeekday->sortDesc()->keys()->first()] : 'N/A';
 
         // 5. Longitud promedio de mensajes del cliente (últimos 30 días)
-        $avgMessageLength = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->whereNotNull('content')
-            ->get()
+        $avgMessageLength = $lastMonth->filter($isClient)->filter(fn ($m) => $m->content !== null)
             ->map(function ($msg) {
-                try {
-                    $decoded = json_decode($msg->content, true);
-                    if (is_array($decoded)) {
-                        return isset($decoded['text']) ? strlen($decoded['text']) : strlen($msg->content);
-                    }
-                } catch (\Exception $e) {
-                    // No es JSON, usar contenido directo
+                $decoded = json_decode($msg->content, true);
+                if (is_array($decoded)) {
+                    return isset($decoded['text']) ? strlen($decoded['text']) : strlen($msg->content);
                 }
 
                 return strlen($msg->content);
             })
-            ->filter(function ($len) {
-                return $len > 0;
-            });
+            ->filter(fn ($len) => $len > 0);
         $avgLength = $avgMessageLength->count() > 0
             ? round($avgMessageLength->avg(), 0).' caracteres'
             : '0 caracteres';
 
         // 6. Número de conversaciones/sesiones (grupos de mensajes con menos de 2 horas entre ellos)
-        $allMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->orderBy('created_at')
-            ->get();
         $conversations = 0;
         $lastMessageTime = null;
-        foreach ($allMessages as $msg) {
+        foreach ($messages as $msg) {
             if ($lastMessageTime === null || $msg->created_at->diffInHours($lastMessageTime) >= 2) {
                 $conversations++;
             }
@@ -657,14 +583,10 @@ class AdminController extends Controller
         }
 
         // 7. Tiempo promedio entre mensajes del cliente (últimos 30 días)
-        $clientMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->orderBy('created_at')
-            ->get();
+        $clientMessagesList = $lastMonth->filter($isClient)->values();
         $timeBetweenMessages = [];
-        for ($i = 1; $i < $clientMessages->count(); $i++) {
-            $timeBetweenMessages[] = $clientMessages[$i - 1]->created_at->diffInMinutes($clientMessages[$i]->created_at);
+        for ($i = 1; $i < $clientMessagesList->count(); $i++) {
+            $timeBetweenMessages[] = $clientMessagesList[$i - 1]->created_at->diffInMinutes($clientMessagesList[$i]->created_at);
         }
         $avgTimeBetween = count($timeBetweenMessages) > 0
             ? round(array_sum($timeBetweenMessages) / count($timeBetweenMessages), 1)
@@ -673,32 +595,22 @@ class AdminController extends Controller
             ? ($avgTimeBetween >= 60 ? round($avgTimeBetween / 60, 1).'h' : $avgTimeBetween.'m')
             : '0m';
 
-        // 8. Tasa de respuesta del cliente (cuánto responde a nuestros mensajes)
-        $systemMessages = WhatsappMessage::where('contact_id', $contactId)
-            ->where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->get();
+        // 8. Tasa de respuesta del cliente (cuánto responde a nuestros mensajes dentro de 24h)
+        $systemMessagesList = $lastMonth->filter($isSystem)->values();
         $clientResponses = 0;
-        foreach ($systemMessages as $sysMsg) {
-            $clientReply = WhatsappMessage::where('contact_id', $contactId)
-                ->where('sender_type', 'client')
-                ->where('created_at', '>', $sysMsg->created_at)
-                ->where('created_at', '<=', $sysMsg->created_at->copy()->addHours(24))
-                ->first();
-            if ($clientReply) {
+        foreach ($systemMessagesList as $sysMsg) {
+            $windowEnd = $sysMsg->created_at->copy()->addHours(24);
+            $hasReply = $messages->contains(fn ($m) => $isClient($m) && $m->created_at->gt($sysMsg->created_at) && $m->created_at->lte($windowEnd));
+            if ($hasReply) {
                 $clientResponses++;
             }
         }
-        $clientResponseRate = $systemMessages->count() > 0
-            ? round(($clientResponses / $systemMessages->count()) * 100, 1)
+        $clientResponseRate = $systemMessagesList->count() > 0
+            ? round(($clientResponses / $systemMessagesList->count()) * 100, 1)
             : 0;
 
         // 9. Frecuencia de mensajes (mensajes por día en últimos 30 días)
-        $daysActive = WhatsappMessage::where('contact_id', $contactId)
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('DATE(created_at) as date')
-            ->distinct()
-            ->count();
+        $daysActive = $lastMonth->map(fn ($m) => $m->created_at->format('Y-m-d'))->unique()->count();
         $frequencyPerDay = $daysActive > 0
             ? round($lastMonthMessages / $daysActive, 1)
             : 0;
@@ -798,168 +710,135 @@ class AdminController extends Controller
      */
     private function calculateGlobalStats($now, $thirtyDaysAgo, $sixtyDaysAgo)
     {
-        // Total de mensajes globales
-        $totalMessages = WhatsappMessage::count();
-        $lastMonthMessages = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)->count();
-        $previousMonthMessages = WhatsappMessage::whereBetween('created_at', [$sixtyDaysAgo, $thirtyDaysAgo])->count();
+        // Igual que en chat(): se trae toda la tabla UNA sola vez (es
+        // chica, ver nota ahí) y el resto se calcula en memoria -- este
+        // método corre en CADA apertura de una conversación (no es un
+        // dashboard aparte), así que las mismas consultas por-mensaje que
+        // se arreglaron en chat() acá se multiplicaban por todos los
+        // contactos de la empresa.
+        $allMessages = WhatsappMessage::orderBy('created_at')->get();
+
+        $isClient = fn ($m) => $m->sender_type === 'client';
+        $isSystem = fn ($m) => $m->sender_type === 'system';
+
+        $totalMessages = $allMessages->count();
+        $lastMonth = $allMessages->filter(fn ($m) => $m->created_at->gte($thirtyDaysAgo))->values();
+        $previousMonth = $allMessages->filter(fn ($m) => $m->created_at->gte($sixtyDaysAgo) && $m->created_at->lt($thirtyDaysAgo))->values();
+        $lastMonthMessages = $lastMonth->count();
+        $previousMonthMessages = $previousMonth->count();
         $messageGrowth = $previousMonthMessages > 0
             ? round((($lastMonthMessages - $previousMonthMessages) / $previousMonthMessages) * 100, 1)
             : 0;
 
         // Mensajes enviados vs recibidos
-        $sentMessages = WhatsappMessage::where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
-        $receivedMessages = WhatsappMessage::where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
+        $sentMessages = $lastMonth->filter($isSystem)->count();
+        $receivedMessages = $lastMonth->filter($isClient)->count();
         $sentReceivedRatio = $receivedMessages > 0 ? round($sentMessages / $receivedMessages, 2) : 0;
 
         // Última actividad global
-        $lastMessage = WhatsappMessage::orderByDesc('created_at')->first();
+        $lastMessage = $allMessages->last();
         $lastActivity = $lastMessage ? $lastMessage->created_at->diffForHumans() : 'Nunca';
         $lastActivityDate = $lastMessage ? $lastMessage->created_at->format('d/m/Y H:i') : 'N/A';
 
-        // Tiempo promedio de respuesta global
+        // Tiempo promedio de respuesta global: el "próximo mensaje del
+        // sistema" tiene que ser del MISMO contacto, así que se agrupa por
+        // contacto y se aplica el mismo cálculo que en chat().
+        $messagesByContact = $allMessages->groupBy('contact_id');
         $responseTimes = [];
-        $clientMessages = WhatsappMessage::where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->orderBy('created_at')
-            ->get();
-
-        foreach ($clientMessages as $clientMsg) {
-            $nextSystemMsg = WhatsappMessage::where('contact_id', $clientMsg->contact_id)
-                ->where('sender_type', 'system')
-                ->where('created_at', '>', $clientMsg->created_at)
-                ->orderBy('created_at')
-                ->first();
-
-            if ($nextSystemMsg) {
-                $responseTimes[] = $clientMsg->created_at->diffInMinutes($nextSystemMsg->created_at);
+        foreach ($messagesByContact as $contactMessages) {
+            $contactMessages = $contactMessages->values();
+            $nextSystemAfter = $this->nextMessageBySenderType($contactMessages, 'system');
+            foreach ($contactMessages as $i => $msg) {
+                if (! $isClient($msg) || $msg->created_at->lt($thirtyDaysAgo)) {
+                    continue;
+                }
+                if ($nextSystemMsg = $nextSystemAfter[$i] ?? null) {
+                    $responseTimes[] = $msg->created_at->diffInMinutes($nextSystemMsg->created_at);
+                }
             }
         }
-
         $avgResponseTime = count($responseTimes) > 0
             ? round(array_sum($responseTimes) / count($responseTimes), 1).'m'
             : '0m';
 
-        // Tasa de respuesta del cliente global
-        $systemMessages = WhatsappMessage::where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->get();
+        // Tasa de respuesta del cliente global (dentro de 24h, mismo contacto)
+        $systemMessagesList = $lastMonth->filter($isSystem)->values();
         $clientResponses = 0;
-        foreach ($systemMessages as $sysMsg) {
-            $clientReply = WhatsappMessage::where('contact_id', $sysMsg->contact_id)
-                ->where('sender_type', 'client')
-                ->where('created_at', '>', $sysMsg->created_at)
-                ->where('created_at', '<=', $sysMsg->created_at->copy()->addHours(24))
-                ->first();
-            if ($clientReply) {
+        foreach ($systemMessagesList as $sysMsg) {
+            $windowEnd = $sysMsg->created_at->copy()->addHours(24);
+            $hasReply = ($messagesByContact->get($sysMsg->contact_id) ?? collect())
+                ->contains(fn ($m) => $isClient($m) && $m->created_at->gt($sysMsg->created_at) && $m->created_at->lte($windowEnd));
+            if ($hasReply) {
                 $clientResponses++;
             }
         }
-        $clientResponseRate = $systemMessages->count() > 0
-            ? round(($clientResponses / $systemMessages->count()) * 100, 1)
+        $clientResponseRate = $systemMessagesList->count() > 0
+            ? round(($clientResponses / $systemMessagesList->count()) * 100, 1)
             : 0;
 
         // Hora pico global
-        $messagesByHour = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('HOUR(created_at) as hour, COUNT(*) as count')
-            ->groupBy('hour')
-            ->orderByDesc('count')
-            ->first();
-        $peakHour = $messagesByHour ? $messagesByHour->hour.':00' : 'N/A';
+        $messagesByHour = $lastMonth->groupBy(fn ($m) => $m->created_at->hour)->map->count();
+        $peakHour = $messagesByHour->isNotEmpty() ? $messagesByHour->sortDesc()->keys()->first().':00' : 'N/A';
 
         // Día más activo
-        $messagesByWeekday = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('DAYOFWEEK(created_at) as weekday, COUNT(*) as count')
-            ->groupBy('weekday')
-            ->orderByDesc('count')
-            ->first();
         $weekdayNames = ['', 'Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        $mostActiveDay = $messagesByWeekday ? $weekdayNames[$messagesByWeekday->weekday] : 'N/A';
+        $messagesByWeekday = $lastMonth->groupBy(fn ($m) => $m->created_at->dayOfWeek + 1)->map->count();
+        $mostActiveDay = $messagesByWeekday->isNotEmpty() ? $weekdayNames[$messagesByWeekday->sortDesc()->keys()->first()] : 'N/A';
 
         // Total de contactos activos
-        $activeContacts = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->distinct('contact_id')
-            ->count('contact_id');
+        $activeContacts = $lastMonth->pluck('contact_id')->unique()->count();
 
         // Total de conversaciones globales
-        $allMessages = WhatsappMessage::orderBy('created_at')->get();
         $conversations = 0;
         $lastMessageTime = null;
         $lastContactId = null;
         foreach ($allMessages as $msg) {
             if ($lastMessageTime === null || $lastContactId !== $msg->contact_id || $msg->created_at->diffInHours($lastMessageTime) >= 2) {
-                if ($lastContactId !== $msg->contact_id) {
-                    $conversations++;
-                } else {
-                    $conversations++;
-                }
+                $conversations++;
             }
             $lastMessageTime = $msg->created_at;
             $lastContactId = $msg->contact_id;
         }
 
         // Frecuencia diaria global
-        $daysActive = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('DATE(created_at) as date')
-            ->distinct()
-            ->count();
+        $daysActive = $lastMonth->map(fn ($m) => $m->created_at->format('Y-m-d'))->unique()->count();
         $frequencyPerDay = $daysActive > 0
             ? round($lastMonthMessages / $daysActive, 1)
             : 0;
 
         // Distribución de tipos de mensajes global
-        $messageTypes = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->selectRaw('type, COUNT(*) as count')
-            ->groupBy('type')
-            ->get()
-            ->pluck('count', 'type')
-            ->toArray();
+        $messageTypes = $lastMonth->groupBy('type')->map->count()->toArray();
 
         // Mensajes por día (últimos 7 días) global
+        $messagesByDate = $allMessages->groupBy(fn ($m) => $m->created_at->format('Y-m-d'));
         $messagesByDay = [];
         $days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
         for ($i = 6; $i >= 0; $i--) {
             $date = $now->copy()->subDays($i);
             $dayName = $days[$date->dayOfWeek];
-            $sent = WhatsappMessage::where('sender_type', 'system')
-                ->whereDate('created_at', $date->format('Y-m-d'))
-                ->count();
-            $received = WhatsappMessage::where('sender_type', 'client')
-                ->whereDate('created_at', $date->format('Y-m-d'))
-                ->count();
+            $dayMessages = $messagesByDate->get($date->format('Y-m-d')) ?? collect();
             $messagesByDay[] = [
                 'day' => $dayName,
-                'sent' => $sent,
-                'received' => $received,
+                'sent' => $dayMessages->filter($isSystem)->count(),
+                'received' => $dayMessages->filter($isClient)->count(),
             ];
         }
 
         // Mensajes con botones global
-        $buttonMessages = WhatsappMessage::where('created_at', '>=', $thirtyDaysAgo)
-            ->where(function ($q) {
-                $q->where('type', 'button')
-                    ->orWhere('type', 'interactive')
-                    ->orWhere(function ($subQ) {
-                        $subQ->whereRaw('JSON_VALID(content) = 1')
-                            ->where(function ($jsonQ) {
-                                $jsonQ->whereRaw("JSON_EXTRACT(content, '$.type') = 'button_reply'")
-                                    ->orWhereRaw("JSON_EXTRACT(content, '$.type') = 'list_reply'");
-                            });
-                    });
-            })
-            ->count();
+        $isButtonMessage = function ($m) {
+            if (in_array($m->type, ['button', 'interactive'], true)) {
+                return true;
+            }
+            $decoded = json_decode((string) $m->content, true);
+
+            return is_array($decoded) && in_array($decoded['type'] ?? null, ['button_reply', 'list_reply'], true);
+        };
+        $buttonMessages = $lastMonth->filter($isButtonMessage)->count();
         $buttonMessagesRate = $lastMonthMessages > 0 ? round(($buttonMessages / $lastMonthMessages) * 100, 1) : 0;
 
         // Tasa de interacción global
-        $interactions = WhatsappMessage::where('sender_type', 'client')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
-        $totalOutbound = WhatsappMessage::where('sender_type', 'system')
-            ->where('created_at', '>=', $thirtyDaysAgo)
-            ->count();
+        $interactions = $receivedMessages;
+        $totalOutbound = $sentMessages;
         $interactionRate = $totalOutbound > 0 ? round(($interactions / $totalOutbound) * 100, 1) : 0;
 
         return [
@@ -982,6 +861,30 @@ class AdminController extends Controller
             'buttonMessagesRate' => $buttonMessagesRate.'%',
             'interactionRate' => $interactionRate.'%',
         ];
+    }
+
+    /**
+     * Para cada mensaje de una colección ya ordenada por created_at
+     * ascendente, el próximo mensaje de $senderType que le sigue
+     * cronológicamente (o null si no hay ninguno después). Se usa en
+     * chat() y calculateGlobalStats() para calcular "tiempo de respuesta"
+     * sin hacer una consulta a la base de datos por cada mensaje.
+     *
+     * @return array<int, WhatsappMessage|null> indexado igual que la colección de entrada (0-based)
+     */
+    private function nextMessageBySenderType($messages, string $senderType): array
+    {
+        $messages = $messages->values();
+        $map = [];
+        $next = null;
+        for ($i = $messages->count() - 1; $i >= 0; $i--) {
+            $map[$i] = $next;
+            if ($messages[$i]->sender_type === $senderType) {
+                $next = $messages[$i];
+            }
+        }
+
+        return $map;
     }
 
     public function updateOrderStatus(Request $request, $id, OrderLifecycleService $lifecycle)

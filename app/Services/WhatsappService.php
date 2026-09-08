@@ -4644,7 +4644,7 @@ class WhatsappService
         $fee = null;
         $distanceKm = null;
         if ($lat !== null && $lon !== null && $branch?->latitude && $branch?->longitude) {
-            $distanceKm = app(GeoDistanceService::class)->distanceKm(
+            $distanceKm = app(GeoDistanceService::class)->roadDistanceKm(
                 (float) $branch->latitude,
                 (float) $branch->longitude,
                 (float) $lat,
