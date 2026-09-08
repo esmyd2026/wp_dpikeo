@@ -35,7 +35,7 @@ class CompanyWhatsappController extends Controller
      */
     private function authorizeCompany(Company $company): void
     {
-        abort_unless(auth()->user()?->canAccessCompany($company), 403, 'No tenés acceso a esta empresa.');
+        abort_unless(auth()->user()?->canAccessCompany($company), 403, 'No tienes acceso a esta empresa.');
     }
 
     /**
@@ -102,7 +102,14 @@ class CompanyWhatsappController extends Controller
             'name' => 'required|string|max:120',
         ]);
 
-        $company->update(['name' => trim($validated['name'])]);
+        $name = trim($validated['name']);
+        $company->update(['name' => $name]);
+
+        // El bot arma sus mensajes con business_name (ver "nombre_empresa"
+        // en las plantillas) -- sin este sync, cambiar el nombre acá quedaba
+        // guardado en la empresa pero el bot le seguía diciendo al cliente
+        // el nombre con el que se conectó el número la primera vez.
+        WhatsappBusinessProfile::where('company_id', $company->id)->update(['business_name' => $name]);
 
         return redirect()->route('admin.empresas.whatsapp', $company)
             ->with('success', 'Nombre de la empresa actualizado.');

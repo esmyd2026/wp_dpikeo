@@ -48,12 +48,16 @@ return [
             ]],
         ],
     ],
+    // Ojo: este paso solo se usa con el carrito VACÍO (ver
+    // WhatsappService::finalizarCompra/getCartContents) -- con productos
+    // agregados, "Ver carrito"/"Finalizar compra" saltan directo al
+    // checkout, sin pasar por aquí. El copy y los botones deben tener
+    // sentido para "todavía no agregaste nada", no para revisar un pedido.
     MarketingStepKey::CART_SUMMARY => [
-        'message' => "*Tu carrito* 🛒\n\nTienes *{{cantidad_items}}* producto(s).\nTotal: *{{moneda}} {{total}}*\n\n¿Deseas terminar tu pedido?",
+        'message' => "Todavía no agregaste nada a tu pedido, *{{nombre}}* 🛒\n\n¿Qué se te antoja hoy?",
         'type' => 'button',
         'buttons' => [
-            ['id' => 'checkout', 'title' => '✅ Finalizar', 'action' => 'checkout'],
-            ['id' => 'menu_productos', 'title' => '➕ Agregar más', 'action' => 'products'],
+            ['id' => 'menu_productos', 'title' => '🍗 Ver menú', 'action' => 'products'],
             ['id' => 'menu_principal', 'title' => '🏠 Inicio', 'action' => 'main_menu'],
         ],
     ],

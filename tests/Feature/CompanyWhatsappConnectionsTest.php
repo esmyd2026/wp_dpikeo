@@ -307,6 +307,38 @@ class CompanyWhatsappConnectionsTest extends TestCase
         $this->assertSame($originalSlug, $fresh->slug, 'El slug no debe cambiar al editar el nombre.');
     }
 
+    /**
+     * Bug real reportado: el admin renombraba la empresa (ej. "dpikeo" ->
+     * "Dpikeos") y el panel mostraba el nombre nuevo, pero el bot le seguía
+     * diciendo al cliente el nombre viejo -- porque WhatsappBusinessProfile
+     * ->business_name (lo que arman las plantillas con {{nombre_empresa}})
+     * solo se copiaba de Company->name una vez, al conectar el número por
+     * primera vez, y nunca se volvía a sincronizar.
+     */
+    public function test_renaming_the_company_syncs_the_bot_facing_business_name(): void
+    {
+        $a = $this->makeCompanyWithProfile('dpikeo-test', ['business_name' => 'dpikeo', 'display_name' => 'dpikeo']);
+
+        $this->actingAs($a['user'])->put(route('admin.empresas.update', $a['company']), [
+            'name' => 'Dpikeos',
+        ]);
+
+        $this->assertSame('Dpikeos', $a['profile']->fresh()->business_name);
+    }
+
+    public function test_renaming_a_company_never_touches_another_companys_business_name(): void
+    {
+        $a = $this->makeCompanyWithProfile('empresa-a', ['business_name' => 'Empresa A', 'display_name' => 'Empresa A']);
+        $b = $this->makeCompanyWithProfile('empresa-b', ['business_name' => 'Empresa B', 'display_name' => 'Empresa B']);
+
+        $this->actingAs($a['user'])->put(route('admin.empresas.update', $a['company']), [
+            'name' => 'Empresa A Renombrada',
+        ]);
+
+        $this->assertSame('Empresa A Renombrada', $a['profile']->fresh()->business_name);
+        $this->assertSame('Empresa B', $b['profile']->fresh()->business_name, 'Renombrar la empresa A no debe tocar el perfil de la empresa B.');
+    }
+
     public function test_company_a_cannot_rename_company_b(): void
     {
         $a = $this->makeCompanyWithProfile('empresa-a');

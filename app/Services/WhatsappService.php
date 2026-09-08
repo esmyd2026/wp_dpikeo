@@ -3291,8 +3291,10 @@ class WhatsappService
 
         if (! $cart || $cart->items->isEmpty()) {
             // "Resumen del carrito" del flujo, si el admin lo configuró --
-            // antes esto era siempre un texto fijo sin la marca/copy del
-            // negocio, sin importar lo que el admin haya armado en el editor.
+            // este paso es el único lugar donde se usa (con carrito vacío),
+            // así que su copy debe estar escrito para ese caso (ver
+            // dpikeos_flow.php). Si el admin no lo tocó, se usa el mensaje
+            // genérico de abajo.
             if ($flowPayload = $this->buildMarketingStepPayload(MarketingStepKey::CART_SUMMARY, $contact)) {
                 return $flowPayload;
             }
@@ -3867,6 +3869,11 @@ class WhatsappService
                 ->first();
 
             if (! $cart || $cart->items->isEmpty()) {
+                // "Resumen del carrito" del flujo, si el admin lo configuró
+                // -- este paso es el único lugar donde se usa (con carrito
+                // vacío), así que su copy debe estar escrito para ese caso
+                // (ver dpikeos_flow.php). Si el admin no lo tocó, se usa el
+                // mensaje genérico de abajo.
                 if ($flowPayload = $this->buildMarketingStepPayload(MarketingStepKey::CART_SUMMARY, $contact)) {
                     return $flowPayload;
                 }
