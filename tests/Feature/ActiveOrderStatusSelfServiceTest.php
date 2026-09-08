@@ -108,4 +108,39 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
 
         Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'pedido en curso'));
     }
+
+    /**
+     * Bug real reportado en vivo: un operador pausó "Atención automática"
+     * para un contacto específico desde el panel, pero el bot le siguió
+     * contestando igual con el estado de su pedido. Causa: el chequeo de
+     * bot_enabled estaba dentro de una rama que este mensaje ("hola" con
+     * pedido activo) nunca llegaba a pisar.
+     */
+    public function test_a_greeting_is_never_auto_answered_when_the_bot_is_paused_for_that_contact(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        $contact->update(['bot_enabled' => false]);
+        WhatsappCart::create(['contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_READY, 'total' => 10]);
+
+        $this->greet($contact);
+
+        Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'pedido en curso'));
+    }
+
+    /** Pedido explícito: un pedido "listo" (ya no cancelable) debe poder escalar a un asesor, no solo volver al menú. */
+    public function test_a_ready_order_that_cannot_be_cancelled_still_offers_talking_to_an_agent(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        WhatsappCart::create(['contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_READY, 'total' => 10]);
+
+        $this->greet($contact);
+
+        Http::assertSent(function ($request) {
+            $buttonIds = collect($request['interactive']['action']['buttons'] ?? [])->pluck('reply.id')->all();
+
+            return in_array('agent', $buttonIds, true) && in_array('menu_principal', $buttonIds, true);
+        });
+    }
 }

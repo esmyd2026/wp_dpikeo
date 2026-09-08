@@ -4783,6 +4783,15 @@ class WhatsappService
                 'reply' => ['id' => 'cancelar_pedido_'.$cart->id, 'title' => '❌ Cancelar pedido'],
             ];
         }
+        // Pedido explícito: un pedido "Listo" (ya pagado/en preparación
+        // final) no puede cancelarse solo, y antes ahí no quedaba ninguna
+        // otra opción útil más que volver al menú -- se le da también la
+        // opción de escalar a un humano, reusando el mismo botón/id que ya
+        // reconoce handleInteractiveMessage() (isAgentRequestButton).
+        $buttons[] = [
+            'type' => 'reply',
+            'reply' => ['id' => 'agent', 'title' => '💬 Hablar con asesor'],
+        ];
         $buttons[] = [
             'type' => 'reply',
             'reply' => ['id' => 'menu_principal', 'title' => '🏠 Menú principal'],
@@ -5502,27 +5511,33 @@ class WhatsappService
                     return;
                 }
 
-                // Refrescar el contacto desde la base de datos para obtener el valor actualizado de bot_enabled
-                $contact->refresh();
-
-                // Verificar si el bot está habilitado para este contacto ANTES de generar respuesta
-                if (! $this->botMayRespondToContact($contact)) {
-                    $this->logBotBlocked('handleTextMessage', $contact, [
-                        'phone' => substr($from, 0, 4).'****'.substr($from, -4),
-                        'message_content' => substr($text, 0, 100),
-                    ]);
-                    // No generar ni enviar respuesta automática
-                    $response = null;
-                } else {
-                    $willAutoReply = true;
-                    // Typing mientras se genera la respuesta (IA, menús, etc.)
-                    if ($messageId) {
-                        $this->sendTypingIndicator($messageId);
-                    }
-                    $response = $this->generateChatbotResponse($text, $from);
+                $willAutoReply = true;
+                // Typing mientras se genera la respuesta (IA, menús, etc.)
+                if ($messageId) {
+                    $this->sendTypingIndicator($messageId);
                 }
+                $response = $this->generateChatbotResponse($text, $from);
             } elseif ($response) {
                 $willAutoReply = true;
+            }
+
+            // Verificar si el bot está habilitado para este contacto justo
+            // antes de mandar -- un solo chequeo que cubre CUALQUIER
+            // respuesta armada arriba (chatbot genérico, búsqueda por SKU,
+            // pedido "anclado" de buildActiveOrderStatusResponse, etc.), no
+            // solo el fallback genérico. Antes solo se revisaba dentro del
+            // fallback: si el pedido activo respondía primero, el mensaje
+            // se mandaba igual aunque el panel hubiera pausado el bot para
+            // esta conversación. Mismo criterio que ya usa
+            // handleInteractiveMessage() (ver más arriba en este archivo).
+            $contact->refresh();
+            if ($willAutoReply && $response && ! $this->botMayRespondToContact($contact)) {
+                $this->logBotBlocked('handleTextMessage', $contact, [
+                    'phone' => substr($from, 0, 4).'****'.substr($from, -4),
+                    'message_content' => substr($text, 0, 100),
+                ]);
+                $willAutoReply = false;
+                $response = null;
             }
 
             if ($willAutoReply && $response) {
