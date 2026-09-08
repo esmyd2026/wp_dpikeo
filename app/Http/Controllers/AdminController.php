@@ -357,19 +357,11 @@ class AdminController extends Controller
         $order = WhatsappCart::reportable()->forActiveCompany()->with('contact')->findOrFail($id);
 
         $validated = $request->validate([
-            'delivery_fee' => ['nullable', 'numeric', 'min:0', 'max:1000'],
-            'pickup_fee' => ['nullable', 'numeric', 'min:0', 'max:1000'],
+            'delivery_fee' => ['required', 'numeric', 'min:0', 'max:1000'],
         ]);
 
-        $deliveryFee = array_key_exists('delivery_fee', $validated) && $validated['delivery_fee'] !== null
-            ? (float) $validated['delivery_fee']
-            : null;
-        $pickupFee = array_key_exists('pickup_fee', $validated) && $validated['pickup_fee'] !== null
-            ? (float) $validated['pickup_fee']
-            : null;
-
         try {
-            $result = $lifecycle->sendFulfillmentCostsMessage($order, $deliveryFee, $pickupFee, (int) $request->user()->id);
+            $result = $lifecycle->sendFulfillmentCostsMessage($order, (float) $validated['delivery_fee'], (int) $request->user()->id);
 
             $message = match ($result['reason']) {
                 'no_phone' => 'Costo guardado. No se envió mensaje: el pedido no tiene un número de WhatsApp real.',

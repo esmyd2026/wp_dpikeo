@@ -8,9 +8,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Detecta pedidos que quedaron esperando que caja confirme el costo de envío
- * o de empaque por más de $thresholdMinutes, y actúa de forma proactiva en
- * vez de dejar al cliente sin novedades: le avisa que seguimos procesando su
+ * Detecta pedidos de delivery que quedaron esperando que caja confirme el
+ * costo de envío (porque no se pudo calcular solo con la tabla de tramos
+ * km->$) por más de $thresholdMinutes, y actúa de forma proactiva en vez de
+ * dejar al cliente sin novedades: le avisa que seguimos procesando su
  * pedido, y le avisa al equipo (WhatsApp a los números de despacho + contador
  * visible en el panel admin, ver AppServiceProvider) para que no se quede
  * "perdido". Pensado para correr cada pocos minutos (ver

@@ -27,6 +27,13 @@
     .branch-hours-row label.branch-check { font-weight:600!important; font-size:.72rem; color:#64748b; }
     .branch-hours-row input[type="time"] { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:5px 6px; font:inherit; font-size:.8rem; }
     .branch-hours-row input[type="time"]:disabled { background:#f1f5f9; color:#94a3b8; }
+    .branch-tiers { display:grid; gap:6px; border-top:1px solid #eef0f3; padding-top:10px; margin-top:2px; }
+    .branch-tiers-title { font-size:.78rem; font-weight:800; color:#475569; margin:0; }
+    .branch-tiers-hint { font-size:.72rem; color:#94a3b8; margin:0 0 2px; }
+    .branch-tier-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; align-items:center; gap:6px; }
+    .branch-tier-row input { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:6px 7px; font:inherit; font-size:.8rem; }
+    .branch-tier-remove { border:0; background:#fee2e2; color:#b91c1c; border-radius:7px; width:28px; height:28px; font-weight:800; cursor:pointer; }
+    .branch-tier-add { border:1px dashed #fdba74; background:#fffaf5; color:#a53e00; border-radius:7px; padding:6px 8px; font-size:.76rem; font-weight:700; cursor:pointer; width:fit-content; }
 </style>
 
 <div class="branch-page">
@@ -57,14 +64,24 @@
                         <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998" value="{{ old('latitude', $branch->latitude) }}"></label>
                         <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359" value="{{ old('longitude', $branch->longitude) }}"></label>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-                        <label>$ por km<input name="delivery_fee_per_unit" type="text" inputmode="decimal" placeholder="2.00" value="{{ old('delivery_fee_per_unit', $branch->delivery_fee_per_unit) }}"></label>
-                        <label>Cada (km)<input name="delivery_fee_km_unit" type="text" inputmode="decimal" placeholder="5" value="{{ old('delivery_fee_km_unit', $branch->delivery_fee_km_unit) }}"></label>
-                        <label>Mínimo $<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ old('delivery_fee_minimum', $branch->delivery_fee_minimum) }}"></label>
-                    </div>
+                    <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ old('delivery_fee_minimum', $branch->delivery_fee_minimum) }}"></label>
                     <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($branch->is_default)> Usar como sucursal predeterminada</label>
                     <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($branch->is_active)> Sucursal activa</label>
                     <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked($branch->dine_in_enabled)> Permite pedidos para servir en mesa</label>
+
+                    <div class="branch-tiers js-tiers">
+                        <p class="branch-tiers-title">Tarifas de delivery por km</p>
+                        <p class="branch-tiers-hint">Desde qué km hasta qué km cuesta cuánto. Dejar "hasta" vacío = "en adelante". Se calcula solo cuando el cliente comparte su ubicación.</p>
+                        @foreach($branch->deliveryFeeTiers as $i => $tier)
+                            <div class="branch-tier-row">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][from_km]" placeholder="Desde (km)" value="{{ $tier->from_km }}">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][to_km]" placeholder="Hasta (km)" value="{{ $tier->to_km }}">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][price]" placeholder="Precio $" value="{{ $tier->price }}">
+                                <button type="button" class="branch-tier-remove js-tier-remove">&times;</button>
+                            </div>
+                        @endforeach
+                        <button type="button" class="branch-tier-add js-tier-add">+ Agregar tramo</button>
+                    </div>
 
                     <div class="branch-hours">
                         <p class="branch-hours-title">Horario de atención</p>
@@ -104,14 +121,16 @@
                     <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998"></label>
                     <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359"></label>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-                    <label>$ por km<input name="delivery_fee_per_unit" type="text" inputmode="decimal" placeholder="2.00"></label>
-                    <label>Cada (km)<input name="delivery_fee_km_unit" type="text" inputmode="decimal" placeholder="5"></label>
-                    <label>Mínimo $<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00"></label>
-                </div>
+                <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00"></label>
                 <label class="branch-check"><input type="checkbox" name="is_default" value="1"> Usar como predeterminada</label>
                 <label class="branch-check"><input type="checkbox" name="is_active" value="1" checked> Sucursal activa</label>
                 <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" checked> Permite pedidos para servir en mesa</label>
+
+                <div class="branch-tiers js-tiers">
+                    <p class="branch-tiers-title">Tarifas de delivery por km</p>
+                    <p class="branch-tiers-hint">Desde qué km hasta qué km cuesta cuánto. Dejar "hasta" vacío = "en adelante". Se puede completar después.</p>
+                    <button type="button" class="branch-tier-add js-tier-add">+ Agregar tramo</button>
+                </div>
 
                 <div class="branch-hours">
                     <p class="branch-hours-title">Horario de atención (opcional, se puede completar después)</p>
@@ -142,6 +161,30 @@
                 if (checkbox.checked) input.value = '';
             });
         });
+    });
+
+    function branchTierRow() {
+        const key = 'new' + Date.now() + Math.floor(Math.random() * 1000);
+        const row = document.createElement('div');
+        row.className = 'branch-tier-row';
+        row.innerHTML = `
+            <input type="text" inputmode="decimal" name="delivery_fee_tiers[${key}][from_km]" placeholder="Desde (km)">
+            <input type="text" inputmode="decimal" name="delivery_fee_tiers[${key}][to_km]" placeholder="Hasta (km)">
+            <input type="text" inputmode="decimal" name="delivery_fee_tiers[${key}][price]" placeholder="Precio $">
+            <button type="button" class="branch-tier-remove js-tier-remove">&times;</button>`;
+        return row;
+    }
+
+    document.querySelectorAll('.js-tiers').forEach(function (container) {
+        container.querySelector('.js-tier-add').addEventListener('click', function () {
+            container.insertBefore(branchTierRow(), this);
+        });
+    });
+
+    document.addEventListener('click', function (e) {
+        if (e.target.classList.contains('js-tier-remove')) {
+            e.target.closest('.branch-tier-row').remove();
+        }
     });
 </script>
 @endsection

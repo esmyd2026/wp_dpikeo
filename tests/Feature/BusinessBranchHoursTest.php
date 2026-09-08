@@ -135,4 +135,46 @@ class BusinessBranchHoursTest extends TestCase
         $this->assertSame(1, BusinessBranchHour::where('business_branch_id', $branch->id)->where('day_of_week', 1)->count());
         $this->assertSame(7, BusinessBranchHour::where('business_branch_id', $branch->id)->count());
     }
+
+    public function test_saving_delivery_fee_tiers_replaces_the_previous_table(): void
+    {
+        $setup = $this->makeCompanySetup();
+        $branch = BusinessBranch::create(['business_profile_id' => $setup['profile']->id, 'name' => 'Sucursal', 'code' => 'S1', 'is_default' => true]);
+        $branch->deliveryFeeTiers()->create(['from_km' => 0, 'to_km' => 3, 'price' => 1.00]);
+
+        $response = $this->actingAs($setup['user'])
+            ->withSession(['active_company_id' => $setup['company']->id])
+            ->put(route('admin.branches.update', $branch), [
+                'name' => 'Sucursal', 'code' => 'S1', 'is_default' => '1',
+                'delivery_fee_tiers' => [
+                    ['from_km' => 0, 'to_km' => 5, 'price' => 2.00],
+                    ['from_km' => 5, 'to_km' => '', 'price' => 3.50],
+                ],
+            ]);
+
+        $response->assertRedirect();
+        $tiers = $branch->deliveryFeeTiers()->orderBy('from_km')->get();
+        $this->assertCount(2, $tiers);
+        $this->assertSame(2.00, (float) $tiers[0]->price);
+        $this->assertNull($tiers[1]->to_km);
+    }
+
+    public function test_overlapping_delivery_fee_tiers_are_rejected(): void
+    {
+        $setup = $this->makeCompanySetup();
+        $branch = BusinessBranch::create(['business_profile_id' => $setup['profile']->id, 'name' => 'Sucursal', 'code' => 'S1', 'is_default' => true]);
+
+        $response = $this->actingAs($setup['user'])
+            ->withSession(['active_company_id' => $setup['company']->id])
+            ->put(route('admin.branches.update', $branch), [
+                'name' => 'Sucursal', 'code' => 'S1', 'is_default' => '1',
+                'delivery_fee_tiers' => [
+                    ['from_km' => 0, 'to_km' => 5, 'price' => 2.00],
+                    ['from_km' => 3, 'to_km' => 10, 'price' => 3.50],
+                ],
+            ]);
+
+        $response->assertSessionHasErrors('delivery_fee_tiers.1.from_km');
+        $this->assertSame(0, $branch->deliveryFeeTiers()->count());
+    }
 }

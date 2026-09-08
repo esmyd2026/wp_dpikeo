@@ -1190,11 +1190,13 @@ class WhatsappService
             // Si el cliente comparte su ubicación por su cuenta mientras
             // esperamos la dirección de entrega, la aceptamos como dirección
             // (con link a Google Maps) y seguimos pidiendo el nombre de quien
-            // recibe, igual que si hubiera escrito la dirección en texto. Ya
-            // no se calcula el envío por GPS: el vendedor lo confirma desde
-            // el panel (ver buildFulfillmentSummaryText).
+            // recibe, igual que si hubiera escrito la dirección en texto --
+            // con esas coordenadas se calcula el envío solo (ver
+            // applyDeliveryRecipientName). No se filtra solo por 'active':
+            // un pedido armado por "Armar lista" ya está 'pending' cuando
+            // el bot le pregunta esto (ver askNextBulkOrderFulfillmentStep).
             $cart = WhatsappCart::where('contact_id', $contact->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
                 ->first();
 
             if ($cart && ! empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
@@ -3116,7 +3118,7 @@ class WhatsappService
                             ?? $this->getMainMenu(null, $contact);
                     } elseif ($buttonId === 'recipient_name_self' || $buttonId === 'recipient_name_other') {
                         $cartForRecipient = WhatsappCart::where('contact_id', $contact->id)
-                            ->where('status', 'active')
+                            ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
                             ->first();
 
                         if (! $cartForRecipient || empty($cartForRecipient->metadata['awaiting_delivery_recipient_name'] ?? false)) {
@@ -4051,6 +4053,9 @@ class WhatsappService
             $message .= $this->buildOrderItemsText($cart);
             $message .= $this->buildFulfillmentSummaryText($cart);
             $message .= $this->buildPaymentMethodBlock($this->getPaymentMethodText($cart->payment_method));
+            if ($cart->payment_method === 'transferencia') {
+                $message .= $this->buildTransferenciaNotice();
+            }
             $message .= $this->buildCostBreakdownText($cart, false);
 
             if ($cart->note && $cart->note !== 'sin nota') {
@@ -4286,7 +4291,7 @@ class WhatsappService
         $cart->metadata = $metadata;
         $cart->save();
 
-        return $this->finalizarCompra($contact);
+        return $this->continueAfterFulfillmentStep($contact, $cart);
     }
 
     /**
@@ -4327,7 +4332,7 @@ class WhatsappService
         $cart->metadata = $metadata;
         $cart->save();
 
-        return $this->finalizarCompra($contact);
+        return $this->continueAfterFulfillmentStep($contact, $cart);
     }
 
     /**
@@ -4387,20 +4392,40 @@ class WhatsappService
     }
 
     /**
+     * Pedido explícito: solo se aceptan transferencias inmediatas -- si el
+     * cliente pone mal los datos y la transferencia queda diferida/en
+     * revisión, el pedido no se puede despachar. Se muestra junto con los
+     * datos bancarios cada vez que se le arma el resumen final a un pedido
+     * pagado por transferencia (ver procesarPagoTransferencia y el resumen
+     * genérico en finalizarCompra), para que lo vea antes de confirmar.
+     */
+    private function buildTransferenciaNotice(): string
+    {
+        $bankInstructions = $this->scopedChatbotConfig()?->bank_transfer_instructions;
+        $bankBlock = $bankInstructions
+            ? "🏦 *Datos para tu transferencia o depósito*\n{$bankInstructions}\n\n"
+            : '';
+
+        return $bankBlock
+            .'⚠️ Solo aceptamos *transferencias inmediatas*. '
+            .'Verifica bien los datos antes de transferir: si el pago no se acredita de inmediato, no podremos despachar tu pedido.'
+            ."\n\n";
+    }
+
+    /**
      * Desglose de costos del pedido: subtotal, IVA (si está configurado —
      * ya viene incluido en el precio, esto solo lo muestra por separado sin
-     * cambiar el total) y costo de envío/para llevar (confirmado, o "por
-     * confirmar" si todavía falta que un vendedor lo revise). Mientras haya
-     * algún costo pendiente, el total se llama "Total productos" (aclara que
-     * todavía puede subir) y se agrega una sola línea final con lo que falta
-     * confirmar -- en vez de una línea "Por confirmar" repetida por cada
-     * costo, que saturaba el mensaje.
+     * cambiar el total) y costo de envío (calculado con la tabla de tramos
+     * de la sucursal, o "por confirmar" en los casos que no se pudieron
+     * calcular solos -- ver applyDeliveryRecipientName). Mientras el envío
+     * esté pendiente, el total se llama "Total productos" (aclara que
+     * todavía puede subir).
      *
      * $includeTotal en false omite el total (y el aviso de "por confirmar")
-     * -- se usa en los mensajes del flujo antes de que un vendedor confirme
-     * el costo de envío/para llevar, para no mostrarle al cliente un total
-     * que todavía puede cambiar. Ese total final se le manda recién en el
-     * mensaje de costo confirmado (ver OrderLifecycleService::buildFulfillmentCostsMessageBody).
+     * -- se usa en los mensajes del flujo antes de que se sepa el costo de
+     * envío definitivo, para no mostrarle al cliente un total que todavía
+     * puede cambiar. Ese total final se le manda recién en el mensaje de
+     * costo confirmado (ver OrderLifecycleService::buildFulfillmentCostsMessageBody).
      */
     private function buildCostBreakdownText(WhatsappCart $cart, bool $includeTotal = true): string
     {
@@ -4433,20 +4458,9 @@ class WhatsappService
             }
         }
 
-        if (($metadata['service_type'] ?? null) === 'llevar') {
-            if (! array_key_exists('pickup_fee', $metadata)) {
-                $pending[] = 'costo para llevar';
-            } else {
-                $pickupFee = (float) ($metadata['pickup_fee'] ?? 0);
-                if ($pickupFee > 0) {
-                    $lines .= 'Costo para llevar: $'.number_format($pickupFee, 2)."\n";
-                }
-            }
-        }
-
         if (! $includeTotal) {
             if ($pending) {
-                $lines .= ucfirst(implode(' y ', $pending)).": por confirmar\n";
+                $lines .= ucfirst($pending[0]).": por confirmar\n";
             }
 
             return $lines."\n";
@@ -4456,7 +4470,7 @@ class WhatsappService
         $lines .= "💰 *{$totalLabel}:* $".number_format((float) $cart->total, 2)."\n";
 
         if ($pending) {
-            $lines .= ucfirst(implode(' y ', $pending)).": por confirmar\n";
+            $lines .= ucfirst($pending[0]).": por confirmar\n";
         }
 
         return $lines."\n";
@@ -4607,24 +4621,133 @@ class WhatsappService
     }
 
     /**
-     * Guarda el nombre de quien recibe, calcula el estimado referencial de
-     * envío y continúa el checkout. Compartido entre el botón "usar mi
-     * nombre" y la respuesta de texto libre con un nombre distinto.
+     * Guarda el nombre de quien recibe y calcula el costo de envío. Si el
+     * cliente compartió su ubicación (coordenadas reales) y la sucursal
+     * tiene su tabla de tramos km->$ configurada, el costo queda fijo de
+     * una vez (ya no lo confirma un vendedor). Si escribió la dirección a
+     * mano (sin coordenadas), la distancia queda fuera de cobertura, o la
+     * sucursal no tiene tabla configurada, se usa el mínimo como
+     * referencial y sigue pendiente de revisión, igual que antes.
+     * Compartido entre el botón "usar mi nombre" y la respuesta de texto
+     * libre con un nombre distinto.
      */
-    private function applyDeliveryRecipientName(WhatsappContact $contact, WhatsappCart $cart, string $name): array
+    private function applyDeliveryRecipientName(WhatsappContact $contact, WhatsappCart $cart, string $name): ?array
     {
-        $minimumFee = (float) ($cart->branch?->delivery_fee_minimum ?? config('delivery.minimum_fee'));
-
         $metadata = $cart->metadata ?? [];
         unset($metadata['awaiting_delivery_recipient_name']);
         $metadata['delivery_recipient_name'] = trim($name);
-        $metadata['delivery_fee'] = $minimumFee;
-        $metadata['delivery_fee_pending_review'] = true;
-        $metadata['delivery_fee_pending_since'] ??= now()->toIso8601String();
+
+        $branch = $cart->branch;
+        $lat = $metadata['delivery_location']['latitude'] ?? null;
+        $lon = $metadata['delivery_location']['longitude'] ?? null;
+
+        $fee = null;
+        $distanceKm = null;
+        if ($lat !== null && $lon !== null && $branch?->latitude && $branch?->longitude) {
+            $distanceKm = app(GeoDistanceService::class)->distanceKm(
+                (float) $branch->latitude,
+                (float) $branch->longitude,
+                (float) $lat,
+                (float) $lon
+            );
+            $fee = app(DeliveryFeeTierService::class)->feeForDistance($branch, $distanceKm);
+        }
+
+        if ($fee !== null) {
+            $metadata['delivery_distance_km'] = round($distanceKm, 1);
+            $metadata['delivery_fee'] = $fee;
+            $metadata['delivery_fee_applied'] = $fee;
+            $metadata['delivery_fee_pending_review'] = false;
+            $metadata['delivery_fee_confirmed_at'] = now()->toIso8601String();
+            unset($metadata['delivery_fee_pending_since']);
+            $cart->total = (float) $cart->total + $fee;
+        } else {
+            $minimumFee = (float) ($branch?->delivery_fee_minimum ?? config('delivery.minimum_fee'));
+            $metadata['delivery_fee'] = $minimumFee;
+            $metadata['delivery_fee_pending_review'] = true;
+            $metadata['delivery_fee_pending_since'] ??= now()->toIso8601String();
+        }
+
         $cart->metadata = $metadata;
         $cart->save();
 
-        return $this->finalizarCompra($contact);
+        return $this->continueAfterFulfillmentStep($contact, $cart);
+    }
+
+    /**
+     * Punto de continuación común de los pasos de tipo de servicio/retiro o
+     * delivery/ubicación. Un pedido normal (armado por chat) sigue igual
+     * que siempre con finalizarCompra(). Un pedido armado por "Armar
+     * lista" (el formulario web nunca pregunta esto, ver
+     * BulkOrderService::notifyContactViaWhatsapp) no puede reusar
+     * finalizarCompra() -- ya quedó en estado 'pending', no 'active' --
+     * así que sigue con el siguiente paso que falte o, si ya está
+     * completo, manda la confirmación (PDF + botones) de una vez.
+     */
+    private function continueAfterFulfillmentStep(WhatsappContact $contact, WhatsappCart $cart): ?array
+    {
+        if (($cart->metadata['source'] ?? null) !== 'bulk_web_form') {
+            return $this->finalizarCompra($contact);
+        }
+
+        if ($this->askNextBulkOrderFulfillmentStep($contact, $cart->fresh())) {
+            return null;
+        }
+
+        app(OrderConfirmationService::class)->notifyBulkOrderSubmitted($contact, $cart->fresh());
+
+        return null;
+    }
+
+    /**
+     * Pedido explícito: cuando el cliente arma su pedido por "Armar lista"
+     * (micrositio web), la página nunca pregunta "para llevar/servir" ni
+     * retiro/delivery -- eso lo debe preguntar el BOT por este chat antes
+     * de mandarle la confirmación final. Reusa exactamente los mismos
+     * pasos/textos que el checkout normal por chat (buildServiceTypeStep,
+     * buildPickupModeStep, buildDeliveryLocationRequest), solo que
+     * manda el mensaje directo (no a través de finalizarCompra, que
+     * requiere un carrito 'active' y este ya está 'pending').
+     *
+     * true si se le mandó una pregunta (falta resolverla antes de poder
+     * confirmar); false si ya estaba todo resuelto (ej. pedidos armados
+     * desde el panel/POS con la sucursal y tipo de entrega ya definidos).
+     */
+    public function askNextBulkOrderFulfillmentStep(WhatsappContact $contact, WhatsappCart $cart): bool
+    {
+        $metadata = $cart->metadata ?? [];
+
+        if (empty($metadata['service_type'] ?? null)) {
+            if (! $this->isCheckoutStepEnabled('service_type')) {
+                $metadata['service_type'] = $this->getCheckoutStepDefault('service_type', 'llevar');
+                $cart->metadata = $metadata;
+                $cart->save();
+            } else {
+                $this->sendMessage($contact->phone_number, $this->buildServiceTypeStep($cart));
+
+                return true;
+            }
+        }
+
+        if (($metadata['service_type'] ?? null) === 'llevar' && empty($metadata['pickup_mode'] ?? null)) {
+            if (! $this->isCheckoutStepEnabled('pickup_mode')) {
+                $metadata['pickup_mode'] = $this->getCheckoutStepDefault('pickup_mode', 'retiro');
+                $cart->metadata = $metadata;
+                $cart->save();
+            } else {
+                $this->sendMessage($contact->phone_number, $this->buildPickupModeStep($cart));
+
+                return true;
+            }
+        }
+
+        if (($metadata['pickup_mode'] ?? null) === 'delivery' && empty($metadata['delivery_location'] ?? null)) {
+            $this->sendMessage($contact->phone_number, $this->buildDeliveryLocationRequest($cart));
+
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -5147,9 +5270,15 @@ class WhatsappService
             $processHandled = false;
             $willAutoReply = false;
 
-            // Verificar si hay un carrito activo esperando una nota
+            // Verificar si hay un carrito activo esperando una nota. También
+            // incluye 'pending'/'payment_pending': un pedido armado por
+            // "Armar lista" ya quedó en ese estado cuando el bot le
+            // pregunta el resto del checkout (ver
+            // askNextBulkOrderFulfillmentStep) -- un carrito normal en
+            // medio de estos pasos siempre es 'active', así que ampliar
+            // esto no cambia nada para el flujo de chat de siempre.
             $cart = WhatsappCart::where('contact_id', $contact->id)
-                ->where('status', 'active')
+                ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
                 ->first();
 
             $normalizedText = strtolower(trim($text));
@@ -5225,10 +5354,12 @@ class WhatsappService
             // Paso 2 de delivery: nombre de quien recibe (respuesta de texto
             // libre — el botón "Otro nombre" cae aquí; el botón con el
             // nombre del propio contacto se resuelve en handleInteractiveMessage).
-            // El costo de envío NO se suma al total todavía (solo se guarda
-            // un estimado referencial para prellenar el panel): el vendedor
-            // lo confirma desde el módulo de Pedidos y recién ahí se suma al
-            // total y se le avisa al cliente (ver OrderLifecycleService::sendFulfillmentCostsMessage).
+            // El costo de envío se calcula ahí mismo con la tabla de tramos
+            // km->$ de la sucursal (ver applyDeliveryRecipientName) cuando
+            // el cliente compartió ubicación real; si no se puede calcular
+            // (dirección a mano, sin tabla, fuera de cobertura), queda como
+            // estimado referencial y lo confirma un vendedor desde el
+            // módulo de Pedidos (ver OrderLifecycleService::sendFulfillmentCostsMessage).
             if (! $processHandled && $cart && ! empty($cart->metadata['awaiting_delivery_recipient_name'] ?? false)) {
                 Log::info('[handleTextMessage] 🧑 Nombre de receptor de delivery recibido', ['cart_id' => $cart->id]);
 
@@ -7036,9 +7167,6 @@ class WhatsappService
             unset($metadata['awaiting_client_confirmation'], $metadata['pending_payment_method']);
             $metadata['confirmed_at'] = now()->toIso8601String();
             $metadata['confirmed_via'] = 'whatsapp';
-            if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
-                $metadata['pickup_fee_pending_since'] ??= now()->toIso8601String();
-            }
             $cart->metadata = $metadata;
             $cart->save();
 
@@ -7053,11 +7181,12 @@ class WhatsappService
                     ->transition($cart, WhatsappCart::STATUS_PAYMENT_PENDING);
                 $this->syncOrderDetails($cart);
 
-                // Si todavía falta que un vendedor confirme el envío o el
-                // costo para llevar, el total no es el final: no le pedimos
-                // el comprobante todavía (le estaríamos pidiendo que pague un
-                // monto que va a cambiar). Se le pide en cuanto se confirmen
-                // esos costos, ver WhatsappService::maybeRequestPaymentProofAfterCosts.
+                // Si todavía falta que un vendedor confirme el costo de
+                // envío (no se pudo calcular solo), el total no es el
+                // final: no le pedimos el comprobante todavía (le
+                // estaríamos pidiendo que pague un monto que va a cambiar).
+                // Se le pide en cuanto se confirme ese costo, ver
+                // WhatsappService::maybeRequestPaymentProofAfterCosts.
                 if ($cart->hasPendingFulfillmentCosts()) {
                     $confirmationBody .= '🕐 Tu pedido se encuentra registrado. Pronto nuestro equipo te confirmará el total a pagar y ahí te pediremos tu comprobante.';
 
@@ -7371,6 +7500,7 @@ class WhatsappService
             $message .= $this->buildOrderItemsText($cart);
             $message .= $this->buildFulfillmentSummaryText($cart);
             $message .= $this->buildPaymentMethodBlock('Transferencia o depósito bancario');
+            $message .= $this->buildTransferenciaNotice();
             $message .= $this->buildCostBreakdownText($cart, false);
 
             if ($cart->note && $cart->note !== 'sin nota') {

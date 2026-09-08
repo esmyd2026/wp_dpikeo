@@ -68,6 +68,12 @@ class BusinessBranch extends Model
         return $this->hasMany(BusinessBranchHour::class)->orderBy('day_of_week');
     }
 
+    /** Tramos de precio de delivery por km ("desde X hasta Y km = $"), en orden. */
+    public function deliveryFeeTiers(): HasMany
+    {
+        return $this->hasMany(BusinessBranchDeliveryFeeTier::class)->orderBy('from_km');
+    }
+
     /** Los 7 días siempre presentes y en orden, aunque todavía no tengan fila guardada (sucursal recién creada). */
     public function hoursByDay(): array
     {

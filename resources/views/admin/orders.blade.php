@@ -1385,25 +1385,19 @@ function renderFulfillmentSection(order) {
     html += `</div>`;
 
     const showsDelivery = f.pickup_mode === 'delivery';
-    const showsPickup = f.service_type === 'llevar';
     const isFinalStatus = order.status === 'cancelled' || order.status === 'completed';
 
-    if (showsDelivery || showsPickup) {
+    if (showsDelivery) {
         const deliveryFeeVal = f.delivery_fee != null ? parseFloat(f.delivery_fee).toFixed(2) : '';
-        const pickupFeeVal = f.pickup_fee != null ? parseFloat(f.pickup_fee).toFixed(2) : '';
-        const costsConfirmed = (!showsDelivery || (!f.delivery_fee_pending_review && deliveryFeeVal !== ''))
-            && (!showsPickup || pickupFeeVal !== '');
+        const costsConfirmed = !f.delivery_fee_pending_review && deliveryFeeVal !== '';
 
         html += `<div class="order-step${costsConfirmed ? ' is-done' : ''}">
-            <div class="order-step-head"><span class="order-step-num">${costsConfirmed ? '<i class="fas fa-check"></i>' : '1'}</span><span class="order-step-title">Confirmar costo${showsDelivery && showsPickup ? 's de envío y para llevar' : (showsDelivery ? ' de envío' : ' para llevar')}</span></div>`;
+            <div class="order-step-head"><span class="order-step-num">${costsConfirmed ? '<i class="fas fa-check"></i>' : '1'}</span><span class="order-step-title">Costo de envío</span></div>`;
 
-        if (showsDelivery && f.delivery_fee_pending_review && !isFinalStatus) {
-            html += `<div class="order-callout warning mt-3"><i class="fas fa-triangle-exclamation me-1"></i>Costo de envío referencial (mínimo de la sucursal), aún no sumado al total. Confírmalo (junto con el costo para llevar si aplica) antes de despachar: se suman al total y el cliente recibe un solo mensaje con el total final.</div>`;
-        } else if (showsDelivery && deliveryFeeVal !== '') {
-            html += `<div class="order-callout info mt-3"><i class="fas fa-check-circle me-1"></i>Costo de envío confirmado y ya incluido en el total.</div>`;
-        }
-        if (showsPickup && pickupFeeVal !== '') {
-            html += `<div class="order-callout info mt-3"><i class="fas fa-check-circle me-1"></i>Costo para llevar (tarrinas/empaque) confirmado y ya incluido en el total.</div>`;
+        if (f.delivery_fee_pending_review && !isFinalStatus) {
+            html += `<div class="order-callout warning mt-3"><i class="fas fa-triangle-exclamation me-1"></i>No se pudo calcular solo (dirección a mano, fuera de la tabla de tramos, o sucursal sin tabla configurada). Confírmalo a mano antes de despachar: se suma al total y el cliente recibe el mensaje con el total final.</div>`;
+        } else if (deliveryFeeVal !== '') {
+            html += `<div class="order-callout info mt-3"><i class="fas fa-check-circle me-1"></i>Costo de envío calculado automáticamente y ya incluido en el total. Podés corregirlo abajo si hace falta.</div>`;
         }
         if (isFinalStatus) {
             html += `<div class="order-callout mt-3"><i class="fas fa-lock me-1"></i>Este pedido está ${order.status === 'cancelled' ? 'cancelado' : 'entregado'}: ya no se le pueden mandar cambios de costo.</div>`;
@@ -1412,25 +1406,17 @@ function renderFulfillmentSection(order) {
         if (CAN_UPDATE && !isFinalStatus) {
             html += `<form class="mt-2" onsubmit="sendFulfillmentCosts(event)">
                 <div class="row g-2 align-items-end">
-                    ${showsDelivery ? `<div class="col-6 col-md-4">
+                    <div class="col-6 col-md-4">
                         <label class="form-label small d-block">Costo de envío ($)</label>
-                        <input type="number" step="0.01" min="0" class="form-control form-control-sm" name="delivery_fee" value="${deliveryFeeVal}">
-                    </div>` : ''}
-                    ${showsPickup ? `<div class="col-6 col-md-4">
-                        <label class="form-label small d-block">Costo para llevar ($, tarrinas/empaque)</label>
-                        <input type="number" step="0.01" min="0" class="form-control form-control-sm" name="pickup_fee" value="${pickupFeeVal || '0.00'}">
-                    </div>` : ''}
+                        <input type="number" step="0.01" min="0" class="form-control form-control-sm" name="delivery_fee" value="${deliveryFeeVal}" required>
+                    </div>
                     <div class="col-12 col-md-4">
                         <button type="submit" class="o-btn primary btn-sm w-100"><i class="fab fa-whatsapp me-1"></i>Confirmar y avisar al cliente</button>
                     </div>
                 </div>
-                <p class="small text-muted mb-0 mt-2">Un solo mensaje al cliente con ambos costos y el total final — no se manda uno por cada campo.</p>
             </form>`;
-        } else {
-            const parts = [];
-            if (showsDelivery && deliveryFeeVal !== '') parts.push(`Envío: $${deliveryFeeVal}`);
-            if (showsPickup) parts.push(`Para llevar: $${pickupFeeVal || '0.00'}`);
-            if (parts.length) html += `<p class="small text-muted mb-0 mt-2">${parts.join(' · ')}</p>`;
+        } else if (deliveryFeeVal !== '') {
+            html += `<p class="small text-muted mb-0 mt-2">Envío: $${deliveryFeeVal}</p>`;
         }
 
         html += `</div>`;
@@ -1458,18 +1444,10 @@ function sendFulfillmentCosts(e) {
     const form = new FormData(e.target);
     const payload = {};
 
-    if (form.has('delivery_fee')) {
-        const raw = form.get('delivery_fee');
-        const fee = raw === '' ? null : parseFloat(raw);
-        if (fee !== null && (isNaN(fee) || fee < 0)) return;
-        payload.delivery_fee = fee;
-    }
-    if (form.has('pickup_fee')) {
-        const raw = form.get('pickup_fee');
-        const fee = raw === '' ? 0 : parseFloat(raw);
-        if (isNaN(fee) || fee < 0) return;
-        payload.pickup_fee = fee;
-    }
+    const raw = form.get('delivery_fee');
+    const fee = parseFloat(raw);
+    if (raw === '' || isNaN(fee) || fee < 0) return;
+    payload.delivery_fee = fee;
 
     fetch(FULFILLMENT_COSTS_URL_TEMPLATE.replace('__ID__', currentOrderId), {
         method: 'POST',

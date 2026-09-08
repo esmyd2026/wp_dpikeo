@@ -12,11 +12,12 @@ use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
- * Pedido no proactivo real reportado: un pedido "para llevar" quedaba
- * esperando que caja confirme el costo de empaque, y si tardaban, el cliente
- * se quedaba sin ninguna novedad y el staff sin ninguna alerta. Este servicio
- * corre cada 5 minutos (ver Kernel) y, pasados 15 minutos sin que caja
- * confirme, le avisa a ambos -- una sola vez por cada vez que el pedido queda
+ * Pedido no proactivo real reportado: un pedido de delivery quedaba
+ * esperando que caja confirme el costo de envío (cuando no se pudo calcular
+ * solo con la tabla de tramos km->$), y si tardaban, el cliente se quedaba
+ * sin ninguna novedad y el staff sin ninguna alerta. Este servicio corre
+ * cada 5 minutos (ver Kernel) y, pasados 15 minutos sin que caja confirme,
+ * le avisa a ambos -- una sola vez por cada vez que el pedido queda
  * "atascado" (dedupe por Cache, no en cada corrida del cron).
  */
 class OrderDelayAlertTest extends TestCase
@@ -40,9 +41,10 @@ class OrderDelayAlertTest extends TestCase
         $cart = WhatsappCart::create([
             'contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_CONFIRMED, 'total' => 10,
             'metadata' => [
-                'service_type' => 'llevar',
+                'pickup_mode' => 'delivery',
                 'confirmed_at' => now()->subMinutes(20)->toIso8601String(),
-                'pickup_fee_pending_since' => now()->subMinutes(20)->toIso8601String(),
+                'delivery_fee_pending_review' => true,
+                'delivery_fee_pending_since' => now()->subMinutes(20)->toIso8601String(),
             ],
         ]);
 
@@ -67,7 +69,7 @@ class OrderDelayAlertTest extends TestCase
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
         [, , $cart] = $this->overdueCartSetup();
-        $cart->metadata = array_merge($cart->metadata, ['pickup_fee_pending_since' => now()->subMinutes(5)->toIso8601String()]);
+        $cart->metadata = array_merge($cart->metadata, ['delivery_fee_pending_since' => now()->subMinutes(5)->toIso8601String()]);
         $cart->save();
 
         $alerted = app(OrderDelayAlertService::class)->alertOverdue(15);
@@ -95,8 +97,9 @@ class OrderDelayAlertTest extends TestCase
         [, , $cart] = $this->overdueCartSetup();
 
         $metadata = $cart->metadata;
-        unset($metadata['pickup_fee_pending_since']);
-        $metadata['pickup_fee'] = 1.0;
+        unset($metadata['delivery_fee_pending_since']);
+        $metadata['delivery_fee_pending_review'] = false;
+        $metadata['delivery_fee'] = 1.0;
         $cart->metadata = $metadata;
         $cart->save();
 

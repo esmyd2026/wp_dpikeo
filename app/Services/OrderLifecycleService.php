@@ -185,58 +185,40 @@ class OrderLifecycleService
     }
 
     /**
-     * Acción manual de caja: confirma/ajusta el costo de envío y/o el costo
-     * para llevar (tarrinas/empaque) de un pedido EN UN SOLO PASO, y le
-     * avisa al cliente por WhatsApp con un único mensaje que ya incluye el
-     * total final -- antes eran dos botones separados que mandaban dos
-     * mensajes con dos totales distintos, lo cual confundía al cliente
-     * (veía el total "saltar" varias veces). Pasa null en el costo que no
-     * aplique para este pedido (ver AdminController::sendFulfillmentCosts).
-     * Igual que notifyCustomerOfStatusChange(), no envía nada si el número
-     * es sintético (punto de venta) o si se cerró la ventana de 24h.
+     * Acción manual de caja: confirma/ajusta el costo de envío de un pedido,
+     * y le avisa al cliente por WhatsApp con un mensaje que ya incluye el
+     * total final. Solo aplica a delivery -- el costo "para llevar" se
+     * eliminó (ver AdminController::sendFulfillmentCosts). Igual que
+     * notifyCustomerOfStatusChange(), no envía nada si el número es
+     * sintético (punto de venta) o si se cerró la ventana de 24h.
      *
      * @return array{order: WhatsappCart, sent: bool, reason: ?string}
      */
-    public function sendFulfillmentCostsMessage(WhatsappCart $order, ?float $deliveryFee, ?float $pickupFee, ?int $userId = null): array
+    public function sendFulfillmentCostsMessage(WhatsappCart $order, float $deliveryFee, ?int $userId = null): array
     {
         if (in_array($order->status, [WhatsappCart::STATUS_CANCELLED, WhatsappCart::STATUS_COMPLETED], true)) {
             throw new InvalidArgumentException('No se puede modificar el costo de un pedido cancelado o ya entregado.');
         }
-        if (($deliveryFee !== null && $deliveryFee < 0) || ($pickupFee !== null && $pickupFee < 0)) {
+        if ($deliveryFee < 0) {
             throw new InvalidArgumentException('El costo no puede ser negativo.');
         }
-        if ($deliveryFee === null && $pickupFee === null) {
-            throw new InvalidArgumentException('No hay ningún costo para confirmar.');
-        }
 
-        $order = DB::transaction(function () use ($order, $deliveryFee, $pickupFee, $userId) {
+        $order = DB::transaction(function () use ($order, $deliveryFee, $userId) {
             $order = WhatsappCart::query()->with(['items', 'contact'])->lockForUpdate()->findOrFail($order->id);
             $metadata = $order->metadata ?? [];
-            $delta = 0.0;
 
-            if ($deliveryFee !== null) {
-                // El envío no se suma al total hasta esta confirmación (ver
-                // WhatsappService::handleTextMessage, paso de nombre del
-                // receptor). 'delivery_fee_applied' guarda cuánto de ese
-                // costo ya quedó reflejado en el total, para poder
-                // corregirlo más adelante sin duplicar el cobro.
-                $delta += $deliveryFee - (float) ($metadata['delivery_fee_applied'] ?? 0);
-                $metadata['delivery_fee'] = $deliveryFee;
-                $metadata['delivery_fee_applied'] = $deliveryFee;
-                $metadata['delivery_fee_pending_review'] = false;
-                $metadata['delivery_fee_confirmed_by'] = $userId;
-                $metadata['delivery_fee_confirmed_at'] = now()->toIso8601String();
-                unset($metadata['delivery_fee_pending_since']);
-            }
-
-            if ($pickupFee !== null) {
-                $delta += $pickupFee - (float) ($metadata['pickup_fee_applied'] ?? 0);
-                $metadata['pickup_fee'] = $pickupFee;
-                $metadata['pickup_fee_applied'] = $pickupFee;
-                $metadata['pickup_fee_confirmed_by'] = $userId;
-                $metadata['pickup_fee_confirmed_at'] = now()->toIso8601String();
-                unset($metadata['pickup_fee_pending_since']);
-            }
+            // El envío no se suma al total hasta esta confirmación (ver
+            // WhatsappService::handleTextMessage, paso de nombre del
+            // receptor). 'delivery_fee_applied' guarda cuánto de ese costo
+            // ya quedó reflejado en el total, para poder corregirlo más
+            // adelante sin duplicar el cobro.
+            $delta = $deliveryFee - (float) ($metadata['delivery_fee_applied'] ?? 0);
+            $metadata['delivery_fee'] = $deliveryFee;
+            $metadata['delivery_fee_applied'] = $deliveryFee;
+            $metadata['delivery_fee_pending_review'] = false;
+            $metadata['delivery_fee_confirmed_by'] = $userId;
+            $metadata['delivery_fee_confirmed_at'] = now()->toIso8601String();
+            unset($metadata['delivery_fee_pending_since']);
 
             $order->metadata = $metadata;
             $order->total = max(0, (float) $order->total + $delta);
@@ -258,10 +240,8 @@ class OrderLifecycleService
 
         if ($sent) {
             $orderId = $order->id;
-            $includesDelivery = $deliveryFee !== null;
-            $includesPickup = $pickupFee !== null;
 
-            dispatch(function () use ($orderId, $includesDelivery, $includesPickup) {
+            dispatch(function () use ($orderId) {
                 try {
                     $order = WhatsappCart::with(['contact', 'items'])->find($orderId);
                     $contact = $order?->contact;
@@ -270,7 +250,7 @@ class OrderLifecycleService
                         return;
                     }
 
-                    $body = $this->buildFulfillmentCostsMessageBody($order, $includesDelivery, $includesPickup);
+                    $body = $this->buildFulfillmentCostsMessageBody($order);
 
                     // El total ya es final para lo que se acaba de confirmar;
                     // si el pedido necesitaba comprobante de pago y todavía
@@ -318,23 +298,21 @@ class OrderLifecycleService
         return WhatsappChatbotConfig::first();
     }
 
-    private function buildFulfillmentCostsMessageBody(WhatsappCart $order, bool $includesDelivery, bool $includesPickup): string
+    private function buildFulfillmentCostsMessageBody(WhatsappCart $order): string
     {
         $metadata = $order->metadata ?? [];
         $address = $metadata['delivery_location']['manual_address'] ?? null;
         $recipient = $metadata['delivery_recipient_name'] ?? null;
         $deliveryFee = (float) ($metadata['delivery_fee'] ?? 0);
-        $pickupFee = (float) ($metadata['pickup_fee'] ?? 0);
 
-        $addressLine = ($includesDelivery && $address) ? "Dirección: {$address}\n" : '';
-        $recipientLine = ($includesDelivery && $recipient) ? "Recibe: {$recipient}\n" : '';
-        // Sin esto, el cliente veía saltar de los costos de envío/empaque
-        // directo al total final, sin poder ver de dónde salía el resto del
-        // monto (el costo de los productos en sí).
+        $addressLine = $address ? "Dirección: {$address}\n" : '';
+        $recipientLine = $recipient ? "Recibe: {$recipient}\n" : '';
+        // Sin esto, el cliente veía saltar del costo de envío directo al
+        // total final, sin poder ver de dónde salía el resto del monto (el
+        // costo de los productos en sí).
         $productsSubtotal = $order->items->sum(fn ($item) => (float) $item->price * $item->quantity);
         $subtotalLine = 'Subtotal productos: $'.number_format($productsSubtotal, 2)."\n";
-        $deliveryLine = $includesDelivery ? 'Costo de envío: $'.number_format($deliveryFee, 2)."\n" : '';
-        $pickupLine = $includesPickup ? 'Costo para llevar: $'.number_format($pickupFee, 2)."\n" : '';
+        $deliveryLine = 'Costo de envío: $'.number_format($deliveryFee, 2)."\n";
 
         // Si el pedido se paga por transferencia/depósito, el cliente necesita
         // saber a qué cuenta mandar el pago justo cuando se le confirma el
@@ -347,7 +325,7 @@ class OrderLifecycleService
             : '';
 
         $lines = "📦 Pedido *{$order->getOrderNumber()}*\n\n"
-            .$addressLine.$recipientLine.$subtotalLine.$deliveryLine.$pickupLine
+            .$addressLine.$recipientLine.$subtotalLine.$deliveryLine
             .'Total a pagar: $'.number_format((float) $order->total, 2)
             .$bankLine;
 
@@ -357,7 +335,7 @@ class OrderLifecycleService
             'recipient_line' => $recipientLine,
             'subtotal_line' => $subtotalLine,
             'delivery_line' => $deliveryLine,
-            'pickup_line' => $pickupLine,
+            'pickup_line' => '',
             'total' => number_format((float) $order->total, 2),
             'bank_line' => $bankLine,
         ], $lines);

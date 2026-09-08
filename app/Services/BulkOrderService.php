@@ -505,11 +505,40 @@ class BulkOrderService
         throw new InvalidArgumentException('Selecciona la sucursal que atenderá el pedido.');
     }
 
+    /**
+     * Pedido explícito: el formulario web ("Armar lista") nunca pregunta
+     * "para llevar/servir" ni retiro/delivery -- eso lo debe preguntar el
+     * BOT por WhatsApp antes de mandar la confirmación. Si al carrito le
+     * falta esa info, se le manda la pregunta en vez de la confirmación
+     * (PDF + botones); esta se manda recién cuando responda todo, ver
+     * WhatsappService::continueAfterFulfillmentStep(). Pedidos que ya
+     * traen esa info resuelta (ej. armados desde el panel/POS) van
+     * directo a la confirmación, sin preguntar nada de más.
+     */
     public function notifyContactViaWhatsapp(WhatsappCart $cart): void
     {
         try {
             $cart->loadMissing('contact');
-            app(OrderConfirmationService::class)->notifyBulkOrderSubmitted($cart->contact, $cart);
+            $contact = $cart->contact;
+            if (! $contact) {
+                return;
+            }
+
+            // Solo el formulario público ("Armar lista") nunca pregunta tipo
+            // de servicio ni retiro/delivery -- pedidos armados desde el
+            // panel/POS (submitFromAdmin) ya resuelven o descartan esa info
+            // explícitamente, y no deben empezar a preguntarle al cliente
+            // algo que antes no se preguntaba ahí.
+            if (($cart->metadata['source'] ?? null) === 'bulk_web_form') {
+                $whatsapp = app(WhatsappService::class);
+                $whatsapp->useBusinessProfile($contact->businessProfile);
+
+                if ($whatsapp->askNextBulkOrderFulfillmentStep($contact, $cart)) {
+                    return;
+                }
+            }
+
+            app(OrderConfirmationService::class)->notifyBulkOrderSubmitted($contact, $cart);
         } catch (\Throwable $e) {
             Log::error('[BulkOrder] No se pudo notificar por WhatsApp', [
                 'cart_id' => $cart->id,

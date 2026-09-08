@@ -279,34 +279,30 @@ class WhatsappCart extends Model
     }
 
     /**
-     * El costo de envío o de empaque para llevar todavía no lo confirmó caja
-     * -- mientras esto esté pendiente, el total del pedido no es el final.
-     * Ver OrderLifecycleService::sendFulfillmentCostsMessage() (limpia estas
-     * banderas) y applyDeliveryRecipientName()/confirmarPedido() en
-     * WhatsappService (las setean).
+     * El costo de envío todavía no se pudo calcular solo (dirección a mano,
+     * fuera de cobertura de la tabla de tramos, o sucursal sin tabla
+     * configurada) y lo debe confirmar caja -- mientras esto esté
+     * pendiente, el total del pedido no es el final. Ya no aplica a
+     * pedidos "para llevar": ese costo se eliminó, solo existe para
+     * delivery. Ver OrderLifecycleService::sendFulfillmentCostsMessage()
+     * (limpia esta bandera) y applyDeliveryRecipientName() en
+     * WhatsappService (la setea).
      */
     public function hasPendingFulfillmentCosts(): bool
     {
         $metadata = $this->metadata ?? [];
 
-        if (($metadata['pickup_mode'] ?? null) === 'delivery') {
-            if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
-                return true;
-            }
+        if (($metadata['pickup_mode'] ?? null) !== 'delivery') {
+            return false;
         }
 
-        if (($metadata['service_type'] ?? null) === 'llevar' && ! array_key_exists('pickup_fee', $metadata)) {
-            return true;
-        }
-
-        return false;
+        return ! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata);
     }
 
-    /** Desde cuándo espera el costo pendiente (para medir demoras), o null si no hay ninguno registrado. */
+    /** Desde cuándo espera el costo de envío pendiente (para medir demoras), o null si no hay ninguno registrado. */
     public function pendingFulfillmentSince(): ?Carbon
     {
-        $metadata = $this->metadata ?? [];
-        $raw = $metadata['delivery_fee_pending_since'] ?? $metadata['pickup_fee_pending_since'] ?? null;
+        $raw = $this->metadata['delivery_fee_pending_since'] ?? null;
 
         return $raw ? Carbon::parse($raw) : null;
     }

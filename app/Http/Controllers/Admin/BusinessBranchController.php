@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BusinessBranch;
+use App\Models\BusinessBranchDeliveryFeeTier;
 use App\Models\BusinessBranchHour;
 use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
@@ -25,7 +26,7 @@ class BusinessBranchController extends Controller
             'branches' => BusinessBranch::query()
                 ->forUserAccess(auth()->user(), $context->businessProfileId())
                 ->withCount('orders')
-                ->with('hours')
+                ->with(['hours', 'deliveryFeeTiers'])
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(),
@@ -46,6 +47,7 @@ class BusinessBranchController extends Controller
 
             $branch = BusinessBranch::create(array_merge($data, ['business_profile_id' => $profile->id]));
             $this->syncHours($branch, $request);
+            $this->syncDeliveryFeeTiers($branch, $request);
         });
 
         return back()->with('success', 'Sucursal creada correctamente.');
@@ -70,6 +72,7 @@ class BusinessBranchController extends Controller
             }
             $branch->update($data);
             $this->syncHours($branch, $request);
+            $this->syncDeliveryFeeTiers($branch, $request);
         });
 
         return back()->with('success', 'Sucursal actualizada.');
@@ -108,13 +111,15 @@ class BusinessBranchController extends Controller
             'dine_in_enabled' => ['nullable', 'boolean'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'delivery_fee_per_unit' => ['nullable', 'numeric', 'min:0'],
-            'delivery_fee_km_unit' => ['nullable', 'numeric', 'min:0.1'],
             'delivery_fee_minimum' => ['nullable', 'numeric', 'min:0'],
             'hours' => ['nullable', 'array'],
             'hours.*.is_closed' => ['nullable', 'boolean'],
             'hours.*.opens_at' => ['nullable', 'date_format:H:i'],
             'hours.*.closes_at' => ['nullable', 'date_format:H:i'],
+            'delivery_fee_tiers' => ['nullable', 'array'],
+            'delivery_fee_tiers.*.from_km' => ['required_with:delivery_fee_tiers.*.price', 'numeric', 'min:0'],
+            'delivery_fee_tiers.*.to_km' => ['nullable', 'numeric', 'min:0'],
+            'delivery_fee_tiers.*.price' => ['required_with:delivery_fee_tiers.*.from_km', 'numeric', 'min:0'],
         ]);
 
         return [
@@ -135,8 +140,6 @@ class BusinessBranchController extends Controller
             'dine_in_enabled' => $request->boolean('dine_in_enabled'),
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,
-            'delivery_fee_per_unit' => $data['delivery_fee_per_unit'] ?? null,
-            'delivery_fee_km_unit' => $data['delivery_fee_km_unit'] ?? null,
             'delivery_fee_minimum' => $data['delivery_fee_minimum'] ?? null,
         ];
     }
@@ -167,6 +170,46 @@ class BusinessBranchController extends Controller
                 ['business_branch_id' => $branch->id, 'day_of_week' => $day],
                 ['is_closed' => $isClosed, 'opens_at' => $opensAt, 'closes_at' => $closesAt]
             );
+        }
+    }
+
+    /**
+     * Reemplaza por completo la tabla de tramos de delivery de la sucursal
+     * ("desde X hasta Y km = $"), con la que se calcula el costo de envío
+     * solo cuando el cliente comparte su ubicación (ver
+     * DeliveryFeeTierService::feeForDistance). Filas vacías (sin "desde" ni
+     * "precio") se ignoran -- así el form puede tener filas extra sin llenar.
+     */
+    private function syncDeliveryFeeTiers(BusinessBranch $branch, Request $request): void
+    {
+        $rows = collect($request->input('delivery_fee_tiers', []))
+            ->filter(fn ($row) => filled($row['from_km'] ?? null) && filled($row['price'] ?? null))
+            ->map(fn ($row) => [
+                'from_km' => (float) $row['from_km'],
+                'to_km' => filled($row['to_km'] ?? null) ? (float) $row['to_km'] : null,
+                'price' => (float) $row['price'],
+            ])
+            ->sortBy('from_km')
+            ->values();
+
+        $previousTo = null;
+        foreach ($rows as $index => $row) {
+            if ($row['to_km'] !== null && $row['to_km'] <= $row['from_km']) {
+                throw ValidationException::withMessages([
+                    "delivery_fee_tiers.{$index}.to_km" => 'El "hasta" debe ser mayor que el "desde".',
+                ]);
+            }
+            if ($previousTo !== null && $row['from_km'] < $previousTo) {
+                throw ValidationException::withMessages([
+                    "delivery_fee_tiers.{$index}.from_km" => 'Los tramos no pueden solaparse con el anterior.',
+                ]);
+            }
+            $previousTo = $row['to_km'];
+        }
+
+        $branch->deliveryFeeTiers()->delete();
+        foreach ($rows as $row) {
+            $branch->deliveryFeeTiers()->create($row);
         }
     }
 }

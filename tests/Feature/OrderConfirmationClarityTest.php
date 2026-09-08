@@ -15,13 +15,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Pedido explícito: al confirmar un pedido "para llevar" pagado en efectivo,
+ * Pedido explícito: al confirmar un pedido de delivery pagado en efectivo,
  * el mensaje de confirmación siempre traía botones ("Mis pedidos"/"Menú
  * principal") y un genérico "Te contactaremos pronto", aunque el costo de
- * empaque todavía estuviera sin confirmar por caja -- daba a entender que ya
- * no faltaba nada, cuando en realidad el total ni siquiera era el final
- * todavía. Y el mensaje donde caja SÍ confirma los costos saltaba del costo
- * de envío/empaque directo al total, sin mostrar el subtotal de productos.
+ * envío todavía estuviera sin confirmar por caja (porque no se pudo calcular
+ * solo con la tabla de tramos km->$) -- daba a entender que ya no faltaba
+ * nada, cuando en realidad el total ni siquiera era el final todavía. Y el
+ * mensaje donde caja SÍ confirma el costo saltaba directo al total, sin
+ * mostrar el subtotal de productos.
  */
 class OrderConfirmationClarityTest extends TestCase
 {
@@ -77,10 +78,13 @@ class OrderConfirmationClarityTest extends TestCase
         return $cart;
     }
 
-    public function test_confirming_a_cash_order_with_a_pending_pickup_fee_has_no_buttons_and_says_so_clearly(): void
+    public function test_confirming_a_cash_order_with_a_pending_delivery_fee_has_no_buttons_and_says_so_clearly(): void
     {
         [$product, $contact, $branch] = $this->fixture();
-        $cart = $this->cartReadyToConfirm($contact, $product, $branch);
+        $cart = $this->cartReadyToConfirm($contact, $product, $branch, [
+            'pickup_mode' => 'delivery',
+            'delivery_fee_pending_review' => true,
+        ]);
 
         $service = new WhatsappService();
         $response = $this->invoke($service, 'confirmarPedido', [$contact, $cart->id]);
@@ -92,8 +96,7 @@ class OrderConfirmationClarityTest extends TestCase
     public function test_confirming_a_cash_order_with_no_pending_costs_still_shows_the_follow_up_buttons(): void
     {
         [$product, $contact, $branch] = $this->fixture();
-        // pickup_fee ya confirmado de antemano -> nada pendiente.
-        $cart = $this->cartReadyToConfirm($contact, $product, $branch, ['pickup_fee' => 1.00]);
+        $cart = $this->cartReadyToConfirm($contact, $product, $branch);
 
         $service = new WhatsappService();
         $response = $this->invoke($service, 'confirmarPedido', [$contact, $cart->id]);
@@ -108,17 +111,18 @@ class OrderConfirmationClarityTest extends TestCase
     {
         [$product, $contact, $branch] = $this->fixture();
         $cart = $this->cartReadyToConfirm($contact, $product, $branch, [
+            'pickup_mode' => 'delivery',
             'delivery_location' => ['manual_address' => 'Av. Test 123'],
             'delivery_recipient_name' => 'Juan Pérez',
         ]);
         $cart->items()->create(['whatsapp_price_id' => $product->id, 'name' => $product->name, 'price' => $product->price, 'quantity' => 2]);
         $expectedSubtotal = $product->price * 3; // 1 (fixture) + 2 (este segundo item)
 
-        $result = app(OrderLifecycleService::class)->sendFulfillmentCostsMessage($cart->fresh(), 2.00, 1.50, null);
+        $result = app(OrderLifecycleService::class)->sendFulfillmentCostsMessage($cart->fresh(), 2.00, null);
 
         $ref = new \ReflectionMethod(OrderLifecycleService::class, 'buildFulfillmentCostsMessageBody');
         $ref->setAccessible(true);
-        $body = $ref->invoke(app(OrderLifecycleService::class), $result['order']->fresh(['items']), true, true);
+        $body = $ref->invoke(app(OrderLifecycleService::class), $result['order']->fresh(['items']));
 
         $this->assertStringContainsString('Subtotal productos: $' . number_format($expectedSubtotal, 2), $body);
     }

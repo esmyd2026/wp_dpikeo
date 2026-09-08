@@ -118,7 +118,6 @@ class OrderAdminService
             'delivery_fee' => $order->metadata['delivery_fee'] ?? null,
             'delivery_fee_pending_review' => (bool) ($order->metadata['delivery_fee_pending_review'] ?? false),
             'delivery_distance_km' => $order->metadata['delivery_distance_km'] ?? null,
-            'pickup_fee' => $order->metadata['pickup_fee'] ?? null,
         ];
     }
 
