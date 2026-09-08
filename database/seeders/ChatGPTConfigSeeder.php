@@ -13,7 +13,14 @@ class ChatGPTConfigSeeder extends Seeder
 {
     public function run(): void
     {
-        $businessProfiles = WhatsappBusinessProfile::all();
+        // updateOrCreate() pisaba en silencio la config de ChatGPT de CADA
+        // empresa (activado/desactivado, modelo, prompt, temperatura) con
+        // estos valores por defecto cada vez que se corría el seeder --
+        // cualquier admin que hubiera activado y personalizado ChatGPT
+        // perdía su configuración con un "php artisan db:seed" de rutina.
+        // Solo se genera para empresas que todavía no tienen ninguna config.
+        $configuredProfileIds = WhatsappChatbotConfig::pluck('business_profile_id');
+        $businessProfiles = WhatsappBusinessProfile::whereNotIn('id', $configuredProfileIds)->get();
 
         foreach ($businessProfiles as $profile) {
             // Obtener todos los menús del negocio
