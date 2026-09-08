@@ -384,6 +384,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/marketing-flow/graph/publish', [App\Http\Controllers\Admin\MarketingFlowGraphController::class, 'publish'])
         ->middleware('permission:marketing_flow.update')
         ->name('marketing-flow.graph.publish');
+    Route::post('/marketing-flow/graph/unpublish', [App\Http\Controllers\Admin\MarketingFlowGraphController::class, 'unpublish'])
+        ->middleware('permission:marketing_flow.update')
+        ->name('marketing-flow.graph.unpublish');
     Route::get('/marketing-flow/graph/versions', [App\Http\Controllers\Admin\MarketingFlowGraphController::class, 'versions'])
         ->middleware('permission:marketing_flow.view,marketing_flow.menu')
         ->name('marketing-flow.graph.versions');

@@ -473,6 +473,23 @@ class MarketingFlowGraphController extends Controller
         ], 201);
     }
 
+    /**
+     * Deja de usar el flujo visual sin borrar nada: el bot vuelve a
+     * atenderse con "Flujo del bot" (el editor clásico) para saludo, menú,
+     * etc. Pensado para cuando el grafo publicado divergió del editor
+     * clásico y el admin prefiere no mantener los dos en paralelo -- puede
+     * volver a publicar cuando quiera, el grafo y sus nodos quedan intactos.
+     */
+    public function unpublish()
+    {
+        $flow = $this->resolveFlow();
+        abort_unless($flow, 404);
+
+        $wasPublished = $flow->versions()->where('is_current', true)->update(['is_current' => false]) > 0;
+
+        return response()->json(['success' => true, 'was_published' => $wasPublished]);
+    }
+
     public function versions()
     {
         $flow = $this->resolveFlow();
