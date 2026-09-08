@@ -27,6 +27,23 @@ class DpikeosCatalogSeeder extends Seeder
             return;
         }
 
+        // Este seeder nació cuando la plataforma era de una sola empresa
+        // (WhatsappBusinessProfile::first() era inequívoco). Correrlo de
+        // nuevo -- un "php artisan db:seed" de rutina, por ejemplo -- pisaba
+        // en silencio TODO lo que el admin hubiera personalizado desde el
+        // panel: nombre del negocio, mensajes del flujo, catálogo, todo
+        // volvía al contenido de demo. Bug real reportado en vivo: los
+        // pasos "Bienvenida inicial" y "Menú principal" que el admin había
+        // editado con su propia marca aparecían de golpe con el texto de
+        // DPIKEOS otra vez. Ahora solo se ejecuta una vez: si este perfil ya
+        // tiene un flujo armado (lo haya creado este mismo seeder o un
+        // admin desde cero), no se toca nada más.
+        if (MarketingFlow::where('business_profile_id', $profile->id)->exists()) {
+            $this->command?->info('DpikeosCatalogSeeder: el perfil ya tiene flujo configurado, no se sobreescribe.');
+
+            return;
+        }
+
         $this->seedCatalog($profile);
         $this->configureBusiness($profile);
         $this->configureChatbot($profile);
