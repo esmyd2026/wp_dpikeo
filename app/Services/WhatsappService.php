@@ -7961,6 +7961,26 @@ class WhatsappService
                 ];
             }
 
+            // Una vez enviado el link, el resto de la compra ocurre en la
+            // web externa -- no hay forma de saber si el cliente llegó a
+            // pagar ahí. Dejar este carrito "active" lo hacía reutilizable
+            // indefinidamente: cualquier producto nuevo que intentara
+            // agregar después chocaba con "ya te enviamos el link" (ver
+            // interceptForPaymentMethod), y a los 35 min el timeout de
+            // carritos abandonados lo cerraba solo con el aviso de "no
+            // continuarás", aunque el cliente sí había decidido cómo pagar.
+            // Se cierra ya mismo y se reinicia su posición en el flujo para
+            // que el próximo mensaje arranque de cero, sin ese aviso.
+            try {
+                app(OrderLifecycleService::class)->transition($cart, WhatsappCart::STATUS_CANCELLED, null, 'card_payment_redirected');
+                $contact->forgetFlowPosition();
+            } catch (\Throwable $e) {
+                Log::warning('[procesarPagoTarjeta] No se pudo cerrar el carrito tras mandar el link de pago', [
+                    'cart_id' => $cart->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return [
                 'type' => 'interactive',
                 'interactive' => [

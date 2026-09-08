@@ -56,7 +56,16 @@ class ProductQuantitySelectionTest extends TestCase
         $this->assertSame('efectivo', $cart->payment_method);
     }
 
-    public function test_choosing_card_payment_before_quantity_blocks_further_catalog_actions(): void
+    /**
+     * Pedido explícito: el pago con tarjeta se resuelve fuera del chat (web
+     * externa), y no hay forma de saber si el cliente llegó a pagar ahí --
+     * dejar el carrito "active" indefinidamente hacía que cualquier intento
+     * nuevo del cliente quedara bloqueado repitiendo el link para siempre
+     * (y, si nunca volvía a escribir, el timeout de carritos abandonados lo
+     * cerraba solo con el aviso de "no continuarás"). Un intento nuevo debe
+     * arrancar de cero, no quedar atascado.
+     */
+    public function test_choosing_card_payment_then_a_new_attempt_starts_a_fresh_cart_instead_of_blocking(): void
     {
         [$product, $contact] = $this->catalogProduct(allowQuantity: true, min: 1, max: 8);
         \App\Models\WhatsappChatbotConfig::create([
@@ -72,13 +81,15 @@ class ProductQuantitySelectionTest extends TestCase
 
         $linkResponse = $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
         $this->assertStringContainsString('pagar.example.com', json_encode($linkResponse));
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
 
-        // Cualquier intento posterior de agregar/pedir cantidad debe recordarle
-        // el link en vez de dejarlo seguir armando el carrito.
-        $blocked = $this->invoke($service, 'showQuantitySelection', [$contact, $product->id, null]);
-        $this->assertSame('text', $blocked['type']);
-        $this->assertStringContainsString('pagar.example.com', $blocked['text']['body']);
-        $this->assertSame(0, $cart->fresh()->items()->count());
+        // Un intento nuevo arma OTRO carrito y vuelve a preguntar el método
+        // de pago -- no repite el link del pedido ya cerrado.
+        $freshAttempt = $this->invoke($service, 'showQuantitySelection', [$contact, $product->id, null]);
+        $this->assertSame('list', $freshAttempt['interactive']['type']);
+        $this->assertStringNotContainsString('pagar.example.com', json_encode($freshAttempt));
+        $newCart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
+        $this->assertNotEquals($cart->id, $newCart->id);
     }
 
     public function test_product_without_quantity_selection_adds_one_unit_directly(): void
