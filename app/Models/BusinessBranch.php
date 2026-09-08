@@ -10,14 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class BusinessBranch extends Model
 {
     protected $fillable = [
-        'business_profile_id', 'name', 'code', 'phone', 'address', 'is_default', 'is_active',
-        'latitude', 'longitude', 'delivery_fee_per_unit', 'delivery_fee_km_unit', 'delivery_fee_minimum',
+        'business_profile_id', 'name', 'code', 'phone', 'address', 'reservations_info', 'is_default', 'is_active',
+        'orders_enabled', 'latitude', 'longitude', 'delivery_fee_per_unit', 'delivery_fee_km_unit', 'delivery_fee_minimum',
         'dine_in_enabled',
     ];
 
     protected $casts = [
         'is_default' => 'boolean',
         'is_active' => 'boolean',
+        'orders_enabled' => 'boolean',
         'dine_in_enabled' => 'boolean',
         'latitude' => 'float',
         'longitude' => 'float',
@@ -35,6 +36,7 @@ class BusinessBranch extends Model
                 'phone' => $profile->phone_number,
                 'is_default' => true,
                 'is_active' => true,
+                'orders_enabled' => true,
                 'dine_in_enabled' => true,
             ]
         );
@@ -46,6 +48,19 @@ class BusinessBranch extends Model
         $branchIds = $user->accessibleBranchIds($businessProfileId);
 
         return $branchIds === null ? $query : $query->whereIn('id', $branchIds);
+    }
+
+    /**
+     * Sucursales que pueden recibir pedidos/delivery (is_active +
+     * orders_enabled). Distinto de "activa": una sucursal puede estar
+     * activa (aparece en el bot de Información con su dirección/teléfono/
+     * horarios) sin recibir pedidos por este medio -- ver
+     * WhatsappService::buildSucursalStep() y el resto de los puntos de
+     * selección de sucursal en checkout/POS/delivery.
+     */
+    public function scopeAvailableForOrders($query)
+    {
+        return $query->where('is_active', true)->where('orders_enabled', true);
     }
 
     public function businessProfile(): BelongsTo

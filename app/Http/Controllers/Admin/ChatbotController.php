@@ -3,20 +3,24 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\LandingController;
+use App\Models\Franchise;
 use App\Models\MessageTemplate;
+use App\Models\WhatsappBusinessProfile;
+use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
-use App\Models\WhatsappChatbotConfig;
-use App\Models\Franchise;
+use App\Services\DemoClienteService;
+use App\Services\ProductImageService;
+use App\Support\CompanyContext;
+use App\Support\PaymentMessageTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use App\Services\DemoClienteService;
-use App\Services\ProductImageService;
-use App\Support\CompanyContext;
+use Illuminate\Validation\ValidationException;
 
 class ChatbotController extends Controller
 {
@@ -30,6 +34,7 @@ class ChatbotController extends Controller
     {
         return CompanyContext::current()->businessProfileId();
     }
+
     /**
      * Gestión de categorías del catálogo (items del menú prices_menu).
      */
@@ -83,6 +88,7 @@ class ChatbotController extends Controller
     {
         $products = WhatsappPrice::with('category')->orderBy('sku')->get();
         $categories = WhatsappMenu::where('type', 'category')->get();
+
         return view('admin.products.index', compact('products', 'categories'));
     }
 
@@ -96,8 +102,34 @@ class ChatbotController extends Controller
             ? WhatsappChatbotConfig::firstOrCreate(['business_profile_id' => $businessProfileId])
             : WhatsappChatbotConfig::first();
         $messageTemplates = MessageTemplate::orderBy('name')->get();
+        $messageTemplateStates = $config?->metadata['message_template_enabled'] ?? [];
+        $statusNotificationStates = $config?->metadata['status_notification_enabled'] ?? [];
+        $paymentTemplateDefinitions = PaymentMessageTemplates::definitions();
+        $landing = array_merge(LandingController::DEFAULTS, $config?->metadata['landing'] ?? []);
+        $notificationStatuses = [
+            'pending' => 'Nuevo',
+            'confirmed' => 'Aceptado',
+            'payment_pending' => 'Esperando pago',
+            'paid' => 'Pago recibido',
+            'preparing' => 'En cocina',
+            'ready' => 'Listo',
+            'completed' => 'Entregado',
+            'cancelled' => 'Cancelado',
+        ];
+        $legacyCardMessage = trim((string) ($config?->metadata['card_payment_message'] ?? ''));
+        if ($legacyCardMessage !== '' && empty($config?->metadata['payment_templates']['card_payment'])) {
+            $paymentTemplateDefinitions['card_payment']['body'] = $legacyCardMessage;
+        }
 
-        return view('admin.chatbot.config', compact('config', 'messageTemplates'));
+        return view('admin.chatbot.config', compact(
+            'config',
+            'messageTemplates',
+            'messageTemplateStates',
+            'statusNotificationStates',
+            'paymentTemplateDefinitions',
+            'landing',
+            'notificationStatuses'
+        ));
     }
 
     /**
@@ -109,11 +141,32 @@ class ChatbotController extends Controller
     {
         $validated = $request->validate([
             'body' => 'required|string|max:2000',
+            'is_enabled' => 'required|boolean',
+            'status_notifications' => 'nullable|array',
+            'status_notifications.*' => 'nullable|boolean',
         ]);
 
         $messageTemplate->update(['body' => $validated['body']]);
 
-        return redirect()->back()->with('success', "Mensaje «{$messageTemplate->name}» actualizado correctamente");
+        $businessProfileId = $this->businessProfileId();
+        $config = $businessProfileId
+            ? WhatsappChatbotConfig::firstOrCreate(['business_profile_id' => $businessProfileId])
+            : WhatsappChatbotConfig::firstOrCreate([]);
+        $metadata = $config->metadata ?? [];
+        $metadata['message_template_enabled'][$messageTemplate->key] = $request->boolean('is_enabled');
+
+        if ($messageTemplate->key === 'order_status_changed') {
+            foreach (['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'] as $status) {
+                $metadata['status_notification_enabled'][$status] = $request->boolean("status_notifications.$status");
+            }
+        }
+
+        $config->metadata = $metadata;
+        $config->save();
+
+        $state = $request->boolean('is_enabled') ? 'activo' : 'silenciado';
+
+        return redirect()->back()->with('success', "Mensaje «{$messageTemplate->name}» actualizado y {$state} correctamente");
     }
 
     /**
@@ -170,14 +223,33 @@ class ChatbotController extends Controller
             'landing_phone_btn_1' => 'nullable|string|max:60',
             'landing_phone_btn_2' => 'nullable|string|max:60',
             'landing_phone_msg_4' => 'nullable|string|max:200',
+            'payment_templates' => 'nullable|array',
+            'payment_templates.*' => 'nullable|string|max:3000',
         ]);
+
+        $paymentTemplates = $validated['payment_templates'] ?? [];
+        $definitions = PaymentMessageTemplates::definitions();
+        foreach ($paymentTemplates as $key => $body) {
+            if (! isset($definitions[$key])) {
+                throw ValidationException::withMessages([
+                    "payment_templates.$key" => 'Esta plantilla de pago no está permitida.',
+                ]);
+            }
+
+            $unknown = PaymentMessageTemplates::unknownVariables($key, (string) $body);
+            if ($unknown !== []) {
+                throw ValidationException::withMessages([
+                    "payment_templates.$key" => 'Variables no permitidas: '.implode(', ', array_map(fn ($variable) => '{{'.$variable.'}}', $unknown)).'.',
+                ]);
+            }
+        }
 
         $businessProfileId = $this->businessProfileId();
         $config = $businessProfileId
             ? WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first()
             : WhatsappChatbotConfig::first();
-        if (!$config) {
-            $config = new WhatsappChatbotConfig();
+        if (! $config) {
+            $config = new WhatsappChatbotConfig;
             if ($businessProfileId) {
                 $config->business_profile_id = $businessProfileId;
             }
@@ -190,7 +262,9 @@ class ChatbotController extends Controller
         $metadata['iva_enabled'] = $request->boolean('iva_enabled');
         $metadata['iva_percentage'] = $validated['iva_percentage'] ?? 0;
         $metadata['bank_transfer_instructions'] = trim((string) ($validated['bank_transfer_instructions'] ?? '')) ?: null;
-        $metadata['card_payment_message'] = trim((string) ($validated['card_payment_message'] ?? '')) ?: null;
+        if (array_key_exists('card_payment_message', $validated)) {
+            $metadata['card_payment_message'] = trim((string) $validated['card_payment_message']) ?: null;
+        }
         $metadata['card_payment_url'] = trim((string) ($validated['card_payment_url'] ?? '')) ?: null;
         $metadata['delivery_dispatch_keyword'] = trim((string) ($validated['delivery_dispatch_keyword'] ?? '')) ?: '2501';
         $metadata['delivery_dispatch_numbers'] = trim((string) ($validated['delivery_dispatch_numbers'] ?? '')) ?: null;
@@ -207,13 +281,17 @@ class ChatbotController extends Controller
         );
         $metadata['bot_avatar'] = $validated['bot_avatar'] ?? null;
         $metadata['font_family'] = $validated['font_family'] ?? 'Arial';
+        $metadata['payment_templates'] = collect($paymentTemplates)
+            ->map(fn ($body) => trim((string) $body))
+            ->filter(fn ($body) => $body !== '')
+            ->all();
 
         if ($request->boolean('remove_bot_avatar')) {
             $this->deleteBotAvatarFile($metadata['bot_avatar_path'] ?? null);
             unset($metadata['bot_avatar'], $metadata['bot_avatar_path']);
         } elseif ($request->hasFile('bot_avatar_image')) {
             $this->deleteBotAvatarFile($metadata['bot_avatar_path'] ?? null);
-            $profileId = $config->business_profile_id ?? \App\Models\WhatsappBusinessProfile::first()?->id ?? 'default';
+            $profileId = $config->business_profile_id ?? WhatsappBusinessProfile::first()?->id ?? 'default';
             $metadata['bot_avatar_path'] = $request->file('bot_avatar_image')
                 ->store("chatbot-avatars/{$profileId}", 'public');
         }
@@ -222,9 +300,9 @@ class ChatbotController extends Controller
         $landing = $metadata['landing'] ?? [];
         $landing['accent_color'] = WhatsappChatbotConfig::normalizeHexColor(
             $validated['landing_accent_color'] ?? null,
-            \App\Http\Controllers\LandingController::DEFAULTS['accent_color']
+            LandingController::DEFAULTS['accent_color']
         );
-        foreach (\App\Http\Controllers\LandingController::DEFAULTS as $key => $default) {
+        foreach (LandingController::DEFAULTS as $key => $default) {
             if (in_array($key, ['accent_color', 'logo_path'], true)) {
                 continue;
             }
@@ -236,7 +314,7 @@ class ChatbotController extends Controller
             $landing['logo_path'] = null;
         } elseif ($request->hasFile('landing_logo_image')) {
             $this->deleteBotAvatarFile($landing['logo_path'] ?? null);
-            $profileId = $config->business_profile_id ?? \App\Models\WhatsappBusinessProfile::first()?->id ?? 'default';
+            $profileId = $config->business_profile_id ?? WhatsappBusinessProfile::first()?->id ?? 'default';
             $landing['logo_path'] = $request->file('landing_logo_image')
                 ->store("landing/{$profileId}", 'public');
         }
@@ -357,7 +435,7 @@ class ChatbotController extends Controller
     public function updateProduct(Request $request, WhatsappPrice $product)
     {
         $validated = $request->validate([
-            'sku' => 'required|string|max:50|unique:whatsapp_prices,sku,' . $product->id,
+            'sku' => 'required|string|max:50|unique:whatsapp_prices,sku,'.$product->id,
             'name' => 'required|string|max:255',
             'menu_item_id' => 'required|exists:whatsapp_menus,id',
             'price' => 'required|numeric|min:0',
@@ -380,6 +458,7 @@ class ChatbotController extends Controller
     public function deleteProduct(WhatsappPrice $product)
     {
         $product->delete();
+
         return response()->json(['message' => 'Producto eliminado correctamente']);
     }
 
@@ -545,7 +624,7 @@ class ChatbotController extends Controller
             ->where('business_profile_id', $this->businessProfileId())
             ->first();
 
-        if (!$menu) {
+        if (! $menu) {
             abort(500, 'No está configurado el menú de catálogo (prices_menu).');
         }
 
@@ -574,7 +653,7 @@ class ChatbotController extends Controller
                 ->when($ignoreId, fn ($q) => $q->where('id', '!=', $ignoreId))
                 ->exists()
         ) {
-            $actionId = $base . '_' . $suffix;
+            $actionId = $base.'_'.$suffix;
             $suffix++;
         }
 
@@ -583,7 +662,7 @@ class ChatbotController extends Controller
 
     private function formatCategory(WhatsappMenuItem $item): array
     {
-        if (!isset($item->prices_count)) {
+        if (! isset($item->prices_count)) {
             $item->loadCount([
                 'prices',
                 'prices as active_prices_count' => fn ($query) => $query->where('is_active', true),

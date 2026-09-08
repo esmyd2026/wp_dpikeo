@@ -21,7 +21,7 @@ class BulkOrderController extends Controller
         $businessProfile = $contact->businessProfile;
         $branches = BusinessBranch::query()
             ->where('business_profile_id', $contact->business_profile_id)
-            ->where('is_active', true)
+            ->availableForOrders()
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'is_default']);

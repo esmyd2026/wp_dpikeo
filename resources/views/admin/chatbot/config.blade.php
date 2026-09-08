@@ -104,19 +104,6 @@
                     </div>
 
                     <div class="sm:col-span-2">
-                        <label for="card_payment_message" class="block text-sm font-medium text-gray-700">
-                            Mensaje al mandar el link de pago con tarjeta
-                        </label>
-                        <textarea id="card_payment_message" name="card_payment_message" rows="3" maxlength="1000"
-                            placeholder="💳 Puedes pagar con tarjeta directamente aquí:"
-                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">{{ old('card_payment_message', $config->metadata['card_payment_message'] ?? '') }}</textarea>
-                        <p class="mt-1 text-xs text-gray-500">
-                            Texto que acompaña el botón con el link de arriba. Se manda apenas el cliente elige
-                            "Pago con tarjeta" — el bot no le pregunta nada más después de esto.
-                        </p>
-                    </div>
-
-                    <div class="sm:col-span-2">
                         <label class="block text-sm font-medium text-gray-700">
                             Consulta de datos de delivery por WhatsApp
                         </label>
@@ -296,7 +283,6 @@
                 </div>
             </div>
 
-            @php($landing = array_merge(\App\Http\Controllers\LandingController::DEFAULTS, $config->metadata['landing'] ?? []))
             <div class="mt-6 bg-gray-50 p-6 rounded-lg">
                 <h3 class="text-lg font-medium text-gray-900 mb-1">🌐 Página de inicio pública (/)</h3>
                 <p class="text-sm text-gray-600 mb-4">
@@ -440,6 +426,60 @@
                 </div>
             </div>
 
+            <section class="mt-8 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 sm:p-6">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Proceso de pago</p>
+                        <h3 class="mt-1 text-lg font-semibold text-gray-900">Plantillas de cobro y comprobantes</h3>
+                        <p class="mt-1 max-w-3xl text-sm text-gray-600">
+                            Edita lo que recibe el cliente sin cambiar importes, estados ni botones. Las variables se reemplazan
+                            automáticamente con los datos reales del pedido y cada empresa conserva sus propios textos.
+                        </p>
+                    </div>
+                    <span class="inline-flex w-fit items-center rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                        {{ count($paymentTemplateDefinitions) }} mensajes editables
+                    </span>
+                </div>
+
+                <div class="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    @foreach($paymentTemplateDefinitions as $templateKey => $definition)
+                        <details class="group rounded-lg border border-gray-200 bg-white shadow-sm" {{ $loop->first || $errors->has('payment_templates.'.$templateKey) ? 'open' : '' }}>
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                                <span>
+                                    <span class="block text-sm font-semibold text-gray-900">{{ $definition['label'] }}</span>
+                                    <span class="mt-0.5 block text-xs font-normal text-gray-500">{{ $definition['description'] }}</span>
+                                </span>
+                                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform group-open:rotate-180"></i>
+                            </summary>
+                            <div class="border-t border-gray-100 px-4 pb-4 pt-3">
+                                <textarea id="payment_template_{{ $templateKey }}" name="payment_templates[{{ $templateKey }}]" rows="7" maxlength="3000"
+                                    class="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-emerald-500">{{ old('payment_templates.'.$templateKey, $config->metadata['payment_templates'][$templateKey] ?? $definition['body']) }}</textarea>
+
+                                @if($definition['variables'] !== [])
+                                    <div class="mt-3">
+                                        <p class="text-xs font-medium text-gray-600">Variables disponibles — toca una para insertarla:</p>
+                                        <div class="mt-2 flex flex-wrap gap-2">
+                                            @foreach($definition['variables'] as $variable => $description)
+                                                <button type="button" data-template-target="payment_template_{{ $templateKey }}" data-template-variable="&#123;&#123;{{ $variable }}&#125;&#125;"
+                                                    title="{{ $description }}"
+                                                    class="rounded-md bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 ring-1 ring-gray-200 hover:bg-emerald-50 hover:text-emerald-800 hover:ring-emerald-200">
+                                                    &#123;&#123;{{ $variable }}&#125;&#125;
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                @error('payment_templates.'.$templateKey)
+                                    <p class="mt-2 text-xs font-medium text-red-600">{{ $message }}</p>
+                                @enderror
+                                <p class="mt-2 text-xs text-gray-500">Si lo dejas vacío se recuperará el texto predeterminado al guardar.</p>
+                            </div>
+                        </details>
+                    @endforeach
+                </div>
+            </section>
+
             <div class="mt-6 flex justify-end space-x-3">
                 <button type="submit"
                     class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
@@ -471,20 +511,42 @@
                     <form action="{{ route('admin.chatbot.message-templates.update', $template) }}" method="POST" class="bg-white border border-gray-200 rounded-lg p-4">
                         @csrf
                         @method('PUT')
-                        <label for="template_body_{{ $template->id }}" class="block text-sm font-medium text-gray-700">{{ $template->name }}</label>
+                        <input type="hidden" name="is_enabled" value="0">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <label for="template_body_{{ $template->id }}" class="text-sm font-semibold text-gray-800">{{ $template->name }}</label>
+                            <label class="inline-flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 {{ old('is_enabled', $messageTemplateStates[$template->key] ?? true) ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-gray-50 text-gray-600' }}">
+                                <input type="checkbox" name="is_enabled" value="1" {{ old('is_enabled', $messageTemplateStates[$template->key] ?? true) ? 'checked' : '' }}
+                                    class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                <span class="text-sm font-semibold">{{ old('is_enabled', $messageTemplateStates[$template->key] ?? true) ? 'Mensaje activo' : 'Mensaje silenciado' }}</span>
+                            </label>
+                        </div>
                         <textarea id="template_body_{{ $template->id }}" name="body" rows="4" required
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">{{ old('body', $template->body) }}</textarea>
                         @if(!empty($template->placeholders))
                             <p class="mt-1 text-xs text-gray-500">
                                 Variables disponibles:
                                 @foreach($template->placeholders as $placeholder)
-                                    @php($placeholderTag = '{{' . $placeholder . '}}')
-                                    <code class="bg-gray-100 px-1 rounded">{{ $placeholderTag }}</code>@if(!$loop->last), @endif
+                                    <code class="bg-gray-100 px-1 rounded">&#123;&#123;{{ $placeholder }}&#125;&#125;</code>@if(!$loop->last), @endif
                                 @endforeach
                             </p>
                         @endif
+                        @if($template->key === 'order_status_changed')
+                            <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Avisar al cliente cuando pase a:</p>
+                                <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    @foreach($notificationStatuses as $statusKey => $statusLabel)
+                                        <input type="hidden" name="status_notifications[{{ $statusKey }}]" value="0">
+                                        <label class="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium text-gray-700">
+                                            <input type="checkbox" name="status_notifications[{{ $statusKey }}]" value="1" {{ old('status_notifications.'.$statusKey, $statusNotificationStates[$statusKey] ?? true) ? 'checked' : '' }}
+                                                class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                            {{ $statusLabel }}
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
                         <div class="mt-2 flex justify-end">
-                            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-blue-600 hover:bg-blue-700">
+                            <button type="submit" class="inline-flex min-h-11 items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
                                 <i class="fas fa-save mr-1"></i>Guardar mensaje
                             </button>
                         </div>
@@ -499,6 +561,18 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    document.querySelectorAll('[data-template-variable]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const textarea = document.getElementById(button.dataset.templateTarget);
+            if (!textarea) return;
+
+            const start = textarea.selectionStart ?? textarea.value.length;
+            const end = textarea.selectionEnd ?? start;
+            textarea.setRangeText(button.dataset.templateVariable, start, end, 'end');
+            textarea.focus();
+        });
+    });
+
     const fileInput = document.getElementById('bot_avatar_image');
     const preview = document.getElementById('bot-avatar-preview');
     const previewWrap = document.getElementById('bot-avatar-preview-wrap');

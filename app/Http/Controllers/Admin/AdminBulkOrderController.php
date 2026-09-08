@@ -50,7 +50,7 @@ class AdminBulkOrderController extends Controller
             'contactsSearchUrl' => route('admin.orders.bulk.contacts'),
             'contactsCreateUrl' => route('admin.orders.bulk.contacts.store'),
             'ordersUrl' => route('admin.orders'),
-            'branches' => BusinessBranch::query()->forUserAccess($request->user(), $this->businessProfileId())->where('is_active', true)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']),
+            'branches' => BusinessBranch::query()->forUserAccess($request->user(), $this->businessProfileId())->availableForOrders()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']),
         ]);
     }
 
@@ -192,7 +192,8 @@ class AdminBulkOrderController extends Controller
             'requires_invoice' => ['sometimes', 'boolean'],
             'branch_id' => ['nullable', 'integer', Rule::exists('business_branches', 'id')
                 ->where('business_profile_id', $this->businessProfileId())
-                ->where('is_active', true)],
+                ->where('is_active', true)
+                ->where('orders_enabled', true)],
         ]);
 
         $contact = WhatsappContact::query()

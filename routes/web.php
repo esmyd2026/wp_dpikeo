@@ -81,6 +81,18 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::delete('/sucursales/{branch}', [App\Http\Controllers\Admin\BusinessBranchController::class, 'destroy'])
         ->middleware('permission:pricing_settings.update')
         ->name('branches.destroy');
+    Route::get('/preguntas-frecuentes', [App\Http\Controllers\Admin\FaqController::class, 'index'])
+        ->middleware('permission:pricing_settings.view,pricing_settings.menu,faqs.menu')
+        ->name('faqs.index');
+    Route::post('/preguntas-frecuentes', [App\Http\Controllers\Admin\FaqController::class, 'store'])
+        ->middleware('permission:pricing_settings.update')
+        ->name('faqs.store');
+    Route::put('/preguntas-frecuentes/{faq}', [App\Http\Controllers\Admin\FaqController::class, 'update'])
+        ->middleware('permission:pricing_settings.update')
+        ->name('faqs.update');
+    Route::delete('/preguntas-frecuentes/{faq}', [App\Http\Controllers\Admin\FaqController::class, 'destroy'])
+        ->middleware('permission:pricing_settings.update')
+        ->name('faqs.destroy');
     Route::get('/franquicias', [App\Http\Controllers\Admin\FranchiseController::class, 'index'])
         ->middleware('permission:pricing_settings.view,pricing_settings.menu,franchises.menu')
         ->name('franchises.index');

@@ -39,6 +39,7 @@
     .delivery-proof img { width:56px; height:56px; object-fit:cover; border-radius:8px; cursor:zoom-in; }
     .delivery-proof-meta { font-size:.76rem; color:#166534; }
     .delivery-empty { text-align:center; padding:3rem; background:#fff; border:1px dashed #e2e8f0; border-radius:14px; color:#64748b; }
+    .delivery-card.is-highlighted { box-shadow:0 0 0 3px #a21caf; }
 
     .delivery-modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:flex; align-items:center; justify-content:center; padding:1rem; z-index:1050; opacity:0; visibility:hidden; transition:.2s; }
     .delivery-modal-overlay.is-open { opacity:1; visibility:visible; }
@@ -199,7 +200,7 @@ function deliveryCard(order) {
     }
     actions += '</div>';
 
-    return `<article class="delivery-card status-${order.status}">
+    return `<article class="delivery-card status-${order.status}" id="delivery-order-${order.id}">
         <div class="delivery-card-top">
             <div>
                 <div class="delivery-order-number">${deliveryEsc(order.order_number)}</div>
@@ -228,6 +229,28 @@ function renderDeliveryList() {
     }
 
     list.innerHTML = filtered.map(deliveryCard).join('');
+    maybeHighlightDeliveryOrder();
+}
+
+/**
+ * Atajo desde Pedidos ("Enviar al repartidor" en el modal de cambiar
+ * etapa): llega como /admin/delivery?order=ID -- resalta esa tarjeta y
+ * abre de una vez el modal de despacho, para no obligar al operador a
+ * buscarla en la lista.
+ */
+const deliveryHighlightOrderId = parseInt(new URLSearchParams(window.location.search).get('order'), 10) || null;
+let deliveryHighlightHandled = false;
+function maybeHighlightDeliveryOrder() {
+    if (!deliveryHighlightOrderId || deliveryHighlightHandled) return;
+    if (!deliveryOrders.some(o => o.id === deliveryHighlightOrderId)) return;
+
+    deliveryHighlightHandled = true;
+    const card = document.getElementById('delivery-order-' + deliveryHighlightOrderId);
+    if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('is-highlighted');
+    }
+    openDeliveryDispatchModal(deliveryHighlightOrderId);
 }
 
 async function fetchDeliveryOrders() {

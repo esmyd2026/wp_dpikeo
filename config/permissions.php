@@ -106,6 +106,7 @@ return [
                 'pricing_settings.update' => ['label' => 'Editar parámetros internos', 'type' => 'action'],
                 'franchises.menu' => ['label' => 'Franquicias', 'type' => 'submenu'],
                 'branches.menu' => ['label' => 'Sucursales', 'type' => 'submenu'],
+                'faqs.menu' => ['label' => 'Preguntas frecuentes', 'type' => 'submenu'],
             ],
         ],
         'users' => [

@@ -152,6 +152,9 @@
         @perm('branches.menu')
             <a href="{{ route('admin.branches.index') }}" class="nav-link {{ request()->routeIs('admin.branches.*') ? 'active' : '' }}"><i class="fas fa-store"></i><span class="sidebar-text">Sucursales</span></a>
         @endperm
+        @perm('faqs.menu')
+            <a href="{{ route('admin.faqs.index') }}" class="nav-link {{ request()->routeIs('admin.faqs.*') ? 'active' : '' }}"><i class="fas fa-circle-question"></i><span class="sidebar-text">Preguntas frecuentes</span></a>
+        @endperm
         @perm('pricing_settings.menu')
             <a href="{{ route('admin.pricing-settings.edit') }}" class="nav-link {{ request()->routeIs('admin.pricing-settings*') ? 'active' : '' }}"><i class="fas fa-cog"></i><span class="sidebar-text">Parámetros</span></a>
         @endperm

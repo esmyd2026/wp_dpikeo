@@ -18,6 +18,11 @@
         'paid' => 'Pago recibido',
     ];
     $statusOptions = ['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'];
+    $segmentIcons = [
+        'all' => 'fa-layer-group', 'new' => 'fa-bell', 'payment' => 'fa-credit-card',
+        'accepted' => 'fa-circle-check', 'preparing' => 'fa-fire-burner', 'ready' => 'fa-bag-shopping',
+        'closed' => 'fa-box-archive',
+    ];
     $statusTransitions = [];
     foreach ($statusOptions as $statusOption) {
         $statusTransitions[$statusOption] = OrderLifecycleService::allowedTransitionsFor($statusOption);
@@ -76,30 +81,72 @@
 
 <style>
     .orders-page { max-width: 1140px; margin: 0 auto; }
-    .orders-top { margin-bottom: .85rem; }
-    .orders-top h2 { margin: 0 0 .3rem; font-size: 1.35rem; font-weight: 800; color: #0f172a; }
-    .orders-top .lead { margin: 0; font-size: .875rem; color: #64748b; }
-
-    .orders-priority {
-        display: grid; grid-template-columns: repeat(4, 1fr);
-        gap: .65rem; margin-bottom: .85rem;
+    .orders-command-strip {
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        margin-bottom: .55rem;
     }
-    @media (max-width: 900px) { .orders-priority { grid-template-columns: repeat(2, 1fr); } }
-    .prio-card {
-        background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
-        padding: .85rem 1rem; box-shadow: 0 1px 3px rgba(15,23,42,.04);
+    .orders-title-group { position: relative; display: flex; align-items: center; gap: .5rem; min-width: 0; }
+    .orders-title-group h2 { margin: 0; font-size: 1.2rem; font-weight: 850; color: #0f172a; white-space: nowrap; }
+    .orders-help { position: relative; }
+    .orders-help > summary {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; list-style: none; cursor: pointer;
+        border: 1px solid #dbe3ea; border-radius: 50%; background: #fff; color: #64748b;
+        touch-action: manipulation;
     }
-    .prio-card .lbl { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
-    .prio-card .val { font-size: 1.2rem; font-weight: 800; color: #0f172a; margin-top: .15rem; }
-    .prio-card.urgent { border-color: #fde68a; background: linear-gradient(180deg, #fffbeb, #fff); }
-    .prio-card.urgent .val { color: #b45309; }
-    .prio-card.accent .val { color: #047857; }
+    .orders-help > summary::-webkit-details-marker { display: none; }
+    .orders-help > summary:hover, .orders-help[open] > summary { border-color: #99f6e4; color: #0f766e; background: #f0fdfa; }
+    .orders-help-card {
+        position: absolute; top: calc(100% + .45rem); left: 0; z-index: 25;
+        width: min(320px, calc(100vw - 2rem)); padding: .75rem .85rem;
+        border: 1px solid #dbe3ea; border-radius: 11px; background: #fff;
+        color: #475569; font-size: .78rem; line-height: 1.45;
+        box-shadow: 0 14px 35px rgba(15,23,42,.14);
+    }
+    .orders-help-card strong { color: #0f172a; }
+    .orders-kpis {
+        display: flex; align-items: center; justify-content: flex-end; gap: .35rem;
+        min-width: 0; overflow-x: auto; scrollbar-width: none;
+    }
+    .orders-kpis::-webkit-scrollbar { display: none; }
+    .orders-kpi {
+        min-height: 34px; display: inline-flex; align-items: center; gap: .4rem;
+        padding: .32rem .58rem; border: 1px solid #e2e8f0; border-radius: 9px;
+        background: #fff; color: #64748b; white-space: nowrap;
+    }
+    .orders-kpi small { font-size: .65rem; font-weight: 750; }
+    .orders-kpi strong { font-size: .78rem; color: #0f172a; }
+    .orders-kpi.accent strong { color: #047857; }
 
     .orders-toolbar {
         background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
-        padding: .85rem 1rem; margin-bottom: .85rem;
+        padding: .65rem; margin: 0;
         display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end;
     }
+    .orders-segments {
+        display: flex; gap: .3rem; margin-bottom: .5rem; padding: .25rem;
+        overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin;
+        background: #e9eef3; border: 1px solid #dbe3ea; border-radius: 15px;
+    }
+    .orders-segment {
+        min-height: 44px; flex: 1 0 auto; min-width: 108px; padding: .42rem .62rem;
+        display: flex; align-items: center; justify-content: center; gap: .5rem;
+        border: 1px solid transparent; border-radius: 11px; color: #526174;
+        font-size: .76rem; font-weight: 800; text-decoration: none; white-space: nowrap;
+        transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+        touch-action: manipulation;
+    }
+    .orders-segment:hover { background: rgba(255,255,255,.7); color: #0f766e; }
+    .orders-segment.is-active {
+        background: #fff; color: #0f766e; border-color: #cbd5e1;
+        box-shadow: 0 3px 10px rgba(15,23,42,.08);
+    }
+    .orders-segment-count {
+        min-width: 21px; height: 21px; padding: 0 .35rem; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #dfe7ee; color: #526174; font-size: .68rem;
+    }
+    .orders-segment.is-active .orders-segment-count { background: #ccfbf1; color: #0f766e; }
     .orders-export-form {
         display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; margin-left: auto;
     }
@@ -225,6 +272,31 @@
         border-radius: 10px; background: #fff; color: #475569; font-size: .78rem;
     }
     .status-current strong { color: #0f172a; }
+    .status-progress {
+        display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+        margin: 0 0 .85rem; padding: .75rem .5rem; overflow-x: auto;
+        border: 1px solid #dbe3ea; border-radius: 12px; background: #fff;
+    }
+    .status-progress-step {
+        position: relative; min-width: 82px; display: flex; flex-direction: column;
+        align-items: center; gap: .35rem; color: #94a3b8; text-align: center;
+        font-size: .6rem; font-weight: 800; line-height: 1.15;
+    }
+    .status-progress-step::before {
+        content: ''; position: absolute; z-index: 0; top: 15px; right: 50%; width: 100%; height: 3px; background: #e2e8f0;
+    }
+    .status-progress-step:first-child::before { display: none; }
+    .status-progress-dot {
+        position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center; background: #eef2f6; color: #64748b;
+        border: 3px solid #fff; box-shadow: 0 0 0 1px #dbe3ea;
+    }
+    .status-progress-step.is-complete::before, .status-progress-step.is-current::before { background: #5eead4; }
+    .status-progress-step.is-complete .status-progress-dot { background: #ccfbf1; color: #0f766e; box-shadow: 0 0 0 1px #5eead4; }
+    .status-progress-step.is-current { color: #0f766e; }
+    .status-progress-step.is-current .status-progress-dot { background: #0f766e; color: #fff; box-shadow: 0 0 0 3px #ccfbf1; }
+    .status-progress.is-cancelled { border-color: #fecaca; background: #fff7f7; }
+    .status-progress.is-cancelled .status-progress-step { opacity: .55; }
     .status-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
     .status-option {
         position: relative; width: 100%; min-height: 78px; padding: .7rem .75rem;
@@ -623,14 +695,23 @@
     .order-ticket-head { background: #fff; }
     .modal-footer .o-btn.primary { min-width: 122px; justify-content: center; }
 
-    /* Cola operativa: prioriza lo que la cajera necesita leer y hacer. */
-    .orders-guide {
-        display: flex; align-items: center; gap: .7rem; margin-bottom: .85rem;
-        padding: .75rem .9rem; border: 1px solid #bbf7d0; border-radius: 12px;
-        background: #f0fdf4; color: #166534; font-size: .8rem;
+    /* Herramientas secundarias: permanecen recogidas para dar prioridad a la cola. */
+    .orders-tools-disclosure {
+        margin-bottom: .55rem; border: 1px solid #e2e8f0; border-radius: 11px;
+        background: #fff; overflow: visible;
     }
-    .orders-guide i { font-size: 1rem; }
-    .orders-guide strong { color: #14532d; }
+    .orders-tools-summary {
+        min-height: 40px; padding: .45rem .7rem; list-style: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+        color: #526174; font-size: .76rem; font-weight: 800; touch-action: manipulation;
+    }
+    .orders-tools-summary::-webkit-details-marker { display: none; }
+    .orders-tools-summary-main, .orders-tools-summary-meta { display: inline-flex; align-items: center; gap: .45rem; }
+    .orders-tools-summary-main i { color: #0f766e; }
+    .orders-tools-summary-meta { color: #64748b; font-weight: 700; }
+    .orders-tools-chevron { transition: transform .15s ease; }
+    .orders-tools-disclosure[open] .orders-tools-chevron { transform: rotate(180deg); }
+    .orders-tools-disclosure[open] .orders-toolbar { border-top: 1px solid #eef2f7; }
     .orders-count { color: #64748b; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 
     .orders-report-tools { position: relative; }
@@ -678,10 +759,9 @@
 
     @media (max-width: 760px) {
         .orders-page { padding-bottom: 1rem; }
-        .orders-top h2 { font-size: 1.2rem; }
-        .orders-priority { gap: .45rem; }
-        .prio-card { padding: .7rem .75rem; }
-        .prio-card .val { font-size: 1.05rem; }
+        .orders-command-strip { align-items: center; }
+        .orders-kpis { flex: 1; justify-content: flex-start; }
+        .orders-kpi { flex: 0 0 auto; }
         .orders-toolbar { align-items: stretch; }
         .orders-search { flex-basis: 100%; max-width: none; }
         .orders-toolbar > .o-btn { flex: 1; justify-content: center; }
@@ -734,11 +814,15 @@
 
     @media (max-width: 575.98px) {
         .orders-page { width: 100%; overflow: hidden; }
-        .orders-top { padding: 0 .15rem; }
-        .orders-top .lead { font-size: .8rem; line-height: 1.4; }
-        .orders-priority { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .orders-command-strip { padding: 0 .1rem; gap: .45rem; }
+        .orders-title-group h2 { font-size: 1.05rem; }
+        .orders-help > summary { width: 38px; height: 38px; }
+        .orders-help { position: static; }
+        .orders-help-card { right: auto; left: 0; }
+        .orders-kpi small { display: none; }
+        .orders-kpi { min-width: 42px; justify-content: center; }
+        .orders-tools-summary { min-height: 46px; }
         .orders-toolbar { padding: .7rem; gap: .55rem; }
-        .orders-guide { align-items: flex-start; padding: .7rem .75rem; }
         .order-card { width: 100%; padding: .78rem; border-radius: 12px; }
         .order-customer-row { align-items: center; justify-content: space-between; gap: .35rem .6rem; }
         .order-customer { flex: 1 1 150px; font-size: .94rem; }
@@ -839,35 +923,47 @@
 </style>
 
 <div class="orders-page">
-    <div class="orders-top">
-        <h2><i class="fas fa-cash-register me-1 text-success"></i> Pedidos del día</h2>
-        <p class="lead">Revisa lo solicitado, confirma el pago y avanza cada pedido hasta entregarlo.</p>
-    </div>
-
-    <div class="orders-priority">
-        <div class="prio-card">
-            <div class="lbl">Por revisar</div>
-            <div class="val">{{ $stats['pending'] ?? 0 }}</div>
+    <div class="orders-command-strip">
+        <div class="orders-title-group">
+            <h2><i class="fas fa-cash-register me-1 text-success"></i> Pedidos</h2>
+            <details class="orders-help">
+                <summary aria-label="Mostrar ayuda de pedidos" title="¿Cómo gestionar los pedidos?">
+                    <i class="fas fa-question"></i>
+                </summary>
+                <div class="orders-help-card">
+                    <strong>Flujo rápido</strong><br>
+                    Abre el pedido, verifica los productos y el pago, y cambia su etapa conforme avance hasta la entrega.
+                </div>
+            </details>
         </div>
-        <div class="prio-card">
-            <div class="lbl">En proceso</div>
-            <div class="val">{{ $stats['confirmed'] ?? 0 }}</div>
-        </div>
-        <div class="prio-card">
-            <div class="lbl">Entregados</div>
-            <div class="val">{{ $stats['completed'] ?? 0 }}</div>
-        </div>
-        <div class="prio-card accent">
-            <div class="lbl">Ventas registradas</div>
-            <div class="val">${{ number_format($stats['revenue'] ?? 0, 0) }}</div>
+        <div class="orders-kpis" role="list" aria-label="Resumen de pedidos del día">
+            <span class="orders-kpi" role="listitem"><small>Por revisar</small><strong>{{ $stats['pending'] ?? 0 }}</strong></span>
+            <span class="orders-kpi" role="listitem"><small>En proceso</small><strong>{{ $stats['confirmed'] ?? 0 }}</strong></span>
+            <span class="orders-kpi" role="listitem"><small>Entregados</small><strong>{{ $stats['completed'] ?? 0 }}</strong></span>
+            <span class="orders-kpi accent" role="listitem"><small>Ventas</small><strong>${{ number_format($stats['revenue'] ?? 0, 0) }}</strong></span>
         </div>
     </div>
 
-    <div class="orders-guide">
-        <i class="fas fa-circle-info"></i>
-        <span><strong>Flujo rápido:</strong> abre el pedido, verifica productos y pago, y cambia su etapa cuando avances.</span>
-    </div>
+    <nav class="orders-segments" aria-label="Segmentar pedidos por etapa">
+        @foreach($orderSegments as $segmentKey => $segment)
+            <a href="{{ route('admin.orders', $segmentKey === 'all' ? [] : ['segment' => $segmentKey]) }}"
+                class="orders-segment {{ $activeSegment === $segmentKey ? 'is-active' : '' }}"
+                aria-current="{{ $activeSegment === $segmentKey ? 'page' : 'false' }}">
+                <i class="fas {{ $segmentIcons[$segmentKey] ?? 'fa-circle' }}"></i>
+                <span>{{ $segment['label'] }}</span>
+                <span class="orders-segment-count">{{ $segmentCounts[$segmentKey] ?? 0 }}</span>
+            </a>
+        @endforeach
+    </nav>
 
+    <details class="orders-tools-disclosure">
+        <summary class="orders-tools-summary">
+            <span class="orders-tools-summary-main"><i class="fas fa-sliders"></i> Buscar y acciones</span>
+            <span class="orders-tools-summary-meta">
+                {{ $orders->total() }} pedido(s)
+                <i class="fas fa-chevron-down orders-tools-chevron"></i>
+            </span>
+        </summary>
     <div class="orders-toolbar">
         <div class="orders-search">
             <i class="fas fa-search"></i>
@@ -881,8 +977,6 @@
                 <i class="fas fa-pen"></i> Pedido manual
             </a>
         @endif
-        <span class="orders-count">{{ $orders->total() }} pedido(s)</span>
-
         <details class="orders-report-tools">
             <summary class="o-btn"><i class="fas fa-file-excel"></i> Descargar reporte</summary>
         <form class="orders-export-form orders-report-panel" method="get" action="{{ route('admin.orders.export') }}" id="orders-export-form">
@@ -910,12 +1004,13 @@
         </form>
         </details>
     </div>
+    </details>
 
     <div id="orders-list">
         @if($orders->isEmpty())
             <div class="orders-empty">
                 <i class="fas fa-inbox fa-2x mb-2 opacity-50 d-block"></i>
-                <p class="mb-0 fw-semibold">No hay pedidos registrados</p>
+                <p class="mb-0 fw-semibold">{{ $activeSegment === 'all' ? 'No hay pedidos registrados' : 'No hay pedidos en esta etapa' }}</p>
             </div>
         @else
             <div class="orders-card-list">
@@ -938,6 +1033,15 @@
                                 || $order->isAwaitingPaymentProof()
                                 || $fulfillmentServiceType;
                             $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
+                            // Si ya llegó el comprobante, "Esperando pago" es
+                            // engañoso -- no se espera nada más del cliente,
+                            // el pedido queda en cancha del operador.
+                            $stageLabel = $statusLabels[$order->status] ?? $order->status;
+                            $stageIcon = $statusMeta[$order->status]['icon'] ?? 'fa-circle';
+                            if ($order->status === 'payment_pending' && $order->hasPaymentProof()) {
+                                $stageLabel = 'Revisar pago';
+                                $stageIcon = 'fa-magnifying-glass-dollar';
+                            }
                         @endphp
                         <article class="order-card status-{{ $order->status }}" id="order-row-{{ $order->id }}"
                             data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? ''))) }}">
@@ -998,20 +1102,21 @@
                                         id="status-button-{{ $order->id }}"
                                         data-current-status="{{ $order->status }}"
                                         data-order-number="{{ $order->getOrderNumber() }}"
+                                        data-fulfillment-pickup-mode="{{ $fulfillmentPickupMode }}"
                                         onclick="openStatusModal({{ $order->id }}, this)"
                                         aria-haspopup="dialog" aria-label="Cambiar etapa de {{ $order->getOrderNumber() }}">
-                                        <span class="order-stage-icon"><i class="fas {{ $statusMeta[$order->status]['icon'] ?? 'fa-circle' }}"></i></span>
-                                        <span class="order-stage-value">{{ $statusLabels[$order->status] ?? $order->status }}</span>
+                                        <span class="order-stage-icon"><i class="fas {{ $stageIcon }}"></i></span>
+                                        <span class="order-stage-value">{{ $stageLabel }}</span>
                                         <span class="order-stage-action">Cambiar <i class="fas fa-chevron-right"></i></span>
                                     </button>
                                 @elseif($canUpdate)
-                                    <div class="order-stage-button status-{{ $order->status }} is-locked" aria-label="Etapa final: {{ $statusLabels[$order->status] ?? $order->status }}">
-                                        <span class="order-stage-icon"><i class="fas {{ $statusMeta[$order->status]['icon'] ?? 'fa-circle' }}"></i></span>
-                                        <span class="order-stage-value">{{ $statusLabels[$order->status] ?? $order->status }}</span>
+                                    <div class="order-stage-button status-{{ $order->status }} is-locked" aria-label="Etapa final: {{ $stageLabel }}">
+                                        <span class="order-stage-icon"><i class="fas {{ $stageIcon }}"></i></span>
+                                        <span class="order-stage-value">{{ $stageLabel }}</span>
                                         <span class="order-stage-action"><i class="fas fa-lock"></i> Estado final</span>
                                     </div>
                                 @else
-                                    <span class="o-tag">{{ $statusLabels[$order->status] ?? $order->status }}</span>
+                                    <span class="o-tag">{{ $stageLabel }}</span>
                                 @endif
                                 </div>
                                 <div class="order-card-actions">
@@ -1058,6 +1163,21 @@
                 <span><i class="fas fa-receipt me-1"></i> <strong id="statusModalOrder">Pedido</strong></span>
                 <span>Etapa actual: <strong id="statusModalCurrent">—</strong></span>
             </div>
+            <div class="status-progress" id="statusProgress" aria-label="Avance del pedido">
+                @foreach([
+                    ['pending', 'Recibido', 'fa-inbox'],
+                    ['payment', 'Pago', 'fa-credit-card'],
+                    ['confirmed', 'Aceptado', 'fa-circle-check'],
+                    ['preparing', 'En cocina', 'fa-fire-burner'],
+                    ['ready', 'Listo', 'fa-bag-shopping'],
+                    ['completed', 'Entregado', 'fa-check-double'],
+                ] as [$flowStatus, $flowLabel, $flowIcon])
+                    <div class="status-progress-step" data-flow-status="{{ $flowStatus }}">
+                        <span class="status-progress-dot"><i class="fas {{ $flowIcon }}"></i></span>
+                        <span>{{ $flowLabel }}</span>
+                    </div>
+                @endforeach
+            </div>
             <div class="status-options" id="statusOptions" role="radiogroup" aria-label="Etapas disponibles">
                 @foreach($statusOptions as $status)
                     <button type="button"
@@ -1080,6 +1200,9 @@
             </div>
         </div>
         <div class="modal-footer">
+            <a href="#" id="statusDeliveryShortcut" class="o-btn" target="_blank" rel="noopener" hidden>
+                <i class="fas fa-motorcycle"></i> Enviar al repartidor
+            </a>
             <button type="button" class="o-btn" onclick="closeStatusModal()">Volver sin cambiar</button>
             <button type="button" class="o-btn primary status-confirm-button" id="confirmStatusButton" onclick="confirmOrderStatusChange()" disabled>
                 <i class="fas fa-check"></i> Confirmar cambio
@@ -1132,6 +1255,7 @@ const CAN_VIEW_INTERNAL_NOTES = @json($canViewInternalNotes);
 const CAN_VIEW_FOLLOWUP = @json($canViewFollowup);
 const CSRF = @json(csrf_token());
 const FULFILLMENT_COSTS_URL_TEMPLATE = @json(url('/admin/orders/__ID__/fulfillment-costs'));
+const DELIVERY_INDEX_URL = @json(route('admin.delivery.index'));
 let currentOrderId = null;
 let currentOrderData = null;
 let pendingStatusChange = null;
@@ -1633,9 +1757,16 @@ function openStatusModal(orderId, triggerEl) {
     }
     pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null };
 
+    const deliveryShortcut = document.getElementById('statusDeliveryShortcut');
+    const isDeliveryOrder = triggerEl.dataset.fulfillmentPickupMode === 'delivery';
+    const isFinalStatus = ['completed', 'cancelled'].includes(currentStatus);
+    deliveryShortcut.hidden = !(isDeliveryOrder && !isFinalStatus);
+    deliveryShortcut.href = `${DELIVERY_INDEX_URL}?order=${orderId}`;
+
     document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);
     document.getElementById('statusModalCurrent').textContent = STATUS_LABELS[currentStatus] || currentStatus;
     document.getElementById('statusConfirmation').hidden = true;
+    updateStatusProgress(currentStatus);
 
     const confirmButton = document.getElementById('confirmStatusButton');
     confirmButton.disabled = true;
@@ -1672,11 +1803,27 @@ function selectOrderStatus(status, optionEl) {
     document.getElementById('statusFromLabel').textContent = STATUS_LABELS[pendingStatusChange.currentStatus] || pendingStatusChange.currentStatus;
     document.getElementById('statusToLabel').textContent = STATUS_LABELS[status] || status;
     document.getElementById('statusConfirmation').hidden = false;
+    updateStatusProgress(status);
 
     const confirmButton = document.getElementById('confirmStatusButton');
     confirmButton.disabled = false;
     confirmButton.classList.toggle('is-danger', status === 'cancelled');
     confirmButton.innerHTML = `<i class="fas ${status === 'cancelled' ? 'fa-ban' : 'fa-check'}"></i> Confirmar: ${esc(STATUS_LABELS[status] || status)}`;
+}
+
+function updateStatusProgress(status) {
+    const progress = document.getElementById('statusProgress');
+    if (!progress) return;
+
+    const normalizedStatus = ['payment_pending', 'paid'].includes(status) ? 'payment' : status;
+    const order = ['pending', 'payment', 'confirmed', 'preparing', 'ready', 'completed'];
+    const currentIndex = order.indexOf(normalizedStatus);
+    progress.classList.toggle('is-cancelled', status === 'cancelled');
+
+    progress.querySelectorAll('.status-progress-step').forEach((step, index) => {
+        step.classList.toggle('is-complete', currentIndex >= 0 && index < currentIndex);
+        step.classList.toggle('is-current', currentIndex >= 0 && index === currentIndex);
+    });
 }
 
 function closeStatusModal(force = false) {
@@ -1694,10 +1841,42 @@ function closeStatusModal(force = false) {
     if (triggerEl && document.body.contains(triggerEl)) setTimeout(() => triggerEl.focus(), 50);
 }
 
+/**
+ * Refleja un cambio de etapa en la tarjeta de la lista sin recargar la
+ * página -- usado tanto por el selector de etapa como por "Confirmar pago
+ * recibido" del comprobante, para que ninguno de los dos deje la lista
+ * mostrando una etapa vieja mientras el modal ya muestra la nueva.
+ */
+function applyOrderStatusToRow(orderId, newStatus) {
+    const triggerEl = document.getElementById('status-button-' + orderId);
+    if (triggerEl) {
+        triggerEl.className = 'order-stage-button status-' + newStatus;
+        triggerEl.setAttribute('data-current-status', newStatus);
+        const valueEl = triggerEl.querySelector('.order-stage-value');
+        if (valueEl) valueEl.textContent = STATUS_LABELS[newStatus] || newStatus;
+        const iconEl = triggerEl.querySelector('.order-stage-icon');
+        if (iconEl) iconEl.innerHTML = `<i class="fas ${STATUS_META[newStatus]?.icon || 'fa-circle'}"></i>`;
+        if (!(STATUS_TRANSITIONS[newStatus] || []).length) {
+            triggerEl.classList.add('is-locked');
+            triggerEl.removeAttribute('onclick');
+            triggerEl.removeAttribute('aria-haspopup');
+            const actionEl = triggerEl.querySelector('.order-stage-action');
+            if (actionEl) actionEl.innerHTML = '<i class="fas fa-lock"></i> Estado final';
+        }
+    }
+    const card = document.getElementById('order-row-' + orderId);
+    if (card) {
+        Array.from(card.classList)
+            .filter(className => className.startsWith('status-'))
+            .forEach(className => card.classList.remove(className));
+        card.classList.add('status-' + newStatus);
+    }
+}
+
 function confirmOrderStatusChange() {
     if (!pendingStatusChange?.newStatus || statusChangeInProgress) return;
 
-    const { orderId, triggerEl, newStatus } = pendingStatusChange;
+    const { orderId, newStatus } = pendingStatusChange;
     const confirmButton = document.getElementById('confirmStatusButton');
     statusChangeInProgress = true;
     confirmButton.disabled = true;
@@ -1715,23 +1894,7 @@ function confirmOrderStatusChange() {
     })
     .then(data => {
         if (data.success) {
-            triggerEl.className = 'order-stage-button status-' + newStatus;
-            triggerEl.setAttribute('data-current-status', newStatus);
-            triggerEl.querySelector('.order-stage-value').textContent = STATUS_LABELS[newStatus] || newStatus;
-            triggerEl.querySelector('.order-stage-icon').innerHTML = `<i class="fas ${STATUS_META[newStatus]?.icon || 'fa-circle'}"></i>`;
-            if (!(STATUS_TRANSITIONS[newStatus] || []).length) {
-                triggerEl.classList.add('is-locked');
-                triggerEl.removeAttribute('onclick');
-                triggerEl.removeAttribute('aria-haspopup');
-                triggerEl.querySelector('.order-stage-action').innerHTML = '<i class="fas fa-lock"></i> Estado final';
-            }
-            const card = document.getElementById('order-row-' + orderId);
-            if (card) {
-                Array.from(card.classList)
-                    .filter(className => className.startsWith('status-'))
-                    .forEach(className => card.classList.remove(className));
-                card.classList.add('status-' + newStatus);
-            }
+            applyOrderStatusToRow(orderId, newStatus);
             statusChangeInProgress = false;
             closeStatusModal(true);
             showToast(`Pedido actualizado a “${STATUS_LABELS[newStatus] || newStatus}”`);
@@ -1764,6 +1927,7 @@ function confirmOrderPayment(orderId) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            applyOrderStatusToRow(orderId, 'paid');
             showToast('Pago confirmado. Se avisó al cliente por WhatsApp.');
             showOrderDetails(orderId);
         } else {

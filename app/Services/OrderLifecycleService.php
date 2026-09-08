@@ -7,6 +7,7 @@ use App\Models\MessageTemplate;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappPrice;
+use App\Support\PaymentMessageTemplates;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -162,6 +163,12 @@ class OrderLifecycleService
                     return;
                 }
 
+                $config = $this->chatbotConfigFor($order);
+                if (! MessageTemplate::isEnabledFor($config, 'order_status_changed')
+                    || ! MessageTemplate::isStatusEnabledFor($config, $nextStatus)) {
+                    return;
+                }
+
                 $label = self::STATUS_NOTIFICATION_LABELS[$nextStatus] ?? $nextStatus;
                 $body = MessageTemplate::render('order_status_changed', [
                     'order_number' => $order->getOrderNumber(),
@@ -230,7 +237,9 @@ class OrderLifecycleService
         $contact = $order->contact;
         $reason = null;
 
-        if (! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+        if (! MessageTemplate::isEnabledFor($this->chatbotConfigFor($order), 'fulfillment_costs_confirmed')) {
+            $reason = 'notification_disabled';
+        } elseif (! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
             $reason = 'no_phone';
         } elseif (! $contact->last_inbound_at || $contact->last_inbound_at->lt(now()->subHours(24))) {
             $reason = 'window_closed';
@@ -321,7 +330,11 @@ class OrderLifecycleService
             ? $this->chatbotConfigFor($order)?->bank_transfer_instructions
             : null;
         $bankLine = $bankInstructions
-            ? "\n\n🏦 *Datos para tu transferencia o depósito*\n{$bankInstructions}"
+            ? "\n\n".trim(PaymentMessageTemplates::render(
+                $this->chatbotConfigFor($order),
+                'bank_transfer',
+                ['bank_instructions' => "🏦 *Datos para tu transferencia o depósito*\n{$bankInstructions}\n\n"]
+            ))
             : '';
 
         $lines = "📦 Pedido *{$order->getOrderNumber()}*\n\n"

@@ -67,7 +67,7 @@ class WhatsappCart extends Model
 
             $branches = BusinessBranch::query()
                 ->where('business_profile_id', $businessProfileId)
-                ->where('is_active', true)
+                ->availableForOrders()
                 ->orderByDesc('is_default')
                 ->orderBy('id')
                 ->limit(2)

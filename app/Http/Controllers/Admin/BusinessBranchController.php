@@ -106,8 +106,10 @@ class BusinessBranchController extends Controller
             'code' => ['nullable', 'string', 'max:24', 'alpha_dash'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
+            'reservations_info' => ['nullable', 'string', 'max:500'],
             'is_default' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
+            'orders_enabled' => ['nullable', 'boolean'],
             'dine_in_enabled' => ['nullable', 'boolean'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
@@ -127,6 +129,7 @@ class BusinessBranchController extends Controller
             'code' => strtoupper(trim($data['code'] ?: Str::slug($data['name'], '-'))),
             'phone' => filled($data['phone'] ?? null) ? trim($data['phone']) : null,
             'address' => filled($data['address'] ?? null) ? trim($data['address']) : null,
+            'reservations_info' => filled($data['reservations_info'] ?? null) ? trim($data['reservations_info']) : null,
             // Siempre existe una sucursal predeterminada por empresa: los
             // pedidos de WhatsApp se asignan allí cuando el cliente no
             // selecciona local. Se compara contra las sucursales de ESTA
@@ -137,6 +140,7 @@ class BusinessBranchController extends Controller
                 ->where('business_profile_id', $branch?->business_profile_id ?? CompanyContext::current()->businessProfileId())
                 ->exists()),
             'is_active' => $request->boolean('is_active'),
+            'orders_enabled' => $request->boolean('orders_enabled'),
             'dine_in_enabled' => $request->boolean('dine_in_enabled'),
             'latitude' => $data['latitude'] ?? null,
             'longitude' => $data['longitude'] ?? null,

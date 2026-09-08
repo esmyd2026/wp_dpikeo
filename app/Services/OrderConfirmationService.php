@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\MessageTemplate;
 use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
@@ -19,14 +21,19 @@ class OrderConfirmationService
         $order->loadMissing(['contact', 'items']);
         $contact = $order->contact;
 
-        if (!$contact) {
+        if (! $contact) {
             throw new InvalidArgumentException('El pedido no tiene un cliente asociado.');
         }
 
         $this->whatsapp->useBusinessProfile($contact->businessProfile);
 
-        if (!in_array($order->status, [WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING], true)) {
+        if (! in_array($order->status, [WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING], true)) {
             throw new InvalidArgumentException('Solo se puede solicitar confirmación en pedidos pendientes.');
+        }
+
+        $config = WhatsappChatbotConfig::where('business_profile_id', $contact->business_profile_id)->first();
+        if (! MessageTemplate::isEnabledFor($config, 'order_confirmation_ticket')) {
+            throw new InvalidArgumentException('El mensaje de confirmación está desactivado en Configuración del chatbot.');
         }
 
         $pdfPath = null;
@@ -44,7 +51,7 @@ class OrderConfirmationService
                 true
             );
 
-            if (!$docSent) {
+            if (! $docSent) {
                 throw new InvalidArgumentException('No se pudo enviar el PDF por WhatsApp.');
             }
 
@@ -52,7 +59,7 @@ class OrderConfirmationService
             $payload = $this->whatsapp->buildOrderConfirmationPayload($order, $pdfUrl, $agentNote);
             $interactiveSent = (bool) $this->whatsapp->sendBotPayload($contact, $payload, true);
 
-            if (!$interactiveSent) {
+            if (! $interactiveSent) {
                 throw new InvalidArgumentException('No se pudieron enviar los botones de confirmación.');
             }
 

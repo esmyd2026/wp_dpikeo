@@ -737,7 +737,13 @@ body.flow-builder-page .content-header {
                                     <option value="image" @selected($headerMode === 'image')>Imagen en encabezado</option>
                                     <option value="none" @selected($headerMode === 'none')>Sin encabezado</option>
                                 </select>
-                                <div class="form-text small mb-2">Para botones y listas: la imagen aparece arriba del mensaje en WhatsApp.</div>
+                                <div class="form-text small mb-2 header-image-hint" data-step="{{ $stepKey }}">
+                                    @if($type === 'list')
+                                        ⚠️ WhatsApp no permite imagen incrustada en mensajes de <strong>Lista</strong>: se manda como un mensaje de imagen aparte, justo antes de la lista (no en el mismo mensaje).
+                                    @else
+                                        Para botones: la imagen aparece arriba, dentro del mismo mensaje.
+                                    @endif
+                                </div>
                                 <div class="header-field header-field-text {{ in_array($headerMode, ['text'], true) ? '' : 'd-none' }}" data-step="{{ $stepKey }}">
                                     <input type="text" name="steps[{{ $stepKey }}][header_text]" class="form-control form-control-sm preview-input" data-step="{{ $stepKey }}" data-field="header_text" maxlength="60"
                                         value="{{ old("steps.$stepKey.header_text", $config['header']['text'] ?? '') }}" placeholder="Texto del encabezado">
@@ -1168,6 +1174,12 @@ body.flow-builder-page .content-header {
         if (type === 'list') panel.querySelector('.panel-list')?.classList.remove('d-none');
         if (type === 'flow') panel.querySelector('.panel-flow')?.classList.remove('d-none');
         if (type === 'cta_url') panel.querySelector('.panel-cta')?.classList.remove('d-none');
+        const headerImageHint = panel.querySelector('.header-image-hint');
+        if (headerImageHint) {
+            headerImageHint.innerHTML = type === 'list'
+                ? '⚠️ WhatsApp no permite imagen incrustada en mensajes de <strong>Lista</strong>: se manda como un mensaje de imagen aparte, justo antes de la lista (no en el mismo mensaje).'
+                : 'Para botones: la imagen aparece arriba, dentro del mismo mensaje.';
+        }
         const navBtn = document.querySelector(`[data-step-nav="${stepKey}"]`);
         if (navBtn) {
             const enabled = document.getElementById(`enable_${stepKey}`)?.checked;

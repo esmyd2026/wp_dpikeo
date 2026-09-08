@@ -60,13 +60,15 @@
                     <label>Código<input name="code" maxlength="24" value="{{ old('code', $branch->code) }}"></label>
                     <label>Teléfono<input name="phone" maxlength="30" value="{{ old('phone', $branch->phone) }}"></label>
                     <label>Dirección<textarea name="address" rows="2" maxlength="500">{{ old('address', $branch->address) }}</textarea></label>
+                    <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación">{{ old('reservations_info', $branch->reservations_info) }}</textarea></label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                         <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998" value="{{ old('latitude', $branch->latitude) }}"></label>
                         <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359" value="{{ old('longitude', $branch->longitude) }}"></label>
                     </div>
                     <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ old('delivery_fee_minimum', $branch->delivery_fee_minimum) }}"></label>
                     <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($branch->is_default)> Usar como sucursal predeterminada</label>
-                    <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($branch->is_active)> Sucursal activa</label>
+                    <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($branch->is_active)> Sucursal activa (aparece en "Información" del bot)</label>
+                    <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" @checked($branch->orders_enabled) title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
                     <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked($branch->dine_in_enabled)> Permite pedidos para servir en mesa</label>
 
                     <div class="branch-tiers js-tiers">
@@ -117,13 +119,15 @@
                 <label>Código<input name="code" maxlength="24" placeholder="Ej.: KENNEDY"></label>
                 <label>Teléfono<input name="phone" maxlength="30" placeholder="WhatsApp o teléfono"></label>
                 <label>Dirección<textarea name="address" rows="2" maxlength="500" placeholder="Dirección o referencia"></textarea></label>
+                <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación"></textarea></label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
                     <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998"></label>
                     <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359"></label>
                 </div>
                 <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00"></label>
                 <label class="branch-check"><input type="checkbox" name="is_default" value="1"> Usar como predeterminada</label>
-                <label class="branch-check"><input type="checkbox" name="is_active" value="1" checked> Sucursal activa</label>
+                <label class="branch-check"><input type="checkbox" name="is_active" value="1" checked> Sucursal activa (aparece en "Información" del bot)</label>
+                <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" checked title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
                 <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" checked> Permite pedidos para servir en mesa</label>
 
                 <div class="branch-tiers js-tiers">

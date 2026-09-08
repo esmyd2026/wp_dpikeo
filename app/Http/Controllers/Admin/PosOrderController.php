@@ -30,7 +30,7 @@ class PosOrderController extends Controller
 
         $branches = BusinessBranch::query()
             ->forUserAccess($request->user(), CompanyContext::current()->businessProfileId())
-            ->where('is_active', true)
+            ->availableForOrders()
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'code']);
@@ -67,7 +67,8 @@ class PosOrderController extends Controller
             'payment_method' => ['required', 'string', 'in:efectivo,transferencia,tarjeta'],
             'branch_id' => ['nullable', 'integer', Rule::exists('business_branches', 'id')
                 ->where('business_profile_id', CompanyContext::current()->businessProfileId())
-                ->where('is_active', true)],
+                ->where('is_active', true)
+                ->where('orders_enabled', true)],
         ]);
 
         $contact = WhatsappContact::query()
@@ -76,7 +77,7 @@ class PosOrderController extends Controller
 
         $accessibleBranches = BusinessBranch::query()
             ->forUserAccess($request->user(), CompanyContext::current()->businessProfileId())
-            ->where('is_active', true)
+            ->availableForOrders()
             ->orderByDesc('is_default')
             ->orderBy('id')
             ->get(['id']);

@@ -106,7 +106,7 @@ class DeliveryController extends Controller
 
         $branches = BusinessBranch::query()
             ->forUserAccess(auth()->user(), $businessProfileId)
-            ->where('is_active', true)
+            ->availableForOrders()
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'address']);
@@ -143,7 +143,8 @@ class DeliveryController extends Controller
             // de ahí sale el origen de la ruta que se le manda al repartidor.
             'branch_id' => ['required', 'integer', Rule::exists('business_branches', 'id')
                 ->where('business_profile_id', CompanyContext::current()->businessProfileId())
-                ->where('is_active', true)],
+                ->where('is_active', true)
+                ->where('orders_enabled', true)],
         ]);
 
         $selectedBranch = BusinessBranch::findOrFail($validated['branch_id']);

@@ -39,16 +39,45 @@ class AdminController extends Controller
         return view('admin.dashboard', compact('orders', 'messages'));
     }
 
-    public function orders()
+    public function orders(Request $request)
     {
-        $orders = WhatsappCart::reportable()->forActiveCompany()
+        $orderSegments = [
+            'all' => ['label' => 'Todos', 'statuses' => []],
+            'new' => ['label' => 'Nuevos', 'statuses' => [WhatsappCart::STATUS_PENDING]],
+            'payment' => ['label' => 'Por pagar', 'statuses' => [WhatsappCart::STATUS_PAYMENT_PENDING]],
+            'accepted' => ['label' => 'Aceptados', 'statuses' => [WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PAID]],
+            'preparing' => ['label' => 'En cocina', 'statuses' => [WhatsappCart::STATUS_PREPARING]],
+            'ready' => ['label' => 'Listos', 'statuses' => [WhatsappCart::STATUS_READY]],
+            'closed' => ['label' => 'Finalizados', 'statuses' => [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED]],
+        ];
+        $activeSegment = array_key_exists((string) $request->query('segment'), $orderSegments)
+            ? (string) $request->query('segment')
+            : 'all';
+
+        $baseOrders = WhatsappCart::reportable()->forActiveCompany();
+        $segmentCounts = collect($orderSegments)->mapWithKeys(function (array $segment, string $key) use ($baseOrders) {
+            $query = clone $baseOrders;
+            if ($segment['statuses'] !== []) {
+                $query->whereIn('status', $segment['statuses']);
+            }
+
+            return [$key => $query->count()];
+        })->all();
+
+        $ordersQuery = clone $baseOrders;
+        if ($orderSegments[$activeSegment]['statuses'] !== []) {
+            $ordersQuery->whereIn('status', $orderSegments[$activeSegment]['statuses']);
+        }
+
+        $orders = $ordersQuery
             ->with(['items', 'contact'])
             ->withCount([
                 'notes as internal_notes_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_INTERNAL),
                 'notes as feedback_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_FEEDBACK),
             ])
             ->latest()
-            ->paginate(10);
+            ->paginate(10)
+            ->withQueryString();
 
         $stats = [
             'total' => WhatsappCart::reportable()->forActiveCompany()->count(),
@@ -72,7 +101,14 @@ class AdminController extends Controller
 
         $latestOrderId = (int) (WhatsappCart::reportable()->forActiveCompany()->max('id') ?? 0);
 
-        return view('admin.orders', compact('orders', 'stats', 'latestOrderId'));
+        return view('admin.orders', compact(
+            'orders',
+            'stats',
+            'latestOrderId',
+            'orderSegments',
+            'segmentCounts',
+            'activeSegment'
+        ));
     }
 
     /**
@@ -364,6 +400,7 @@ class AdminController extends Controller
             $result = $lifecycle->sendFulfillmentCostsMessage($order, (float) $validated['delivery_fee'], (int) $request->user()->id);
 
             $message = match ($result['reason']) {
+                'notification_disabled' => 'Costo guardado. La notificación automática de costos está desactivada para esta empresa.',
                 'no_phone' => 'Costo guardado. No se envió mensaje: el pedido no tiene un número de WhatsApp real.',
                 'window_closed' => 'Costo guardado. No se envió mensaje: pasaron más de 24h desde el último mensaje del cliente.',
                 default => 'Costo guardado y enviado al cliente por WhatsApp.',

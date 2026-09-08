@@ -18,20 +18,32 @@ class MessageTemplate extends Model
         'placeholders' => 'array',
     ];
 
+    /** Cada empresa puede silenciar una notificación sin borrar su texto. */
+    public static function isEnabledFor(?WhatsappChatbotConfig $config, string $key): bool
+    {
+        return (bool) ($config?->metadata['message_template_enabled'][$key] ?? true);
+    }
+
+    /** Permite decidir qué cambios de etapa justifican un mensaje al cliente. */
+    public static function isStatusEnabledFor(?WhatsappChatbotConfig $config, string $status): bool
+    {
+        return (bool) ($config?->metadata['status_notification_enabled'][$status] ?? true);
+    }
+
     /**
      * Reemplaza los placeholders {{clave}} del template guardado en la base
      * de datos. Si el template no existe (nunca debería pasar tras la
      * migración semilla, pero por si se borra a mano), usa $fallback tal
      * cual sin reemplazos.
      *
-     * @param array<string, string> $replacements
+     * @param  array<string, string>  $replacements
      */
     public static function render(string $key, array $replacements, string $fallback = ''): string
     {
         $body = static::query()->where('key', $key)->value('body') ?? $fallback;
 
         foreach ($replacements as $placeholder => $value) {
-            $body = str_replace('{{' . $placeholder . '}}', (string) $value, $body);
+            $body = str_replace('{{'.$placeholder.'}}', (string) $value, $body);
         }
 
         return $body;
