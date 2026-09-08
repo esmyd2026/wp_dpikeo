@@ -93,7 +93,7 @@ class AdminController extends Controller
         }
 
         $orders = $ordersQuery
-            ->with(['items', 'contact'])
+            ->with(['items', 'contact', 'branch:id,name,code'])
             ->withCount([
                 'notes as internal_notes_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_INTERNAL),
                 'notes as feedback_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_FEEDBACK),
@@ -947,7 +947,8 @@ class AdminController extends Controller
 
         try {
             $order = WhatsappCart::reportable()->forActiveCompany()->findOrFail($id);
-            $lifecycle->transition($order, $validated['status'], (int) $request->user()->id);
+            $note = $validated['status'] === WhatsappCart::STATUS_CANCELLED ? WhatsappCart::CANCEL_REASON_OPERATOR : null;
+            $lifecycle->transition($order, $validated['status'], (int) $request->user()->id, $note);
 
             return response()->json(['success' => true]);
         } catch (\InvalidArgumentException $e) {
@@ -1419,11 +1420,15 @@ class AdminController extends Controller
     {
         $businessProfileId = CompanyContext::current()->businessProfileId();
 
+        // whereIn('id', SELECT DISTINCT contact_id FROM whatsapp_messages)
+        // escaneaba TODA la tabla de mensajes de la plataforma (de cualquier
+        // empresa) en cada carga/poll de la lista, sin usar el filtro de
+        // empresa -- whereHas('messages') aplica el filtro de empresa
+        // primero y solo verifica existencia (EXISTS) por contacto candidato,
+        // en vez de deduplicar contact_id sobre toda la tabla.
         $contacts = WhatsappContact::query()
-            ->whereIn('id', function ($query) {
-                $query->select('contact_id')->from('whatsapp_messages')->distinct();
-            })
             ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->whereHas('messages')
             ->with(['latestMessage'])
             ->withMax('messages as last_message_at', 'created_at')
             ->orderByDesc('last_message_at')
@@ -1490,10 +1495,16 @@ class AdminController extends Controller
 
             // Si hay un timestamp, filtrar por mensajes más recientes
             if ($lastTimestamp) {
-                $query->where('created_at', '>', $lastTimestamp);
+                $query->where('created_at', '>', $lastTimestamp)->limit(100);
             } elseif ($lastMessageId > 0) {
-                // Si solo hay un ID, obtener mensajes después de ese ID
-                $query->where('id', '>', $lastMessageId);
+                // Si solo hay un ID, obtener mensajes después de ese ID. Sin
+                // el límite, una conversación con un backlog grande (o un
+                // last_message_id que quedó atascado del lado del navegador)
+                // devolvía TODOS los mensajes nuevos de una sola vez -- se
+                // vieron respuestas de más de 500 KB repitiéndose en cada
+                // poll de 2 segundos. Con el límite, el cliente se pone al
+                // día en tandas en vez de todo de golpe.
+                $query->where('id', '>', $lastMessageId)->limit(100);
             } else {
                 // Si no hay parámetros, obtener los últimos 10 mensajes
                 $query->latest()->limit(10);

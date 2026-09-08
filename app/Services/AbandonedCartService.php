@@ -85,7 +85,7 @@ class AbandonedCartService
                 continue;
             }
 
-            if ($this->close($cart, 'auto_timeout')) {
+            if ($this->close($cart, WhatsappCart::CANCEL_REASON_TIMEOUT)) {
                 $count++;
             }
         }
@@ -101,7 +101,7 @@ class AbandonedCartService
      * en un estado "cancelable de esta forma" (ej. ya confirmado/pagado: eso
      * se cancela desde el módulo de Pedidos, no desde aquí).
      */
-    public function close(WhatsappCart $cart, string $reason = 'manual_admin_reset'): bool
+    public function close(WhatsappCart $cart, string $reason = WhatsappCart::CANCEL_REASON_OPERATOR_RESET): bool
     {
         if (!in_array($cart->status, self::STALE_STATUSES, true)) {
             return false;
@@ -153,7 +153,7 @@ class AbandonedCartService
             return;
         }
 
-        $body = $reason === 'auto_timeout'
+        $body = $reason === WhatsappCart::CANCEL_REASON_TIMEOUT
             ? "🕐 Parece que no continuarás con esta orden, así que la cerramos por ahora. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí."
             : "🔄 Reiniciamos tu conversación con nosotros. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí.";
 

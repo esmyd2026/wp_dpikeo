@@ -46,6 +46,7 @@ class OrderAdminService
             'id' => $order->id,
             'total' => $order->total,
             'status' => $order->status,
+            'cancellation_reason_label' => $order->cancellationReasonLabel(),
             'created_at' => $order->created_at,
             'note' => $order->note,
             'requires_invoice' => (bool) $order->requires_invoice,

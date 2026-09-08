@@ -7530,7 +7530,7 @@ class WhatsappService
             }
 
             $cart = app(OrderLifecycleService::class)
-                ->transition($cart, WhatsappCart::STATUS_CANCELLED);
+                ->transition($cart, WhatsappCart::STATUS_CANCELLED, null, WhatsappCart::CANCEL_REASON_CUSTOMER);
             $metadata = $cart->metadata ?? [];
             unset($metadata['awaiting_client_confirmation']);
             $metadata['cancelled_at'] = now()->toIso8601String();
@@ -7972,7 +7972,7 @@ class WhatsappService
             // Se cierra ya mismo y se reinicia su posición en el flujo para
             // que el próximo mensaje arranque de cero, sin ese aviso.
             try {
-                app(OrderLifecycleService::class)->transition($cart, WhatsappCart::STATUS_CANCELLED, null, 'card_payment_redirected');
+                app(OrderLifecycleService::class)->transition($cart, WhatsappCart::STATUS_CANCELLED, null, WhatsappCart::CANCEL_REASON_CARD_PAYMENT);
                 $contact->forgetFlowPosition();
             } catch (\Throwable $e) {
                 Log::warning('[procesarPagoTarjeta] No se pudo cerrar el carrito tras mandar el link de pago', [

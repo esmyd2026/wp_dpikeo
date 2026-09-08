@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BusinessBranch;
 use App\Models\Company;
 use App\Models\MessageTemplate;
 use App\Models\Role;
@@ -78,6 +79,35 @@ class OrderSegmentationAndNotificationControlTest extends TestCase
             ->assertSee('Cliente Cocina')
             ->assertDontSee('Cliente Nuevo')
             ->assertSee('En cocina');
+    }
+
+    public function test_order_cards_show_the_branch_identifier_selected_by_the_customer(): void
+    {
+        [$company, $profile, , $user] = $this->fixture();
+        $branch = BusinessBranch::create([
+            'business_profile_id' => $profile->id,
+            'name' => 'Centenario Sur',
+            'code' => 'CEN-SUR',
+            'is_active' => true,
+            'orders_enabled' => true,
+        ]);
+        $customer = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '593990001114',
+            'name' => 'Cliente Sucursal',
+        ]);
+        WhatsappCart::create([
+            'contact_id' => $customer->id,
+            'branch_id' => $branch->id,
+            'status' => WhatsappCart::STATUS_PENDING,
+            'total' => 15,
+        ]);
+
+        $this->actingAs($user)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders'))
+            ->assertOk()
+            ->assertSee('CEN-SUR · Centenario Sur');
     }
 
     public function test_each_status_notification_can_be_disabled_for_one_company(): void

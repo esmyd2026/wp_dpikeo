@@ -3044,6 +3044,7 @@
     let lastMessageTimestamp = null;
     let lastMessageId = 0;
     let currentPollingContactId = null;
+    let pollingRequestInFlight = false;
 
     function resolveSenderMeta(messageData, isIncoming) {
         if (isIncoming) {
@@ -3321,6 +3322,12 @@
 
     function checkForNewMessages(contactId) {
         if (!contactId) return;
+        // Si la respuesta anterior todavía no llegó (conversaciones con
+        // mucho historial podían tardar más de los 2s del intervalo), este
+        // poll se saltea en vez de salir con el mismo last_message_id viejo
+        // -- evita pedir el mismo lote grande dos veces seguidas.
+        if (pollingRequestInFlight) return;
+        pollingRequestInFlight = true;
 
         const params = new URLSearchParams();
         if (lastMessageId > 0) {
@@ -3402,6 +3409,9 @@
         })
         .catch(error => {
             console.error('Error obteniendo nuevos mensajes:', error);
+        })
+        .finally(() => {
+            pollingRequestInFlight = false;
         });
     }
 

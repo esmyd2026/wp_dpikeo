@@ -25,6 +25,19 @@ class WhatsappCart extends Model
 
     const STATUS_PAID = 'paid';
 
+    /** Motivos de cancelación -- ver cancellationReason()/cancellationReasonLabel(). */
+    const CANCEL_REASON_CUSTOMER = 'customer_cancelled';
+
+    const CANCEL_REASON_TIMEOUT = 'auto_timeout';
+
+    const CANCEL_REASON_OPERATOR = 'operator_cancelled';
+
+    const CANCEL_REASON_OPERATOR_RESET = 'manual_admin_reset';
+
+    const CANCEL_REASON_CARD_PAYMENT = 'card_payment_redirected';
+
+    const CANCEL_REASON_SUPERSEDED = 'superseded_by_new_order';
+
     protected $fillable = [
         'contact_id',
         'branch_id',
@@ -324,5 +337,56 @@ class WhatsappCart extends Model
     public function isCancelableBySelfService(): bool
     {
         return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_PAYMENT_PENDING], true);
+    }
+
+    /**
+     * Código del motivo de cancelación (ver las constantes CANCEL_REASON_*),
+     * o null si el pedido no está cancelado o no se registró un motivo
+     * explícito (pedidos cancelados antes de que esto existiera). Lee
+     * primero la nota que deja OrderLifecycleService::transition() en cada
+     * cambio de estado; si no hay una nota reconocida, cae a inferir por
+     * quién lo cambió (con usuario = un operador desde el panel) para no
+     * dejar sin etiqueta lo cancelado antes de este fix.
+     */
+    public function cancellationReason(): ?string
+    {
+        if ($this->status !== self::STATUS_CANCELLED) {
+            return null;
+        }
+
+        $note = $this->metadata['status_change_note'] ?? null;
+        $known = [
+            self::CANCEL_REASON_CUSTOMER,
+            self::CANCEL_REASON_TIMEOUT,
+            self::CANCEL_REASON_OPERATOR,
+            self::CANCEL_REASON_OPERATOR_RESET,
+            self::CANCEL_REASON_CARD_PAYMENT,
+            self::CANCEL_REASON_SUPERSEDED,
+        ];
+        if (in_array($note, $known, true)) {
+            return $note;
+        }
+
+        if (!empty($this->metadata['status_changed_by'])) {
+            return self::CANCEL_REASON_OPERATOR;
+        }
+
+        if (($this->metadata['cancelled_via'] ?? null) === 'whatsapp') {
+            return self::CANCEL_REASON_CUSTOMER;
+        }
+
+        return null;
+    }
+
+    public function cancellationReasonLabel(): ?string
+    {
+        return match ($this->cancellationReason()) {
+            self::CANCEL_REASON_CUSTOMER => 'Cancelado por el cliente',
+            self::CANCEL_REASON_TIMEOUT => 'Cancelado por tiempo',
+            self::CANCEL_REASON_OPERATOR, self::CANCEL_REASON_OPERATOR_RESET => 'Cancelado por el operador',
+            self::CANCEL_REASON_CARD_PAYMENT => 'Cerrado · pago con tarjeta externo',
+            self::CANCEL_REASON_SUPERSEDED => 'Reemplazado por un pedido nuevo',
+            default => $this->status === self::STATUS_CANCELLED ? 'Cancelado' : null,
+        };
     }
 }

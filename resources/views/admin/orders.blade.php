@@ -214,6 +214,7 @@
     .o-tag.confirm { background: #fef3c7; color: #92400e; }
     .o-tag.proof-ok { background: #dbeafe; color: #1d4ed8; }
     .o-tag.proof-wait { background: #ffedd5; color: #c2410c; }
+    .o-tag.cancel-reason { background: #fee2e2; color: #991b1b; }
     .o-tag.new-order { background: #dcfce7; color: #15803d; animation: o-tag-pulse 1.6s ease-in-out infinite; }
     .o-tag.empty { color: #cbd5e1; }
     @keyframes o-tag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
@@ -222,6 +223,8 @@
     .o-tag.fulfil-delivery { background: #fae8ff; color: #a21caf; }
     .o-tag.fulfil-servir { background: #f1f5f9; color: #475569; }
     .o-tag.fulfil-pending { background: #fef3c7; color: #92400e; }
+    .o-tag.order-branch { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+    .o-tag.order-branch.missing { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
 
     .orders-refresh-banner {
         position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(30px);
@@ -1020,6 +1023,10 @@
                         @php
                             $itemsCount = $order->items->count();
                             $contact = $order->contact;
+                            $branch = $order->branch;
+                            $branchIdentifier = $branch
+                                ? (($branch->code ?: 'SUC-'.$branch->id).' · '.$branch->name)
+                                : 'Sin sucursal';
                             $clientNationalId = $contact?->national_id
                                 ?: (($contact?->billing_type === 'cedula' && $contact?->billing_id) ? $contact->billing_id : null);
                             $isRecentOrder = $order->created_at?->gt(now()->subMinutes(10));
@@ -1033,6 +1040,7 @@
                                 || (($order->metadata['awaiting_client_confirmation'] ?? false) && $order->status === 'pending')
                                 || $order->hasPaymentProof()
                                 || $order->isAwaitingPaymentProof()
+                                || $order->status === 'cancelled'
                                 || $fulfillmentServiceType;
                             $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
                             // Si ya llegó el comprobante, "Esperando pago" es
@@ -1046,10 +1054,13 @@
                             }
                         @endphp
                         <article class="order-card status-{{ $order->status }}" id="order-row-{{ $order->id }}"
-                            data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? ''))) }}">
+                            data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? '') . ' ' . ($branch?->name ?? '') . ' ' . ($branch?->code ?? ''))) }}">
                             <div class="order-card-main">
                                 <div class="order-card-top">
                                     <span class="order-number">{{ $order->getOrderNumber() }}</span>
+                                    <span class="o-tag order-branch {{ $branch ? '' : 'missing' }}" title="Sucursal donde se realizó el pedido">
+                                        <i class="fas fa-store"></i> {{ $branchIdentifier }}
+                                    </span>
                                     <span class="order-time"><i class="far fa-clock me-1"></i>{{ $order->created_at->format('d/m/Y · H:i') }}</span>
                                     @if($isRecentOrder)
                                         <span class="o-tag new-order"><i class="fas fa-bolt"></i> Recién recibido</span>
@@ -1090,6 +1101,9 @@
                                         <span class="o-tag proof-ok"><i class="fas fa-receipt"></i> Comprobante</span>
                                     @elseif($order->isAwaitingPaymentProof())
                                         <span class="o-tag proof-wait"><i class="fas fa-hourglass-half"></i> Sin comprobante</span>
+                                    @endif
+                                    @if($order->status === 'cancelled' && $order->cancellationReasonLabel())
+                                        <span class="o-tag cancel-reason"><i class="fas fa-ban"></i> {{ $order->cancellationReasonLabel() }}</span>
                                     @endif
                                     @unless($hasTags)
                                         <span class="o-tag empty"><i class="fas fa-circle-check"></i> Sin novedades</span>
@@ -1221,6 +1235,7 @@
                 <div class="modal-title-row">
                     <h3 id="orderModalTitle">Pedido</h3>
                     <span class="modal-status" id="orderModalStatus"></span>
+                    <span class="o-tag cancel-reason" id="orderModalCancelReason" hidden></span>
                 </div>
                 <p class="sub mb-0" id="orderModalSubtitle"></p>
             </div>
@@ -1344,6 +1359,14 @@ function renderOrderModal(order) {
     const modalStatus = document.getElementById('orderModalStatus');
     modalStatus.textContent = STATUS_LABELS[order.status] || order.status;
     modalStatus.className = 'modal-status status-' + order.status;
+
+    const cancelReasonEl = document.getElementById('orderModalCancelReason');
+    if (order.status === 'cancelled' && order.cancellation_reason_label) {
+        cancelReasonEl.innerHTML = `<i class="fas fa-ban"></i> ${esc(order.cancellation_reason_label)}`;
+        cancelReasonEl.hidden = false;
+    } else {
+        cancelReasonEl.hidden = true;
+    }
 
     const b = order.billing || {};
     let html = '<div class="order-command-center">';

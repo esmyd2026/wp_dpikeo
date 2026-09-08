@@ -433,11 +433,15 @@ class BulkOrderService
             $cart->total = round($total, 2);
             $cart->save();
 
+            $lifecycle = app(OrderLifecycleService::class);
             WhatsappCart::query()
                 ->where('contact_id', $contact->id)
                 ->where('status', WhatsappCart::STATUS_PENDING)
                 ->where('id', '!=', $cart->id)
-                ->update(['status' => WhatsappCart::STATUS_CANCELLED]);
+                ->get()
+                ->each(fn (WhatsappCart $stale) => $lifecycle->transition(
+                    $stale, WhatsappCart::STATUS_CANCELLED, null, WhatsappCart::CANCEL_REASON_SUPERSEDED
+                ));
 
             $whatsapp = app(WhatsappService::class);
 
