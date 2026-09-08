@@ -215,21 +215,139 @@ class ConsumptionReportService
 
     private function dailyCostTrend(Carbon $from, Carbon $to, ?int $businessProfileId): array
     {
+        $countsByDay = $this->dailyCountsByCategory($from, $to, $businessProfileId);
         $days = [];
         $cursor = $from->copy()->startOfDay();
         $end = $to->copy()->startOfDay();
 
         while ($cursor->lte($end)) {
-            $dayEnd = $cursor->copy()->endOfDay();
-            $counts = $this->countByCategory($cursor, $dayEnd, $businessProfileId);
+            $date = $cursor->format('Y-m-d');
             $days[] = [
-                'date' => $cursor->format('Y-m-d'),
+                'date' => $date,
                 'label' => $cursor->format('d/m'),
-                'cost' => $this->pricing->estimateCost($counts, 'min'),
+                'cost' => $this->pricing->estimateCost($countsByDay[$date] ?? [], 'min'),
             ];
             $cursor->addDay();
         }
 
         return $days;
+    }
+
+    /**
+     * Calcula toda la serie diaria con un número fijo de consultas. Antes se
+     * repetía countByCategory() por cada día del rango (hasta cientos de SQL
+     * para un reporte mensual).
+     *
+     * @return array<string, array<string, int>>
+     */
+    private function dailyCountsByCategory(Carbon $from, Carbon $to, ?int $businessProfileId): array
+    {
+        $daily = [];
+
+        if ($this->pricing->isCategoryEnabled('service')) {
+            $nextDay = DB::getDriverName() === 'sqlite'
+                ? "DATE(client.created_at, '+1 day')"
+                : 'DATE_ADD(DATE(client.created_at), INTERVAL 1 DAY)';
+            $rows = DB::select("
+                SELECT DATE(client.created_at) AS day, COUNT(DISTINCT client.contact_id) AS total
+                FROM whatsapp_messages client
+                WHERE client.sender_type = 'client'
+                  AND client.created_at BETWEEN ? AND ?
+                  AND (? IS NULL OR client.business_profile_id = ?)
+                  AND EXISTS (
+                      SELECT 1 FROM whatsapp_messages reply
+                      WHERE reply.contact_id = client.contact_id
+                        AND reply.sender_type IN ('system', 'humano')
+                        AND reply.created_at >= DATE(client.created_at)
+                        AND reply.created_at < {$nextDay}
+                        AND (? IS NULL OR reply.business_profile_id = ?)
+                  )
+                GROUP BY DATE(client.created_at)
+            ", [$from, $to, $businessProfileId, $businessProfileId, $businessProfileId, $businessProfileId]);
+            $this->mergeDailyRows($daily, 'service', $rows);
+        }
+
+        if ($this->pricing->isCategoryEnabled('utility')) {
+            $windowStart = DB::getDriverName() === 'sqlite'
+                ? "datetime(outbound.created_at, '-24 hours')"
+                : 'DATE_SUB(outbound.created_at, INTERVAL 24 HOUR)';
+            $rows = DB::select("
+                SELECT DATE(outbound.created_at) AS day, COUNT(*) AS total
+                FROM whatsapp_messages outbound
+                WHERE outbound.sender_type = 'system'
+                  AND outbound.type != 'template'
+                  AND outbound.created_at BETWEEN ? AND ?
+                  AND (? IS NULL OR outbound.business_profile_id = ?)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM whatsapp_messages recent_client
+                      WHERE recent_client.contact_id = outbound.contact_id
+                        AND recent_client.sender_type = 'client'
+                        AND recent_client.created_at <= outbound.created_at
+                        AND recent_client.created_at >= {$windowStart}
+                  )
+                GROUP BY DATE(outbound.created_at)
+            ", [$from, $to, $businessProfileId, $businessProfileId]);
+            $this->mergeDailyRows($daily, 'utility', $rows);
+        }
+
+        if ($this->pricing->isCategoryEnabled('marketing')) {
+            $categoryExpr = $this->templateCategoryExpr();
+            $templateRows = WhatsappMessage::query()
+                ->whereIn('sender_type', ['system', 'humano'])
+                ->where('type', 'template')
+                ->whereBetween('created_at', [$from, $to])
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->where(fn ($query) => $query->whereNull('metadata->template_category')
+                    ->orWhereRaw("{$categoryExpr} != 'AUTHENTICATION'"))
+                ->selectRaw('DATE(created_at) AS day, COUNT(*) AS total')
+                ->groupByRaw('DATE(created_at)')
+                ->get();
+            $campaignRows = WhatsappCampaign::query()
+                ->where('status', 'completed')
+                ->where('message_type', 'template')
+                ->whereBetween('sent_at', [$from, $to])
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->selectRaw('DATE(sent_at) AS day, SUM(sent_count) AS total')
+                ->groupByRaw('DATE(sent_at)')
+                ->get();
+            $this->mergeDailyRows($daily, 'marketing', $templateRows);
+            $this->mergeDailyRows($daily, 'marketing', $campaignRows);
+        }
+
+        if ($this->pricing->isCategoryEnabled('authentication')) {
+            $rows = WhatsappMessage::query()
+                ->whereIn('sender_type', ['system', 'humano'])
+                ->where('type', 'template')
+                ->whereBetween('created_at', [$from, $to])
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->whereRaw("{$this->templateCategoryExpr()} = 'AUTHENTICATION'")
+                ->selectRaw('DATE(created_at) AS day, COUNT(*) AS total')
+                ->groupByRaw('DATE(created_at)')
+                ->get();
+            $this->mergeDailyRows($daily, 'authentication', $rows);
+        }
+
+        if ($this->pricing->isCategoryEnabled('campaign_freeform')) {
+            $rows = WhatsappCampaign::query()
+                ->where('status', 'completed')
+                ->whereIn('message_type', ['text', 'image'])
+                ->whereBetween('sent_at', [$from, $to])
+                ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+                ->selectRaw('DATE(sent_at) AS day, SUM(sent_count) AS total')
+                ->groupByRaw('DATE(sent_at)')
+                ->get();
+            $this->mergeDailyRows($daily, 'campaign_freeform', $rows);
+        }
+
+        return $daily;
+    }
+
+    /** @param iterable<object> $rows */
+    private function mergeDailyRows(array &$daily, string $category, iterable $rows): void
+    {
+        foreach ($rows as $row) {
+            $day = (string) $row->day;
+            $daily[$day][$category] = ($daily[$day][$category] ?? 0) + (int) $row->total;
+        }
     }
 }

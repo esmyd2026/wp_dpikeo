@@ -124,15 +124,21 @@ class OrderAdminService
     /** @return array<string, mixed> */
     private function paymentPayload(WhatsappCart $order): array
     {
+        $method = (string) ($order->payment_method ?? '');
+        $methodLabel = self::PAYMENT_METHOD_LABELS[$method] ?? ($method !== '' ? ucfirst($method) : '—');
+
+        // El comprobante (visible=true) solo aplica a transferencia/tarjeta,
+        // pero el operador necesita ver el método de pago igual en efectivo
+        // -- sin esto, un pedido en efectivo no mostraba en ningún lado con
+        // qué iba a pagar el cliente.
         $visible = $order->hasPaymentProof()
             || $order->isAwaitingPaymentProof()
             || $order->requiresPaymentProof();
 
         if (!$visible) {
-            return ['visible' => false];
+            return ['visible' => false, 'method' => $method, 'method_label' => $methodLabel];
         }
 
-        $method = (string) ($order->payment_method ?? '');
         $state = 'none';
         if ($order->hasPaymentProof()) {
             $state = 'submitted';
@@ -160,7 +166,7 @@ class OrderAdminService
         return [
             'visible' => true,
             'method' => $method,
-            'method_label' => self::PAYMENT_METHOD_LABELS[$method] ?? ($method !== '' ? ucfirst($method) : '—'),
+            'method_label' => $methodLabel,
             'status' => $order->payment_status,
             'status_label' => self::PAYMENT_STATUS_LABELS[$order->payment_status ?? '']
                 ?? ($order->payment_status ?: '—'),

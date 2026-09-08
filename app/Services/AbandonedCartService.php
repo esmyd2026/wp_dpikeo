@@ -17,6 +17,13 @@ use Throwable;
  * pedidos bajo la fecha del primero. Este servicio cierra esos carritos
  * (automático por timeout, o manual desde el panel de chat) para que el
  * cliente arranque limpio la próxima vez.
+ *
+ * El timeout automático solo aplica cuando el que quedó a medias es el
+ * cliente -- ver WhatsappCart::isWaitingOnBusiness(). Un pedido en
+ * "payment_pending" donde ya se mandó el comprobante (falta que caja lo
+ * verifique) o donde falta confirmar el costo de envío no se cancela por
+ * aquí ni le manda al cliente el aviso de "no continuarás": el cliente ya
+ * hizo su parte y la demora es nuestra.
  */
 class AbandonedCartService
 {
@@ -62,6 +69,15 @@ class AbandonedCartService
         foreach ($staleCarts as $cart) {
             $minutes = $this->timeoutMinutes($cart->contact?->business_profile_id);
             if (!$minutes) {
+                continue;
+            }
+
+            // Si lo que falta depende del negocio (costo de envío sin
+            // confirmar, o comprobante ya recibido y sin verificar), el
+            // cliente ya hizo su parte -- cancelarlo y decirle "parece que
+            // no continuarás" le echa la culpa de una demora que es nuestra.
+            // Ese pedido lo cierra el módulo de Pedidos, no este timeout.
+            if ($cart->isWaitingOnBusiness()) {
                 continue;
             }
 

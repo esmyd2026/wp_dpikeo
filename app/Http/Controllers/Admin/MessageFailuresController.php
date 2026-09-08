@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\WhatsappMessageFailure;
+use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -13,8 +14,10 @@ class MessageFailuresController extends Controller
     public function index(Request $request): View
     {
         $status = $request->query('status', 'unresolved');
+        $businessProfileId = CompanyContext::current()->businessProfileId();
 
-        $query = WhatsappMessageFailure::with(['contact:id,name,phone_number', 'resolvedByUser:id,name'])
+        $query = WhatsappMessageFailure::where('business_profile_id', $businessProfileId)
+            ->with(['contact:id,name,phone_number', 'resolvedByUser:id,name'])
             ->latest();
 
         if ($status === 'unresolved') {
@@ -26,8 +29,10 @@ class MessageFailuresController extends Controller
         $failures = $query->paginate(20)->withQueryString();
 
         $stats = [
-            'unresolved' => WhatsappMessageFailure::unresolved()->count(),
-            'total_24h' => WhatsappMessageFailure::where('created_at', '>=', now()->subDay())->count(),
+            'unresolved' => WhatsappMessageFailure::where('business_profile_id', $businessProfileId)->unresolved()->count(),
+            'total_24h' => WhatsappMessageFailure::where('business_profile_id', $businessProfileId)
+                ->where('created_at', '>=', now()->subDay())
+                ->count(),
         ];
 
         return view('admin.message-failures.index', compact('failures', 'stats', 'status'));
@@ -35,7 +40,12 @@ class MessageFailuresController extends Controller
 
     public function resolve(Request $request, WhatsappMessageFailure $failure): RedirectResponse
     {
-        if (!$failure->isResolved()) {
+        abort_unless(
+            (int) $failure->business_profile_id === (int) CompanyContext::current()->businessProfileId(),
+            404
+        );
+
+        if (! $failure->isResolved()) {
             $failure->markResolved($request->user()?->id);
         }
 
@@ -47,7 +57,9 @@ class MessageFailuresController extends Controller
      */
     public function poll()
     {
-        $failures = WhatsappMessageFailure::unresolved()
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $baseQuery = WhatsappMessageFailure::where('business_profile_id', $businessProfileId)->unresolved();
+        $failures = (clone $baseQuery)
             ->with('contact:id,name,phone_number')
             ->latest()
             ->limit(15)
@@ -55,7 +67,7 @@ class MessageFailuresController extends Controller
 
         return response()->json([
             'success' => true,
-            'count' => WhatsappMessageFailure::unresolved()->count(),
+            'count' => (clone $baseQuery)->count(),
             'failures' => $failures->map(fn (WhatsappMessageFailure $f) => [
                 'id' => $f->id,
                 'contact_name' => $f->contact->name ?? null,

@@ -39,13 +39,37 @@ class OrderLifecycleService
         // Caja valida el pedido, cocina lo prepara y despacho lo entrega.
         // No se permite saltar de un pedido nuevo a "listo" o "entregado".
         'pending' => ['confirmed', 'payment_pending', 'paid', 'cancelled'],
-        'payment_pending' => ['confirmed', 'paid', 'cancelled'],
-        'confirmed' => ['payment_pending', 'paid', 'preparing', 'cancelled'],
+        // Desde "Pago pendiente" el único paso con sentido es marcar el pago
+        // recibido (o cancelar) -- "Confirmado" ahí generaba una opción sin
+        // relación aparente para quien revisa el pedido, y además abría la
+        // puerta a retroceder luego de "Pagado" a "Confirmado" a "Pago
+        // pendiente" en la misma sesión, mandándole al cliente avisos de
+        // WhatsApp en un orden que contradice el progreso real del pedido.
+        'payment_pending' => ['paid', 'cancelled'],
+        'confirmed' => ['preparing', 'cancelled'],
         'paid' => ['confirmed', 'preparing', 'cancelled'],
         'preparing' => ['ready', 'cancelled'],
         'ready' => ['completed', 'cancelled'],
         'completed' => [],
         'cancelled' => [],
+    ];
+
+    /**
+     * Orden real de avance del pedido -- "pago pendiente" y "pagado"
+     * comparten posición porque son la misma etapa (dinero) vista antes y
+     * después de verificar el comprobante. transition() usa esto como red
+     * de seguridad para que ningún cambio futuro pueda mandar el pedido
+     * "hacia atrás" (y por lo tanto notificar al cliente con estados fuera
+     * de secuencia), más allá de lo que ya impida ALLOWED_TRANSITIONS.
+     */
+    private const STATUS_RANK = [
+        'pending' => 0,
+        'payment_pending' => 1,
+        'paid' => 1,
+        'confirmed' => 2,
+        'preparing' => 3,
+        'ready' => 4,
+        'completed' => 5,
     ];
 
     /** Texto que ve el cliente por WhatsApp cuando el estado cambia. */
@@ -96,6 +120,12 @@ class OrderLifecycleService
 
             if (! in_array($nextStatus, self::ALLOWED_TRANSITIONS[$current] ?? [], true)) {
                 throw new InvalidArgumentException("No se puede cambiar un pedido de {$current} a {$nextStatus}.");
+            }
+
+            $currentRank = self::STATUS_RANK[$current] ?? null;
+            $nextRank = self::STATUS_RANK[$nextStatus] ?? null;
+            if ($nextStatus !== WhatsappCart::STATUS_CANCELLED && $currentRank !== null && $nextRank !== null && $nextRank < $currentRank) {
+                throw new InvalidArgumentException("No se puede retroceder un pedido de {$current} a {$nextStatus}.");
             }
 
             if ($this->requiresReservation($nextStatus) && ! $this->isReserved($order)) {

@@ -307,6 +307,19 @@ class WhatsappCart extends Model
         return $raw ? Carbon::parse($raw) : null;
     }
 
+    /**
+     * true si lo próximo que hace falta para avanzar el pedido depende del
+     * negocio, no del cliente -- todavía no se confirma el costo de envío,
+     * o el cliente ya mandó su comprobante y solo falta que caja lo
+     * verifique. AbandonedCartService no debe cancelar el pedido (ni
+     * avisarle al cliente que "no continuó") mientras esto sea cierto: el
+     * cliente ya hizo lo que le tocaba y está esperando una respuesta.
+     */
+    public function isWaitingOnBusiness(): bool
+    {
+        return $this->hasPendingFulfillmentCosts() || $this->hasPaymentProof();
+    }
+
     /** Autoservicio del cliente (no un admin): solo antes de que caja marque el pedido como pagado o en preparación. */
     public function isCancelableBySelfService(): bool
     {

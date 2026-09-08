@@ -92,7 +92,7 @@ class WhatsappReportsController extends Controller
             ->first();
 
         $peakHour = $peakHourData
-            ? str_pad($peakHourData->hour, 2, '0', STR_PAD_LEFT) . ':00'
+            ? str_pad($peakHourData->hour, 2, '0', STR_PAD_LEFT).':00'
             : null;
 
         return [
@@ -123,23 +123,42 @@ class WhatsappReportsController extends Controller
         $clientMessages = $this->scopedMessages($businessProfileId)
             ->where('sender_type', 'client')
             ->whereBetween('created_at', [$from, $to])
+            ->orderBy('contact_id')
+            ->orderBy('created_at')
             ->get(['id', 'contact_id', 'created_at']);
 
         if ($clientMessages->isEmpty()) {
             return 0;
         }
 
-        $answered = 0;
-        foreach ($clientMessages as $msg) {
-            $hasReply = $this->scopedMessages($businessProfileId)
-                ->where('contact_id', $msg->contact_id)
-                ->whereIn('sender_type', ['system', 'humano'])
-                ->where('created_at', '>', $msg->created_at)
-                ->where('created_at', '<=', $msg->created_at->copy()->addDay())
-                ->exists();
+        // Antes se ejecutaba un EXISTS por cada mensaje recibido. Se cargan
+        // únicamente las respuestas posibles en dos consultas fijas y se
+        // recorren cronológicamente por contacto.
+        $repliesByContact = $this->scopedMessages($businessProfileId)
+            ->whereIn('contact_id', $clientMessages->pluck('contact_id')->unique())
+            ->whereIn('sender_type', ['system', 'humano'])
+            ->where('created_at', '>', $from)
+            ->where('created_at', '<=', $to->copy()->addDay())
+            ->orderBy('contact_id')
+            ->orderBy('created_at')
+            ->get(['contact_id', 'created_at'])
+            ->groupBy('contact_id');
 
-            if ($hasReply) {
-                $answered++;
+        $answered = 0;
+        foreach ($clientMessages->groupBy('contact_id') as $contactId => $messages) {
+            $replies = $repliesByContact->get($contactId, collect())->values();
+            $replyIndex = 0;
+
+            foreach ($messages as $message) {
+                while ($replyIndex < $replies->count()
+                    && $replies[$replyIndex]->created_at->lte($message->created_at)) {
+                    $replyIndex++;
+                }
+
+                if ($replyIndex < $replies->count()
+                    && $replies[$replyIndex]->created_at->lte($message->created_at->copy()->addDay())) {
+                    $answered++;
+                }
             }
         }
 
@@ -159,19 +178,37 @@ class WhatsappReportsController extends Controller
             return 0;
         }
 
-        $diffs = [];
-        foreach ($outbound as $reply) {
-            $prevClientAt = $this->scopedMessages($businessProfileId)
-                ->where('contact_id', $reply->contact_id)
-                ->where('sender_type', 'client')
-                ->where('created_at', '<', $reply->created_at)
-                ->orderByDesc('created_at')
-                ->value('created_at');
+        // Solo hacen falta mensajes del cliente dentro de la ventana máxima
+        // aceptada (7 días). Así se evita una consulta por cada respuesta y
+        // tampoco se trae el historial completo de contactos antiguos.
+        $clientsByContact = $this->scopedMessages($businessProfileId)
+            ->whereIn('contact_id', $outbound->pluck('contact_id')->unique())
+            ->where('sender_type', 'client')
+            ->where('created_at', '>=', $from->copy()->subDays(7))
+            ->where('created_at', '<', $to)
+            ->orderBy('contact_id')
+            ->orderBy('created_at')
+            ->get(['contact_id', 'created_at'])
+            ->groupBy('contact_id');
 
-            if ($prevClientAt) {
-                $minutes = Carbon::parse($prevClientAt)->diffInMinutes($reply->created_at);
-                if ($minutes >= 0 && $minutes <= 10080) {
-                    $diffs[] = $minutes;
+        $diffs = [];
+        foreach ($outbound->groupBy('contact_id') as $contactId => $replies) {
+            $clientMessages = $clientsByContact->get($contactId, collect())->values();
+            $clientIndex = 0;
+            $previousClientAt = null;
+
+            foreach ($replies as $reply) {
+                while ($clientIndex < $clientMessages->count()
+                    && $clientMessages[$clientIndex]->created_at->lt($reply->created_at)) {
+                    $previousClientAt = $clientMessages[$clientIndex]->created_at;
+                    $clientIndex++;
+                }
+
+                if ($previousClientAt) {
+                    $minutes = $previousClientAt->diffInMinutes($reply->created_at);
+                    if ($minutes >= 0 && $minutes <= 10080) {
+                        $diffs[] = $minutes;
+                    }
                 }
             }
         }
@@ -181,12 +218,12 @@ class WhatsappReportsController extends Controller
 
     private function formatMinutes(?float $minutes): string
     {
-        if (!$minutes || $minutes <= 0) {
+        if (! $minutes || $minutes <= 0) {
             return '—';
         }
 
         if ($minutes < 60) {
-            return round($minutes) . ' min';
+            return round($minutes).' min';
         }
 
         $hours = floor($minutes / 60);

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\Admin\WhatsappReportsController;
 use App\Models\Company;
+use App\Models\PricingSetting;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WhatsappBusinessProfile;
@@ -16,6 +17,7 @@ use App\Support\CompanyContext;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -60,9 +62,9 @@ class WhatsappReportsIsolationTest extends TestCase
             'company_id' => $company->id,
             'business_name' => $slug,
             'display_name' => $slug,
-            'phone_number' => '593' . random_int(100000000, 999999999),
-            'phone_number_id' => strtoupper($slug) . '-PHONE',
-            'access_token' => 'token-' . $slug,
+            'phone_number' => '593'.random_int(100000000, 999999999),
+            'phone_number_id' => strtoupper($slug).'-PHONE',
+            'access_token' => 'token-'.$slug,
             'status' => 'connected',
         ]);
 
@@ -77,7 +79,7 @@ class WhatsappReportsIsolationTest extends TestCase
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
             'phone_number' => $phone,
-            'name' => 'Cliente ' . $phone,
+            'name' => 'Cliente '.$phone,
             'status' => 'active',
         ]);
 
@@ -90,7 +92,7 @@ class WhatsappReportsIsolationTest extends TestCase
             $client = WhatsappMessage::create([
                 'contact_id' => $contact->id,
                 'business_profile_id' => $profile->id,
-                'message_id' => 'wamid.' . Str::random(12),
+                'message_id' => 'wamid.'.Str::random(12),
                 'sender_type' => 'client',
                 'content' => "Mensaje cliente {$i}",
                 'type' => 'text',
@@ -103,7 +105,7 @@ class WhatsappReportsIsolationTest extends TestCase
                 $reply = WhatsappMessage::create([
                     'contact_id' => $contact->id,
                     'business_profile_id' => $profile->id,
-                    'message_id' => 'wamid.' . Str::random(12),
+                    'message_id' => 'wamid.'.Str::random(12),
                     'sender_type' => 'system',
                     'content' => "Respuesta bot {$i}",
                     'type' => 'text',
@@ -241,11 +243,38 @@ class WhatsappReportsIsolationTest extends TestCase
         $this->assertSame(100.0, $reportB['metrics']['response_rate']);
     }
 
+    public function test_report_query_count_does_not_grow_with_each_message(): void
+    {
+        $company = $this->makeCompany('reporte-escalable');
+        $this->actingAs($company['user']);
+        $this->seedConversation($company['profile'], '593900000011', 1, true, Carbon::now()->subHour());
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->reportFor($company['company']);
+        $smallConversationQueries = count(DB::getQueryLog());
+
+        DB::disableQueryLog();
+        $this->seedConversation($company['profile'], '593900000012', 20, true, Carbon::now()->subHour());
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->reportFor($company['company']);
+        $largeConversationQueries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(
+            $smallConversationQueries + 2,
+            $largeConversationQueries,
+            "El reporte pasó de {$smallConversationQueries} a {$largeConversationQueries} consultas al crecer los mensajes."
+        );
+    }
+
     public function test_consumption_report_campaign_categories_are_isolated_per_company(): void
     {
         // "marketing" no está en las categorías habilitadas por defecto
         // (solo service/utility); se activa para poder medirla en esta prueba.
-        \App\Models\PricingSetting::current()->update([
+        PricingSetting::current()->update([
             'enabled_categories' => ['service', 'utility', 'marketing'],
         ]);
 

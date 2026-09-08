@@ -6,9 +6,13 @@ use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WhatsappBusinessProfile;
+use App\Models\WhatsappCampaign;
+use App\Models\WhatsappCart;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappMessage;
+use App\Models\WhatsappMessageFailure;
 use App\Models\WhatsappPrice;
 use App\Services\OrderConfirmationService;
 use App\Services\PermissionService;
@@ -59,8 +63,8 @@ class CompanyAuthorizationTest extends TestCase
             'company_id' => $company->id,
             'business_name' => $slug,
             'display_name' => $slug,
-            'phone_number' => '593' . random_int(100000000, 999999999),
-            'phone_number_id' => strtoupper($slug) . '-PHONE',
+            'phone_number' => '593'.random_int(100000000, 999999999),
+            'phone_number_id' => strtoupper($slug).'-PHONE',
             'access_token' => $token,
             'status' => 'connected',
         ]);
@@ -75,7 +79,7 @@ class CompanyAuthorizationTest extends TestCase
         ]);
         $product = WhatsappPrice::create([
             'menu_item_id' => $category->id, 'business_profile_id' => $profile->id,
-            'category' => $category->title, 'sku' => strtoupper($slug) . '-1',
+            'category' => $category->title, 'sku' => strtoupper($slug).'-1',
             'name' => "Producto {$slug}", 'price' => 10, 'currency' => 'USD',
             'is_active' => true, 'stock' => 5,
         ]);
@@ -105,6 +109,77 @@ class CompanyAuthorizationTest extends TestCase
         $response->assertOk();
         $response->assertSee('Producto piqueo');
         $response->assertDontSee('Producto zapatos-demo');
+    }
+
+    public function test_operational_lists_never_mix_campaigns_failures_messages_or_agent_requests(): void
+    {
+        $a = $this->makeCompanyWithCatalogAndUser('piqueo', 'TOKEN-A');
+        $b = $this->makeCompanyWithCatalogAndUser('zapatos-demo', 'TOKEN-B');
+        $contactA = WhatsappContact::create([
+            'business_profile_id' => $a['profile']->id,
+            'phone_number' => '593990000101',
+            'name' => 'Cliente visible A',
+            'metadata' => ['needs_agent' => true, 'agent_requested_at' => now()->toIso8601String()],
+        ]);
+        $contactB = WhatsappContact::create([
+            'business_profile_id' => $b['profile']->id,
+            'phone_number' => '593990000102',
+            'name' => 'Cliente oculto B',
+            'metadata' => ['needs_agent' => true, 'agent_requested_at' => now()->toIso8601String()],
+        ]);
+
+        foreach ([[$a, $contactA, 'A'], [$b, $contactB, 'B']] as [$company, $contact, $suffix]) {
+            WhatsappCampaign::create([
+                'business_profile_id' => $company['profile']->id,
+                'name' => "Campaña {$suffix}",
+                'message_type' => 'text',
+                'message_content' => "Mensaje {$suffix}",
+                'recipient_type' => 'all',
+                'status' => 'draft',
+            ]);
+            WhatsappMessageFailure::create([
+                'business_profile_id' => $company['profile']->id,
+                'contact_id' => $contact->id,
+                'message_type' => 'text',
+                'error_message' => "Fallo {$suffix}",
+            ]);
+            WhatsappMessage::create([
+                'business_profile_id' => $company['profile']->id,
+                'contact_id' => $contact->id,
+                'message_id' => "wamid-isolation-{$suffix}",
+                'sender_type' => 'client',
+                'content' => "Contenido {$suffix}",
+                'type' => 'text',
+                'status' => 'received',
+            ]);
+        }
+
+        $session = ['active_company_id' => $a['company']->id];
+        $this->actingAs($a['user'])->withSession($session)
+            ->get(route('admin.marketing.index'))
+            ->assertOk()
+            ->assertSee('Campaña A')
+            ->assertDontSee('Campaña B');
+        $this->withSession($session)
+            ->get(route('admin.message-failures.index'))
+            ->assertOk()
+            ->assertSee('Fallo A')
+            ->assertDontSee('Fallo B');
+        $this->withSession($session)
+            ->get(route('admin.messages'))
+            ->assertOk()
+            ->assertSee('Contenido A')
+            ->assertDontSee('Contenido B');
+        $this->withSession($session)
+            ->getJson(route('admin.agent-requests.poll'))
+            ->assertOk()
+            ->assertJsonPath('count', 1)
+            ->assertJsonPath('requests.0.name', 'Cliente visible A');
+
+        $campaignB = WhatsappCampaign::where('business_profile_id', $b['profile']->id)->firstOrFail();
+        $this->withSession($session)
+            ->get(route('admin.marketing.show', $campaignB->id))
+            ->assertNotFound();
     }
 
     public function test_admin_cannot_access_a_company_they_are_not_authorized_for(): void
@@ -217,9 +292,9 @@ class CompanyAuthorizationTest extends TestCase
             'status' => 'active',
         ]);
 
-        $cart = \App\Models\WhatsappCart::create([
+        $cart = WhatsappCart::create([
             'contact_id' => $contactB->id,
-            'status' => \App\Models\WhatsappCart::STATUS_PENDING,
+            'status' => WhatsappCart::STATUS_PENDING,
             'total' => 10,
         ]);
 

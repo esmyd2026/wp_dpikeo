@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\WhatsappCart;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -62,11 +63,11 @@ class OrderExportService
         }
 
         if ($from = $request->input('date_from')) {
-            $query->whereDate('created_at', '>=', $from);
+            $query->where('created_at', '>=', Carbon::parse($from)->startOfDay());
         }
 
         if ($to = $request->input('date_to')) {
-            $query->whereDate('created_at', '<=', $to);
+            $query->where('created_at', '<', Carbon::parse($to)->addDay()->startOfDay());
         }
 
         $search = trim((string) $request->input('q', ''));

@@ -55,13 +55,36 @@ class AdminController extends Controller
             : 'all';
 
         $baseOrders = WhatsappCart::reportable()->forActiveCompany();
-        $segmentCounts = collect($orderSegments)->mapWithKeys(function (array $segment, string $key) use ($baseOrders) {
-            $query = clone $baseOrders;
-            if ($segment['statuses'] !== []) {
-                $query->whereIn('status', $segment['statuses']);
-            }
+        $summaryQuery = (clone $baseOrders)
+            ->selectRaw('COUNT(*) AS total_count, MAX(id) AS latest_order_id');
 
-            return [$key => $query->count()];
+        foreach (OrderLifecycleService::STATUSES as $status) {
+            $summaryQuery->selectRaw(
+                "SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS status_{$status}",
+                [$status]
+            );
+        }
+
+        $summary = $summaryQuery
+            ->selectRaw(
+                'SUM(CASE WHEN requires_invoice = 1 AND invoice_status IN (?, ?) THEN 1 ELSE 0 END) AS invoice_pending_count',
+                ['requested', 'data_ready']
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN status IN (?, ?, ?) THEN total ELSE 0 END), 0) AS revenue_total',
+                [WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_PAID]
+            )
+            ->first();
+
+        $statusCounts = collect(OrderLifecycleService::STATUSES)->mapWithKeys(
+            fn (string $status) => [$status => (int) ($summary->{"status_{$status}"} ?? 0)]
+        );
+        $segmentCounts = collect($orderSegments)->mapWithKeys(function (array $segment, string $key) use ($statusCounts, $summary) {
+            $count = $segment['statuses'] === []
+                ? (int) ($summary->total_count ?? 0)
+                : collect($segment['statuses'])->sum(fn (string $status) => $statusCounts->get($status, 0));
+
+            return [$key => $count];
         })->all();
 
         $ordersQuery = clone $baseOrders;
@@ -80,26 +103,17 @@ class AdminController extends Controller
             ->withQueryString();
 
         $stats = [
-            'total' => WhatsappCart::reportable()->forActiveCompany()->count(),
-            'pending' => WhatsappCart::reportable()->forActiveCompany()->where('status', WhatsappCart::STATUS_PENDING)->count(),
-            'confirmed' => WhatsappCart::reportable()->forActiveCompany()->whereIn('status', [
-                WhatsappCart::STATUS_CONFIRMED,
-                WhatsappCart::STATUS_PREPARING,
-                WhatsappCart::STATUS_READY,
-            ])->count(),
-            'completed' => WhatsappCart::reportable()->forActiveCompany()->where('status', WhatsappCart::STATUS_COMPLETED)->count(),
-            'invoice_pending' => WhatsappCart::reportable()->forActiveCompany()
-                ->where('requires_invoice', true)
-                ->whereIn('invoice_status', ['requested', 'data_ready'])
-                ->count(),
-            'revenue' => WhatsappCart::reportable()->forActiveCompany()->whereIn('status', [
-                WhatsappCart::STATUS_CONFIRMED,
-                WhatsappCart::STATUS_COMPLETED,
-                WhatsappCart::STATUS_PAID,
-            ])->sum('total'),
+            'total' => (int) ($summary->total_count ?? 0),
+            'pending' => $statusCounts->get(WhatsappCart::STATUS_PENDING, 0),
+            'confirmed' => collect([
+                WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PREPARING, WhatsappCart::STATUS_READY,
+            ])->sum(fn (string $status) => $statusCounts->get($status, 0)),
+            'completed' => $statusCounts->get(WhatsappCart::STATUS_COMPLETED, 0),
+            'invoice_pending' => (int) ($summary->invoice_pending_count ?? 0),
+            'revenue' => (float) ($summary->revenue_total ?? 0),
         ];
 
-        $latestOrderId = (int) (WhatsappCart::reportable()->forActiveCompany()->max('id') ?? 0);
+        $latestOrderId = (int) ($summary->latest_order_id ?? 0);
 
         return view('admin.orders', compact(
             'orders',
@@ -151,7 +165,8 @@ class AdminController extends Controller
 
     public function messages()
     {
-        $messages = WhatsappMessage::with(['contact', 'conversation'])
+        $messages = WhatsappMessage::where('business_profile_id', CompanyContext::current()->businessProfileId())
+            ->with(['contact', 'conversation'])
             ->latest()
             ->paginate(20);
 
@@ -1375,6 +1390,7 @@ class AdminController extends Controller
     public function pollAgentRequests()
     {
         $requests = WhatsappContact::query()
+            ->where('business_profile_id', CompanyContext::current()->businessProfileId())
             ->whereRaw("JSON_EXTRACT(metadata, '$.needs_agent') = true")
             ->orderByDesc('updated_at')
             ->get(['id', 'name', 'phone_number', 'metadata']);
@@ -1461,10 +1477,16 @@ class AdminController extends Controller
     public function getNewMessages($contactId, Request $request)
     {
         try {
+            $contact = WhatsappContact::query()
+                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+                ->find($contactId);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
             $lastMessageId = $request->input('last_message_id', 0);
             $lastTimestamp = $request->input('last_timestamp');
 
-            $query = WhatsappMessage::where('contact_id', $contactId);
+            $query = WhatsappMessage::where('contact_id', $contact->id);
 
             // Si hay un timestamp, filtrar por mensajes más recientes
             if ($lastTimestamp) {

@@ -395,6 +395,8 @@
     .order-compact-line-meta { display: block; color: #64748b; font-size: .74rem; margin-top: .15rem; }
     .order-compact-line-note { display: block; color: #a16207; font-size: .7rem; margin-top: .18rem; }
     .order-compact-line-total { align-self: center; color: #0f172a; font-size: .84rem; font-weight: 800; white-space: nowrap; }
+    .order-ticket-payment { display: flex; align-items: center; justify-content: space-between; padding: .6rem 1rem; color: #475569; font-size: .8rem; border-bottom: 1px solid #f1f5f9; }
+    .order-ticket-payment strong { color: #0f172a; }
     .order-ticket-total { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1rem; color: #075e54; background: #f0fdf8; font-weight: 800; }
     .order-ticket-total strong { font-size: 1.05rem; }
     .order-quick-actions { padding: .9rem 1rem; border-left: 4px solid #16a34a; }
@@ -1358,7 +1360,13 @@ function renderOrderModal(order) {
     } else {
         html += `<div class="order-compact-line"><span class="text-muted small">Sin líneas de producto registradas.</span></div>`;
     }
-    html += `<div class="order-ticket-total"><span>Total</span><strong>$${parseFloat(order.total).toFixed(2)}</strong></div></section>`;
+    // Sin esto, un pedido en efectivo no mostraba en ningún lado con qué iba
+    // a pagar el cliente -- la tarjeta de comprobante ("Pago del pedido")
+    // solo aparece para transferencia/tarjeta, que sí llevan comprobante.
+    html += `<div class="order-ticket-payment"><span><i class="fas fa-money-bill-wave me-1"></i>Método de pago</span><strong>${esc(order.payment?.method_label || '—')}</strong></div>`;
+    const deliveryFee = parseFloat(order.fulfillment?.delivery_fee ?? 0);
+    const totalLabel = deliveryFee > 0 ? 'Total (incluye envío)' : 'Total';
+    html += `<div class="order-ticket-total"><span>${totalLabel}</span><strong>$${parseFloat(order.total).toFixed(2)}</strong></div></section>`;
 
     html += renderFulfillmentSection(order);
     html += renderPaymentProofSection(order);

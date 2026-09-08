@@ -17,21 +17,24 @@ class DashboardController extends Controller
     {
         $context = CompanyContext::current();
         $businessProfileId = $context->businessProfileId();
+        $todayStart = today()->startOfDay();
+        $tomorrowStart = today()->addDay()->startOfDay();
 
         $quickStats = [
-            'orders_today' => WhatsappCart::reportable()->forActiveCompany()->whereDate('created_at', today())->count(),
-            'messages_today' => WhatsappMessage::whereDate('created_at', today())
-                ->when($businessProfileId, fn ($q) => $q->whereHas(
-                    'contact',
-                    fn ($c) => $c->where('business_profile_id', $businessProfileId)
-                ))
+            'orders_today' => WhatsappCart::reportable()->forActiveCompany()
+                ->where('created_at', '>=', $todayStart)
+                ->where('created_at', '<', $tomorrowStart)
+                ->count(),
+            'messages_today' => WhatsappMessage::where('business_profile_id', $businessProfileId)
+                ->where('created_at', '>=', $todayStart)
+                ->where('created_at', '<', $tomorrowStart)
                 ->count(),
             'pending_orders' => WhatsappCart::reportable()->forActiveCompany()->where('status', WhatsappCart::STATUS_PENDING)->count(),
         ];
 
         $chatbotConfig = $context->chatbotConfig();
         $dashboardTitle = $chatbotConfig?->dashboard_title
-            ?? (($context->company?->name ?? 'Panel') . ' · Centro de operación');
+            ?? (($context->company?->name ?? 'Panel').' · Centro de operación');
         $dashboardSubtitle = $chatbotConfig?->dashboard_subtitle
             ?? 'Gestiona pedidos, catálogo y atención por WhatsApp.';
 
