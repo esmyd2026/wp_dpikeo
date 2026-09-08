@@ -17,7 +17,7 @@ return new class extends Migration
             $table->decimal('price', 8, 2);
             $table->timestamps();
 
-            $table->index(['business_branch_id', 'from_km']);
+            $table->index(['business_branch_id', 'from_km'], 'branch_delivery_fee_tiers_branch_from_km_idx');
         });
     }
 
