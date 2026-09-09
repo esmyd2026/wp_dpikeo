@@ -117,6 +117,34 @@ class DeliveryConfirmationByDriverTest extends TestCase
         $this->assertSame(WhatsappCart::STATUS_READY, $cart->fresh()->status);
     }
 
+    public function test_a_photo_rejected_by_the_server_returns_the_upload_error_in_spanish(): void
+    {
+        Storage::fake('public');
+        $cart = $this->readyDeliveryCart();
+        $url = app(DeliveryConfirmationService::class)->urlFor($cart);
+        $token = str($url)->afterLast('/')->toString();
+        $source = UploadedFile::fake()->image('proof.jpg');
+        $failedUpload = new UploadedFile(
+            $source->getPathname(),
+            'proof.jpg',
+            'image/jpeg',
+            UPLOAD_ERR_INI_SIZE,
+            true
+        );
+
+        $response = $this->postJson(route('delivery-confirmation.confirm', ['token' => $token]), [
+            'photo' => $failedUpload,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('photo')
+            ->assertJsonPath(
+                'errors.photo.0',
+                'La foto no pudo subir al servidor. Intenta tomarla nuevamente o selecciona una imagen más liviana.'
+            );
+        $this->assertSame(WhatsappCart::STATUS_READY, $cart->fresh()->status);
+    }
+
     public function test_a_used_token_cannot_confirm_again(): void
     {
         Storage::fake('public');
