@@ -2357,6 +2357,7 @@ class WhatsappService
     public function useBusinessProfile(?WhatsappBusinessProfile $profile): void
     {
         $this->tenantResolutionAttempted = true;
+        $this->resetFlowContextCaches();
 
         if (! $profile || ! $profile->isUsable()) {
             $this->businessProfile = null;
@@ -2382,6 +2383,7 @@ class WhatsappService
     {
         $this->webhookPhoneNumberId = $phoneNumberId ?: null;
         $this->inboundMarkedRead = false;
+        $this->resetFlowContextCaches();
 
         if (! $phoneNumberId) {
             return;
@@ -2406,6 +2408,15 @@ class WhatsappService
             'perfil_por_defecto' => $this->businessProfile?->business_name,
             'hint' => 'Registre cada línea del portafolio Meta con su phone_number_id y flujo propio.',
         ]);
+    }
+
+    /** Evita reutilizar el flujo/configuración de checkout de otra empresa. */
+    private function resetFlowContextCaches(): void
+    {
+        $this->marketingFlowCache = null;
+        $this->graphSnapshotCache = null;
+        $this->graphSnapshotLoaded = false;
+        $this->checkoutStepsConfigCache = null;
     }
 
     /**
@@ -2768,6 +2779,18 @@ class WhatsappService
                 'titulo' => $buttonTitle,
             ]);
 
+            $flowAction = $this->resolveFlowButtonAction($buttonId);
+
+            // El control de pedido vigente también debe aplicarse a botones
+            // y listas; antes solo el texto libre quedaba bloqueado.
+            if ($this->startsNewPurchase($buttonId, $flowAction)
+                && ($activeOrder = $this->buildActiveOrderStatusResponse($contact))) {
+                $this->prepareBotReply($contact, $messageId);
+                $this->sendMessage($from, $activeOrder);
+
+                return;
+            }
+
             if ($buttonId && $this->tryHandleGraphButton($buttonId, $contact, $from, $messageId)) {
                 return;
             }
@@ -2781,7 +2804,6 @@ class WhatsappService
                 return;
             }
 
-            $flowAction = $this->resolveFlowButtonAction($buttonId);
             if ($flowAction === MarketingButtonAction::AGENT || $this->isAgentRequestButton($buttonId, $buttonTitle)) {
                 $this->triggerAgentHandoff($contact, $from, 'button:'.$buttonId);
 
@@ -3443,6 +3465,13 @@ class WhatsappService
 
     private function sendBulkWebOrderLink(WhatsappContact $contact): array
     {
+        // Defensa en profundidad: aunque llegue desde un botón antiguo o una
+        // acción pendiente reanudada, no se emite otro enlace mientras el
+        // cliente tenga un pedido enviado que aún no finaliza.
+        if ($activeOrder = $this->buildActiveOrderStatusResponse($contact)) {
+            return $activeOrder;
+        }
+
         // Pedido explícito: preguntar el método de pago ANTES de mandarlo al
         // micrositio, no después de que vuelva -- no lo vamos a hacer llegar
         // hasta allá y devolverse para preguntarle. Mismo gate que usa
@@ -4831,8 +4860,13 @@ class WhatsappService
         $metadata = $cart->metadata ?? [];
 
         if (empty($metadata['service_type'] ?? null)) {
-            if (! $this->isCheckoutStepEnabled('service_type')) {
-                $metadata['service_type'] = $this->getCheckoutStepDefault('service_type', 'llevar');
+            $cart->loadMissing('branch');
+            $branchAllowsDineIn = ! $cart->branch || $cart->branch->dine_in_enabled;
+
+            if (! $branchAllowsDineIn || ! $this->isCheckoutStepEnabled('service_type')) {
+                $metadata['service_type'] = $branchAllowsDineIn
+                    ? $this->getCheckoutStepDefault('service_type', 'llevar')
+                    : 'llevar';
                 $cart->metadata = $metadata;
                 $cart->save();
             } else {
@@ -4918,6 +4952,58 @@ class WhatsappService
                 'action' => ['buttons' => $buttons],
             ],
         ];
+    }
+
+    /**
+     * Acciones que abren o continúan una compra. Se excluyen expresamente
+     * cancelar, hablar con asesor, consultar pedidos y responder los pasos
+     * pendientes del checkout actual.
+     */
+    private function startsNewPurchase(?string $buttonId, ?string $flowAction = null): bool
+    {
+        if (in_array($flowAction, [
+            MarketingButtonAction::PRODUCTS,
+            MarketingButtonAction::CATALOG,
+            MarketingButtonAction::VIEW_CART,
+            MarketingButtonAction::CHECKOUT,
+        ], true)) {
+            return true;
+        }
+
+        if (in_array($buttonId, [
+            'menu_productos',
+            'productos',
+            'ver_mas_precios',
+            'volver_productos',
+            'volver_categorias',
+            'seguir_comprando',
+            'bulk_order_web',
+            'ver_carrito',
+            'finalizar_compra',
+            'checkout',
+        ], true)) {
+            return true;
+        }
+
+        foreach ([
+            'cat_',
+            'ver_mas_cat_',
+            'producto_',
+            'ver_producto_',
+            'quick_add_',
+            'pedir_cantidad_',
+            'personalizar_',
+            'variacion_',
+            'otra_cantidad_',
+            'cantidad_',
+            'agregar_',
+        ] as $prefix) {
+            if (str_starts_with((string) $buttonId, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -5316,6 +5402,13 @@ class WhatsappService
                     if ($messageId) {
                         $this->rememberInboundMessage($contact, $messageId);
                     }
+
+                    if ($activeOrder = $this->buildActiveOrderStatusResponse($contact)) {
+                        $this->prepareBotReply($contact, $messageId);
+                        $this->sendMessage($from, $activeOrder);
+
+                        return;
+                    }
                 }
                 if ($contact && $this->botMayRespondToContact($contact) && $messageId) {
                     $this->prepareBotReply($contact, $messageId);
@@ -5559,7 +5652,9 @@ class WhatsappService
                     'cart_id' => $cart->id,
                 ]);
 
-                $pendingStep = $this->finalizarCompra($contact);
+                $pendingStep = ($cart->metadata['source'] ?? null) === 'bulk_web_form'
+                    ? $this->continueAfterFulfillmentStep($contact, $cart)
+                    : $this->finalizarCompra($contact);
                 if (is_array($pendingStep) && ($pendingStep['type'] ?? null) === 'interactive') {
                     $intro = $this->matchCommonIntentReply($text)
                         ?? '🙏 No entendí ese mensaje. Elige una opción de arriba para continuar:';
@@ -5568,6 +5663,17 @@ class WhatsappService
                 }
                 $response = $pendingStep;
                 $processHandled = true;
+            }
+
+            // Antes de interpretar texto como nombre/SKU, se protege el
+            // pedido ya enviado. De lo contrario escribir el nombre de otro
+            // producto saltaba el mensaje de pedido en curso.
+            if (! $processHandled && ! $this->isAgentRequestText($text)) {
+                $statusResponse = $this->buildActiveOrderStatusResponse($contact);
+                if ($statusResponse) {
+                    $response = $statusResponse;
+                    $processHandled = true;
+                }
             }
 
             // Si no se procesó como nota, verificar si es un SKU de producto
@@ -5597,20 +5703,6 @@ class WhatsappService
                         $response = $this->getProductDetails($product->id, $contact);
                         $processHandled = true;
                     }
-                }
-            }
-
-            // El cliente ya tiene un pedido enviado (no un carrito en curso)
-            // que todavía no se completó ni se canceló: en vez de dejar que
-            // cualquier saludo/texto libre caiga al menú genérico como si no
-            // hubiera pasado nada, se lo mantiene "anclado" a ese pedido --
-            // le decimos en qué estado va, y le ofrecemos cancelar solo si
-            // todavía se puede (no si ya está pagado/en preparación/listo).
-            if (! $processHandled && ! $this->isAgentRequestText($text)) {
-                $statusResponse = $this->buildActiveOrderStatusResponse($contact);
-                if ($statusResponse) {
-                    $response = $statusResponse;
-                    $processHandled = true;
                 }
             }
 

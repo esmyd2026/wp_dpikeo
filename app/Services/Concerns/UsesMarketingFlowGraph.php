@@ -2,6 +2,7 @@
 
 namespace App\Services\Concerns;
 
+use App\Models\MarketingFlow;
 use App\Models\MarketingFlowNode;
 use App\Models\MarketingFlowStep;
 use App\Models\MarketingFlowVersion;
@@ -21,7 +22,10 @@ use App\Services\MarketingFlowPayloadBuilder;
 trait UsesMarketingFlowGraph
 {
     protected ?array $graphSnapshotCache = null;
+
     protected bool $graphSnapshotLoaded = false;
+
+    protected ?array $checkoutStepsConfigCache = null;
 
     protected function getPublishedGraphSnapshot(): ?array
     {
@@ -31,7 +35,7 @@ trait UsesMarketingFlowGraph
         $this->graphSnapshotLoaded = true;
 
         $flow = $this->resolveMarketingFlow();
-        if (!$flow) {
+        if (! $flow) {
             return $this->graphSnapshotCache = null;
         }
 
@@ -51,12 +55,12 @@ trait UsesMarketingFlowGraph
     protected function resolveGraphStartPayload(?WhatsappContact $contact): ?array
     {
         $snapshot = $this->getPublishedGraphSnapshot();
-        if (!$snapshot || empty($snapshot['start_node_uuid'])) {
+        if (! $snapshot || empty($snapshot['start_node_uuid'])) {
             return null;
         }
 
         $node = $snapshot['nodes'][$snapshot['start_node_uuid']] ?? null;
-        if (!$node || !($node['is_enabled'] ?? true)) {
+        if (! $node || ! ($node['is_enabled'] ?? true)) {
             return null;
         }
 
@@ -77,21 +81,21 @@ trait UsesMarketingFlowGraph
      */
     protected function tryHandleGraphButton(string $buttonId, ?WhatsappContact $contact, string $to, ?string $inboundMessageId = null): bool
     {
-        if (!$contact) {
+        if (! $contact) {
             return false;
         }
 
         $snapshot = $this->getPublishedGraphSnapshot();
-        if (!$snapshot) {
+        if (! $snapshot) {
             return false;
         }
 
         $currentNodeUuid = $contact->metadata['current_graph_node'] ?? null;
-        if (!$currentNodeUuid) {
+        if (! $currentNodeUuid) {
             return false;
         }
 
-        if (!isset($snapshot['nodes'][$currentNodeUuid])) {
+        if (! isset($snapshot['nodes'][$currentNodeUuid])) {
             // El nodo donde estaba este contacto ya no existe en la versión
             // publicada (se borró, o se publicó un grafo nuevo mientras la
             // conversación estaba a mitad de camino). Sin esto, el puntero
@@ -104,13 +108,29 @@ trait UsesMarketingFlowGraph
         }
 
         $targetUuid = $snapshot['edges'][$currentNodeUuid][$buttonId] ?? null;
-        if (!$targetUuid) {
+        if (! $targetUuid) {
             return false;
         }
 
         $node = $snapshot['nodes'][$targetUuid] ?? null;
-        if (!$node || !($node['is_enabled'] ?? true)) {
+        if (! $node || ! ($node['is_enabled'] ?? true)) {
             return false;
+        }
+
+        // Un enlace del grafo puede entrar directo al catálogo y evitar el
+        // switch clásico. Si ya existe un pedido enviado, se mantiene al
+        // cliente anclado a ese pedido también desde estas conexiones.
+        if (in_array($node['node_type'], [
+            MarketingFlowNode::TYPE_CATALOG,
+            MarketingFlowNode::TYPE_CATEGORY,
+            MarketingFlowNode::TYPE_PRODUCT,
+            MarketingFlowNode::TYPE_CART,
+            MarketingFlowNode::TYPE_CHECKOUT,
+        ], true) && ($activeOrder = $this->buildActiveOrderStatusResponse($contact))) {
+            $this->prepareBotReply($contact, $inboundMessageId);
+            $this->sendMessage($to, $activeOrder);
+
+            return true;
         }
 
         $payload = $this->buildGraphNodePayload($node, $contact);
@@ -160,7 +180,7 @@ trait UsesMarketingFlowGraph
     private function renderGraphProductNode(array $node, ?WhatsappContact $contact = null): ?array
     {
         $productId = $node['config']['product_id'] ?? null;
-        if (!$productId) {
+        if (! $productId) {
             return ['type' => 'text', 'text' => ['body' => 'Este producto ya no está disponible.']];
         }
 
@@ -206,8 +226,32 @@ trait UsesMarketingFlowGraph
      */
     protected function getCheckoutStepConfig(string $stepKey): array
     {
-        $flow = $this->resolveMarketingFlow();
-        if (!$flow) {
+        if ($this->checkoutStepsConfigCache !== null) {
+            return $this->checkoutStepsConfigCache[$stepKey] ?? [];
+        }
+
+        if (! $this->businessProfile) {
+            $this->checkoutStepsConfigCache = [];
+
+            return [];
+        }
+
+        // Debe ser exactamente el mismo flujo que abre el editor visual.
+        // La activación/publicación controla los mensajes del grafo, pero no
+        // estos parámetros operativos del checkout. Antes, el editor podía
+        // guardar "no preguntar" en un flujo inactivo y el bot consultaba
+        // otro flujo activo (o ninguno), por lo que volvía a preguntar.
+        $flow = MarketingFlow::query()
+            ->where('business_profile_id', $this->businessProfile->id)
+            ->where('is_default', true)
+            ->first()
+            ?? MarketingFlow::query()
+                ->where('business_profile_id', $this->businessProfile->id)
+                ->first();
+
+        if (! $flow) {
+            $this->checkoutStepsConfigCache = [];
+
             return [];
         }
 
@@ -215,7 +259,9 @@ trait UsesMarketingFlowGraph
             ->where('node_type', MarketingFlowNode::TYPE_CHECKOUT)
             ->first();
 
-        return $node?->config['steps'][$stepKey] ?? [];
+        $this->checkoutStepsConfigCache = $node?->config['steps'] ?? [];
+
+        return $this->checkoutStepsConfigCache[$stepKey] ?? [];
     }
 
     /**

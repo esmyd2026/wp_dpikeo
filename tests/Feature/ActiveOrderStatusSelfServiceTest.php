@@ -53,6 +53,21 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
         ]]);
     }
 
+    private function pressButton(WhatsappContact $contact, string $buttonId, string $title): void
+    {
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+
+        $this->invoke($service, 'handleInteractiveMessage', [[
+            'from' => $contact->phone_number,
+            'id' => 'wamid.'.uniqid(),
+            'interactive' => [
+                'type' => 'button_reply',
+                'button_reply' => ['id' => $buttonId, 'title' => $title],
+            ],
+        ]]);
+    }
+
     public function test_greeting_with_an_unpaid_order_shows_its_status_and_a_cancel_button(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
@@ -69,6 +84,56 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
                 && str_contains($body, 'Confirmado')
                 && in_array('cancelar_pedido_'.$cart->id, $buttonIds, true);
         });
+    }
+
+    public function test_product_buttons_cannot_start_another_purchase_while_a_bulk_web_order_is_pending(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id,
+            'status' => WhatsappCart::STATUS_PAYMENT_PENDING,
+            'total' => 22,
+            'metadata' => ['source' => 'bulk_web_form'],
+        ]);
+
+        $this->pressButton($contact, 'menu_productos', 'Ver menú');
+
+        Http::assertSent(function ($request) use ($cart) {
+            $body = $request['interactive']['body']['text'] ?? '';
+            $buttonIds = collect($request['interactive']['action']['buttons'] ?? [])->pluck('reply.id')->all();
+
+            return str_contains($body, $cart->getOrderNumber())
+                && str_contains($body, 'Pago pendiente')
+                && in_array('cancelar_pedido_'.$cart->id, $buttonIds, true);
+        });
+        $this->assertDatabaseMissing('whatsapp_carts', [
+            'contact_id' => $contact->id,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_bulk_microsite_link_is_not_generated_while_an_order_is_pending(): void
+    {
+        [, $contact] = $this->profileAndContact();
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id,
+            'status' => WhatsappCart::STATUS_PENDING,
+            'total' => 18,
+            'metadata' => ['source' => 'bulk_web_form'],
+        ]);
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+
+        $response = $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+
+        $this->assertStringContainsString($cart->getOrderNumber(), $response['interactive']['body']['text']);
+        $this->assertSame('cancelar_pedido_'.$cart->id, $response['interactive']['action']['buttons'][0]['reply']['id']);
+        $this->assertDatabaseCount('bulk_order_tokens', 0);
+        $this->assertDatabaseMissing('whatsapp_carts', [
+            'contact_id' => $contact->id,
+            'status' => 'active',
+        ]);
     }
 
     public function test_greeting_with_an_already_paid_order_shows_status_without_a_cancel_button(): void

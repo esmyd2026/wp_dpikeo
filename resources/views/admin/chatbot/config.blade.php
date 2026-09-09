@@ -442,7 +442,14 @@
                 </div>
 
                 <div class="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    @php $currentTemplateGroup = null; @endphp
                     @foreach($paymentTemplateDefinitions as $templateKey => $definition)
+                        @if(($definition['group'] ?? null) !== $currentTemplateGroup)
+                            @php $currentTemplateGroup = $definition['group'] ?? null; @endphp
+                            <h4 class="col-span-full mt-2 text-xs font-semibold uppercase tracking-wider text-emerald-700 first:mt-0">
+                                {{ $currentTemplateGroup }}
+                            </h4>
+                        @endif
                         <details class="group rounded-lg border border-gray-200 bg-white shadow-sm" {{ $loop->first || $errors->has('payment_templates.'.$templateKey) ? 'open' : '' }}>
                             <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                                 <span>

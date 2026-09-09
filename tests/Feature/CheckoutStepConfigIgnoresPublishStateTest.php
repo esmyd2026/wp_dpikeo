@@ -39,13 +39,15 @@ class CheckoutStepConfigIgnoresPublishStateTest extends TestCase
         ]);
         $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593987654321', 'name' => 'Cliente', 'status' => 'active']);
 
-        $flow = MarketingFlow::create(['business_profile_id' => $profile->id, 'name' => 'Flujo', 'is_active' => true, 'is_default' => true]);
+        $flow = MarketingFlow::create(['business_profile_id' => $profile->id, 'name' => 'Flujo', 'is_active' => false, 'is_default' => true]);
 
         // Nodo "Checkout (sistema)" configurado desde el editor visual: el
         // paso "¿para llevar o servir?" está desactivado, con "servir" como
-        // valor por defecto. Deliberadamente NO se crea ningún
+        // valor por defecto. El flujo también está inactivo y deliberadamente
+        // NO se crea ningún
         // MarketingFlowVersion con is_current=true -- el grafo sigue
-        // despublicado, tal como lo dejó el usuario.
+        // despublicado, tal como lo dejó el usuario. El editor sí muestra este
+        // flujo y sus opciones operativas deben seguir siendo autoritativas.
         MarketingFlowNode::create([
             'flow_id' => $flow->id,
             'node_uuid' => 'checkout-node-uuid',

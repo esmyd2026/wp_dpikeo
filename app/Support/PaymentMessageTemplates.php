@@ -11,12 +11,22 @@ use App\Models\WhatsappChatbotConfig;
  */
 final class PaymentMessageTemplates
 {
-    /** @return array<string, array{label: string, description: string, body: string, variables: array<string, string>}> */
+    /**
+     * Orden deliberado: sigue la misma secuencia en la que el cliente los
+     * recibe durante una compra real (resumen → confirmación → comprobante),
+     * agrupados con 'group' para que el panel los muestre con encabezados en
+     * vez de una sola lista plana de 14 mensajes sin relación aparente entre
+     * sí. El aviso al equipo va aparte porque no lo lee el cliente.
+     *
+     * @return array<string, array{group: string, label: string, description: string, body: string, variables: array<string, string>}>
+     */
     public static function definitions(): array
     {
         return [
+            // --- 1. Antes de confirmar: resumen y forma de pago ---
             'order_review' => [
-                'label' => 'Resumen antes de confirmar el pedido',
+                'group' => 'Antes de confirmar',
+                'label' => 'Resumen del pedido',
                 'description' => 'Se muestra después de elegir la forma de pago y antes de los botones Confirmar, Seguir comprando o Cancelar.',
                 'body' => "📋 *Resumen de tu pedido*\nPedido *#{{order_number}}*\n\n{{items}}{{fulfillment}}💳 *Pago*\n{{payment_method}}\n\n{{transfer_instructions}}{{cost_breakdown}}{{note}}¿Confirmas tu pedido?",
                 'variables' => self::variables([
@@ -25,80 +35,99 @@ final class PaymentMessageTemplates
                 ]),
             ],
             'bank_transfer' => [
+                'group' => 'Antes de confirmar',
                 'label' => 'Datos y advertencia de transferencia',
-                'description' => 'Acompaña el resumen cuando el cliente paga por transferencia. Los datos bancarios se toman del campo configurado arriba.',
+                'description' => 'Se inserta dentro del resumen (variable {{transfer_instructions}}) solo cuando el cliente paga por transferencia. Los datos bancarios salen del campo configurado arriba.',
                 'body' => "{{bank_instructions}}⚠️ Solo aceptamos *transferencias inmediatas*. Verifica bien los datos antes de transferir: si el pago no se acredita de inmediato, no podremos despachar tu pedido.\n\n",
                 'variables' => self::variables(['bank_instructions']),
             ],
             'card_payment' => [
+                'group' => 'Antes de confirmar',
                 'label' => 'Link de pago con tarjeta',
-                'description' => 'Acompaña el botón que abre la página externa de pago con tarjeta.',
+                'description' => 'Acompaña el botón que abre la página externa de pago con tarjeta, la primera vez que se genera el link.',
                 'body' => '💳 Puedes pagar el pedido *{{order_number}}* por *{{currency}} {{total}}* directamente aquí:',
                 'variables' => self::variables(['order_number', 'currency', 'total', 'payment_url']),
             ],
             'card_payment_repeat' => [
+                'group' => 'Antes de confirmar',
                 'label' => 'Link de tarjeta ya enviado',
-                'description' => 'Se responde si el cliente intenta continuar un pedido cuyo link de pago ya fue enviado.',
+                'description' => 'Se responde si el cliente escribe de nuevo sobre un pedido cuyo link de pago ya fue enviado antes.',
                 'body' => "Ya te enviamos el link para pagar tu pedido *{{order_number}}* con tarjeta:\n{{payment_url}}",
                 'variables' => self::variables(['order_number', 'payment_url']),
             ],
             'card_payment_unavailable' => [
+                'group' => 'Antes de confirmar',
                 'label' => 'Pago con tarjeta no disponible',
-                'description' => 'Se muestra si el método fue seleccionado pero la empresa no tiene un enlace HTTPS configurado.',
+                'description' => 'Se muestra si el cliente elige tarjeta pero la empresa todavía no tiene un enlace de pago (HTTPS) configurado.',
                 'body' => 'El pago con tarjeta no está disponible por ahora. Por favor elige otro método de pago o escríbenos.',
                 'variables' => self::variables(['order_number']),
             ],
+
+            // --- 2. Al confirmar el pedido ---
             'order_confirmed' => [
+                'group' => 'Al confirmar el pedido',
                 'label' => 'Pedido confirmado',
-                'description' => 'Encabezado y datos que se envían cuando el cliente confirma el pedido.',
+                'description' => 'Encabezado y datos que se envían apenas el cliente toca "Confirmar". A este cuerpo se le agrega justo después payment_total_pending o proof_pending, según el caso.',
                 'body' => "✅ *¡Pedido confirmado!*\n\n📦 *Número de pedido:* {{order_number}}\n{{cost_breakdown}}💳 *Método de pago:* {{payment_method}}\n\n{{fulfillment}}",
                 'variables' => self::variables(['order_number', 'cost_breakdown', 'payment_method', 'fulfillment']),
             ],
             'payment_total_pending' => [
+                'group' => 'Al confirmar el pedido',
                 'label' => 'Total pendiente de confirmación',
-                'description' => 'Se añade cuando caja todavía debe confirmar el envío o empaque antes de solicitar el comprobante.',
+                'description' => 'Se agrega al final de "Pedido confirmado" cuando caja todavía debe confirmar el costo de envío o empaque -- mientras eso no se resuelva, no se pide comprobante todavía.',
                 'body' => '🕐 Tu pedido se encuentra registrado. Pronto nuestro equipo te confirmará el total a pagar y ahí te pediremos tu comprobante.',
                 'variables' => [],
             ],
+            'proof_after_costs' => [
+                'group' => 'Al confirmar el pedido',
+                'label' => 'Cierre al confirmar costos pendientes',
+                'description' => 'Frase corta que cierra el mensaje de caja cuando por fin confirma el envío/empaque que estaba pendiente (el número y total ya van arriba en ese mensaje, no hace falta repetirlos aquí).',
+                'body' => '_Quedamos atentos a su comprobante de pago_',
+                'variables' => self::variables(['order_number', 'currency', 'total']),
+            ],
             'proof_pending' => [
+                'group' => 'Al confirmar el pedido',
                 'label' => 'Aviso de comprobante pendiente',
-                'description' => 'Se añade al pedido confirmado cuando ya se conoce el total y falta que el cliente envíe el comprobante.',
+                'description' => 'Se agrega al final de "Pedido confirmado" cuando el total YA se conoce (caso contrario a payment_total_pending) -- avisa que falta el comprobante.',
                 'body' => "🕐 Tu pedido queda *pendiente de verificación* hasta que recibamos tu comprobante. En cuanto lo enviemos a revisión, te confirmamos por este mismo chat.\n\n",
                 'variables' => self::variables(['order_number']),
             ],
+            'pay_at_register' => [
+                'group' => 'Al confirmar el pedido',
+                'label' => 'Pedido para pagar en caja',
+                'description' => 'Reemplaza por completo a "Pedido confirmado" -- se usa en vez de ese, no junto a él -- para pedidos que se pagan presentando el número directamente en caja (no piden comprobante).',
+                'body' => "✅ *¡Pedido registrado!*\nPedido *#{{order_number}}*\n\n{{fulfillment}}{{cost_breakdown}}🧾 Pasa a caja con tu número de pedido para cancelar. ¡Gracias por tu pedido!",
+                'variables' => self::variables(['order_number', 'fulfillment', 'cost_breakdown']),
+            ],
+
+            // --- 3. Comprobante de pago ---
             'proof_request' => [
+                'group' => 'Comprobante de pago',
                 'label' => 'Solicitud del comprobante',
-                'description' => 'Indica el pedido y el monto exacto que debe respaldar la imagen o el PDF.',
+                'description' => 'Mensaje aparte (no va pegado a "Pedido confirmado") que pide la imagen o PDF, indicando el monto exacto que debe respaldar.',
                 'body' => "*Comprobante de pago*\n\nPedido: *{{order_number}}*\nTotal: *{{currency}} {{total}}*\n\nEnvía la captura o comprobante para verificarlo.",
                 'variables' => self::variables(['order_number', 'currency', 'total']),
             ],
             'proof_reminder' => [
+                'group' => 'Comprobante de pago',
                 'label' => 'Recordatorio de comprobante',
-                'description' => 'Se responde si el cliente continúa escribiendo mientras todavía falta el archivo.',
+                'description' => 'Se responde si el cliente sigue escribiendo mientras todavía no ha mandado el archivo del comprobante.',
                 'body' => "🕐 Seguimos esperando el comprobante de pago de tu pedido *{{order_number}}*.\n\nEnvía la imagen o PDF del comprobante, o cancela el pedido si prefieres no continuar.",
                 'variables' => self::variables(['order_number']),
             ],
             'proof_received' => [
-                'label' => 'Comprobante recibido por el cliente',
-                'description' => 'Confirmación inmediata al cliente después de registrar correctamente su imagen o PDF.',
+                'group' => 'Comprobante de pago',
+                'label' => 'Comprobante recibido',
+                'description' => 'Confirmación inmediata al cliente apenas su imagen o PDF queda registrado -- todavía no significa que el pago fue verificado, solo que llegó.',
                 'body' => '✅ Comprobante recibido para el pedido *{{order_number}}*. Lo verificaremos pronto.',
                 'variables' => self::variables(['order_number']),
             ],
-            'proof_after_costs' => [
-                'label' => 'Solicitud después de confirmar costos',
-                'description' => 'Cierre del mensaje que confirma el total definitivo de envío o empaque.',
-                'body' => '_Quedamos atentos a su comprobante de pago_',
-                'variables' => self::variables(['order_number', 'currency', 'total']),
-            ],
-            'pay_at_register' => [
-                'label' => 'Pedido para pagar en caja',
-                'description' => 'Se usa para pedidos que deben presentar su número y cancelar directamente en caja.',
-                'body' => "✅ *¡Pedido registrado!*\nPedido *#{{order_number}}*\n\n{{fulfillment}}{{cost_breakdown}}🧾 Pasa a caja con tu número de pedido para cancelar. ¡Gracias por tu pedido!",
-                'variables' => self::variables(['order_number', 'fulfillment', 'cost_breakdown']),
-            ],
+
+            // --- 4. Aviso interno (no lo ve el cliente) ---
             'staff_proof_received' => [
-                'label' => 'Aviso interno de comprobante recibido',
-                'description' => 'Se envía únicamente a los números autorizados del equipo para que revisen el pago en Pedidos.',
+                'group' => 'Aviso interno al equipo',
+                'label' => 'Comprobante recibido (equipo)',
+                'description' => 'Se envía únicamente a los números autorizados del equipo (no al cliente) para que revisen el pago en el panel de Pedidos.',
                 'body' => "📎 *Comprobante de pago recibido*\n\n📦 Pedido: {{order_number}}\n👤 Cliente: {{customer}}\n💰 Total: \${{total}}\n\nRevísalo en el panel de Pedidos.",
                 'variables' => self::variables(['order_number', 'customer', 'total']),
             ],
@@ -136,18 +165,18 @@ final class PaymentMessageTemplates
     private static function variables(array $names): array
     {
         $descriptions = [
-            'order_number' => 'Número del pedido',
-            'items' => 'Productos, cantidades y precios',
-            'fulfillment' => 'Sucursal, tipo, dirección y persona que recibe',
-            'payment_method' => 'Forma de pago elegida',
-            'transfer_instructions' => 'Bloque completo de datos de transferencia',
-            'cost_breakdown' => 'Subtotal, IVA y costos aplicables',
-            'note' => 'Nota del cliente, si existe',
-            'bank_instructions' => 'Bloque de datos bancarios configurados',
-            'currency' => 'Moneda, por ejemplo USD',
-            'total' => 'Total con dos decimales',
-            'customer' => 'Nombre o teléfono del cliente',
-            'payment_url' => 'Enlace HTTPS configurado para pagar',
+            'order_number' => 'Número del pedido, ej. "ORD-010"',
+            'items' => 'Lista de productos: nombre, cantidad y precio unitario de cada línea, uno debajo del otro',
+            'fulfillment' => 'Bloque "🚚 Entrega" ya armado: sucursal, "Para llevar/servir", y si es delivery también la dirección y quién recibe',
+            'payment_method' => 'Texto de la forma de pago elegida, ej. "Transferencia o depósito bancario", "Efectivo" o "Tarjeta"',
+            'transfer_instructions' => 'Bloque completo de datos bancarios + la advertencia de "solo transferencias inmediatas" (vacío si no paga por transferencia)',
+            'cost_breakdown' => 'Subtotal/IVA si aplica, costo de envío (o "por confirmar" si aún no se calcula) y el total',
+            'note' => 'Nota que el cliente escribió al pedido, con el prefijo "📝 Nota:" (vacío si no dejó ninguna)',
+            'bank_instructions' => 'Los datos bancarios tal como están escritos en "Datos de transferencia" en la configuración (vacío si ese campo no está lleno)',
+            'currency' => 'Código de moneda, siempre "USD"',
+            'total' => 'Monto total del pedido con dos decimales, ej. "8.50" (sin el símbolo $)',
+            'customer' => 'Nombre del contacto si lo tiene guardado, o su número de teléfono',
+            'payment_url' => 'Enlace de pago con tarjeta generado para ese pedido específico',
         ];
 
         return array_intersect_key($descriptions, array_flip($names));

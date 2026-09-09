@@ -384,6 +384,41 @@
 
     /* Vista operativa: una orden se debe revisar y despachar, no llenar como factura. */
     .order-command-center { display: flex; flex-direction: column; gap: .8rem; }
+    .order-process {
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        padding: .85rem 1rem; background: #fff; border: 1px solid #dbe4ea;
+        border-radius: 14px; box-shadow: 0 1px 4px rgba(15,23,42,.04);
+    }
+    .order-process-step { position: relative; min-width: 0; text-align: center; color: #94a3b8; }
+    .order-process-step:not(:last-child)::after {
+        content: ''; position: absolute; top: 15px; left: calc(50% + 19px);
+        right: calc(-50% + 19px); height: 2px; background: #dbe4ea;
+    }
+    .order-process-step.is-done:not(:last-child)::after { background: #0f766e; }
+    .order-process-dot {
+        position: relative; z-index: 1; width: 30px; height: 30px; margin: 0 auto .35rem;
+        display: flex; align-items: center; justify-content: center; border-radius: 50%;
+        border: 2px solid #dbe4ea; background: #fff; font-size: .7rem;
+    }
+    .order-process-step.is-done { color: #0f766e; }
+    .order-process-step.is-done .order-process-dot { border-color: #0f766e; background: #0f766e; color: #fff; }
+    .order-process-step.is-current { color: #0f172a; font-weight: 800; }
+    .order-process-step.is-current .order-process-dot {
+        border-color: #0f766e; color: #0f766e; box-shadow: 0 0 0 4px #dff5ef;
+    }
+    .order-process-label { display: block; font-size: .68rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .order-process-cancelled { grid-column: 1 / -1; display: flex; align-items: center; gap: .65rem; color: #991b1b; font-size: .8rem; font-weight: 700; }
+    .order-process-cancelled .order-process-dot { margin: 0; border-color: #fecaca; background: #fef2f2; color: #dc2626; }
+
+    .order-snapshot {
+        display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+        background: #fff; border: 1px solid #dbe4ea; border-radius: 14px; overflow: hidden;
+    }
+    .order-snapshot-item { min-width: 0; padding: .72rem .85rem; border-right: 1px solid #edf1f5; }
+    .order-snapshot-item:last-child { border-right: 0; }
+    .order-snapshot-label { display: block; color: #64748b; font-size: .62rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .order-snapshot-value { display: block; margin-top: .18rem; color: #0f172a; font-size: .8rem; font-weight: 750; overflow-wrap: anywhere; }
+    .order-snapshot-item.is-total .order-snapshot-value { color: #0f766e; font-size: .94rem; }
     .order-ticket-card, .order-quick-actions, .order-disclosure {
         background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
         box-shadow: 0 2px 9px rgba(15,23,42,.045);
@@ -408,12 +443,16 @@
     .order-quick-actions-copy span { display: block; color: #64748b; font-size: .75rem; margin-top: .12rem; }
     .order-quick-actions .o-btn { flex-shrink: 0; }
     .order-disclosure { overflow: hidden; box-shadow: none; }
-    .order-disclosure summary { list-style: none; cursor: pointer; padding: .75rem 1rem; color: #475569; font-size: .78rem; font-weight: 700; }
+    .order-disclosure summary { position: relative; min-height: 46px; list-style: none; cursor: pointer; padding: .75rem 2.2rem .75rem 1rem; color: #475569; font-size: .78rem; font-weight: 700; touch-action: manipulation; }
     .order-disclosure summary::-webkit-details-marker { display: none; }
-    .order-disclosure summary::after { content: '+'; float: right; color: #94a3b8; font-size: 1rem; line-height: .8; }
+    .order-disclosure summary::after { content: '+'; position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 1rem; line-height: .8; }
     .order-disclosure[open] summary { border-bottom: 1px solid #edf1f5; color: #0f172a; }
     .order-disclosure[open] summary::after { content: '−'; }
     .order-disclosure-body { padding: .85rem 1rem 1rem; }
+    .order-disclosure-summary-main { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; }
+    .order-disclosure-summary-meta { margin-left: .45rem; color: #64748b; font-weight: 600; }
+    .order-disclosure.is-priority { border-color: #99d5c9; box-shadow: 0 0 0 2px rgba(15,118,110,.07); }
+    .order-disclosure.is-priority > summary { color: #0f766e; background: #f4fbf9; }
 
     .order-sections-stack { display: flex; flex-direction: column; gap: .9rem; }
 
@@ -464,7 +503,7 @@
 
     .order-step { border: 1px solid #e2e8f0; border-radius: 12px; padding: .8rem .9rem; margin-top: .8rem; }
     .order-step-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
-    .order-step-num { width: 22px; height: 22px; border-radius: 50%; background: #a21caf; color: #fff; font-size: .74rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .order-step-num { width: 22px; height: 22px; border-radius: 50%; background: #0f766e; color: #fff; font-size: .68rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .order-step-title { font-size: .82rem; font-weight: 800; color: #0f172a; }
     .order-step.is-done .order-step-num { background: #16a34a; }
     .order-step.is-done { border-color: #bbf7d0; background: #f0fdf4; }
@@ -660,7 +699,7 @@
     .modal-close:hover { background: #cbd5e1; transform: rotate(3deg); }
     .modal-body { background: #f3f6f9; }
     .order-next-step {
-        display: flex; align-items: flex-start; gap: .75rem; padding: .8rem .9rem;
+        display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem;
         border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0;
         color: #166534;
     }
@@ -671,6 +710,7 @@
     }
     .order-next-step strong { display: block; color: #14532d; font-size: .83rem; }
     .order-next-step span { display: block; margin-top: .1rem; font-size: .75rem; }
+    .order-next-step-kicker { display: block; margin-bottom: .13rem; color: currentColor; font-size: .61rem; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
     .order-next-step.is-waiting { background: #fffbeb; border-color: #fde68a; color: #92400e; }
     .order-next-step.is-waiting .order-next-step-icon { color: #d97706; }
     .order-next-step.is-waiting strong { color: #78350f; }
@@ -889,9 +929,19 @@
         .order-quick-actions { padding: .75rem; }
         .order-quick-actions-row { align-items: stretch; flex-direction: column; }
         .order-quick-actions .o-btn { width: 100%; min-height: 42px; justify-content: center; }
+        .order-process { padding: .75rem .4rem; }
+        .order-process-label { font-size: .6rem; }
+        .order-process-step:not(:last-child)::after { left: calc(50% + 17px); right: calc(-50% + 17px); }
+        .order-snapshot { grid-template-columns: 1fr 1fr; }
+        .order-snapshot-item { border-bottom: 1px solid #edf1f5; }
+        .order-snapshot-item:nth-child(2n) { border-right: 0; }
+        .order-snapshot-item:nth-last-child(-n+2) { border-bottom: 0; }
         .order-section-body,
         .order-disclosure-body { padding: .75rem; }
         .order-disclosure summary { padding: .72rem .75rem; }
+        .order-disclosure summary { padding-right: 2rem; }
+        .order-disclosure-summary-main { display: flex; }
+        .order-disclosure-summary-meta { display: block; margin: .18rem 0 0 1.25rem; font-size: .68rem; overflow-wrap: anywhere; }
         .fulfillment-grid { grid-template-columns: 1fr; }
         .fulfillment-full { grid-column: auto; }
         .payment-proof-title-wrap { width: 100%; }
@@ -1321,9 +1371,12 @@ function formatDate(dateStr) {
 }
 
 function renderOrderNextStep(order) {
+    const proofReceived = order.payment?.state === 'submitted';
     const steps = {
         pending: ['Revisa este pedido', 'Confirma productos, forma de entrega y total antes de aceptarlo.', 'fa-clipboard-check', 'is-waiting'],
-        payment_pending: ['Espera o revisa el pago', 'Cuando llegue el comprobante, comprueba el valor antes de confirmar.', 'fa-hourglass-half', 'is-waiting'],
+        payment_pending: proofReceived
+            ? ['Revisa el comprobante', 'Compara el valor recibido con el total y confirma el pago.', 'fa-file-circle-check', 'is-waiting']
+            : ['Espera el comprobante', 'No necesitas hacer nada todavía. Aparecerá aquí cuando el cliente lo envíe.', 'fa-hourglass-half', 'is-waiting'],
         paid: ['Pago recibido', 'El pedido ya puede continuar a preparación.', 'fa-circle-check', ''],
         confirmed: ['Pedido aceptado', 'Verifica que cocina tenga claro lo solicitado.', 'fa-utensils', ''],
         preparing: ['Pedido en cocina', 'Cuando termine la preparación, márcalo como listo para entregar.', 'fa-fire', ''],
@@ -1335,8 +1388,60 @@ function renderOrderNextStep(order) {
 
     return `<div class="order-next-step ${step[3]}">
         <span class="order-next-step-icon"><i class="fas ${step[2]}"></i></span>
-        <div><strong>${step[0]}</strong><span>${step[1]}</span></div>
+        <div><small class="order-next-step-kicker">Qué debes hacer ahora</small><strong>${step[0]}</strong><span>${step[1]}</span></div>
     </div>`;
+}
+
+function renderOrderProgress(order) {
+    if (order.status === 'cancelled') {
+        return `<div class="order-process"><div class="order-process-cancelled"><span class="order-process-dot"><i class="fas fa-ban"></i></span><span>Proceso detenido: pedido cancelado</span></div></div>`;
+    }
+
+    const stages = [
+        ['Pedido', 'fa-receipt'],
+        ['Pago', 'fa-credit-card'],
+        ['Preparación', 'fa-utensils'],
+        ['Entrega', 'fa-bag-shopping'],
+    ];
+    const currentByStatus = { pending: 0, confirmed: 1, payment_pending: 1, paid: 2, preparing: 2, ready: 3, completed: 4 };
+    const current = currentByStatus[order.status] ?? 0;
+
+    return `<div class="order-process" aria-label="Avance del pedido">${stages.map((stage, index) => {
+        const state = current >= stages.length || index < current ? 'is-done' : (index === current ? 'is-current' : '');
+        const icon = state === 'is-done' ? 'fa-check' : stage[1];
+        return `<div class="order-process-step ${state}"><span class="order-process-dot"><i class="fas ${icon}"></i></span><span class="order-process-label">${stage[0]}</span></div>`;
+    }).join('')}</div>`;
+}
+
+function renderOrderSnapshot(order) {
+    const fulfillment = order.fulfillment || {};
+    const deliveryLabel = [fulfillment.service_type_label, fulfillment.pickup_mode_label].filter(Boolean).join(' · ') || '—';
+    const paymentLabel = order.payment?.method_label || '—';
+    return `<div class="order-snapshot" aria-label="Resumen rápido del pedido">
+        <div class="order-snapshot-item"><span class="order-snapshot-label">Sucursal</span><span class="order-snapshot-value">${esc(fulfillment.branch || '—')}</span></div>
+        <div class="order-snapshot-item"><span class="order-snapshot-label">Entrega</span><span class="order-snapshot-value">${esc(deliveryLabel)}</span></div>
+        <div class="order-snapshot-item"><span class="order-snapshot-label">Pago</span><span class="order-snapshot-value">${esc(paymentLabel)}</span></div>
+        <div class="order-snapshot-item is-total"><span class="order-snapshot-label">Total</span><span class="order-snapshot-value">$${parseFloat(order.total).toFixed(2)}</span></div>
+    </div>`;
+}
+
+function renderOrderItems(order) {
+    const count = order.items?.length || 0;
+    const shouldOpen = ['pending', 'confirmed', 'preparing'].includes(order.status);
+    let html = `<details class="order-disclosure${order.status === 'pending' ? ' is-priority' : ''}" ${shouldOpen ? 'open' : ''}>
+        <summary><span class="order-disclosure-summary-main"><i class="fas fa-bag-shopping"></i>Productos del pedido</span><span class="order-disclosure-summary-meta">${count} producto(s)</span></summary>
+        <div class="order-disclosure-body p-0">`;
+    if (count) {
+        order.items.forEach(item => {
+            const sub = (parseFloat(item.price) * parseInt(item.quantity)).toFixed(2);
+            html += `<div class="order-compact-line"><div><span class="order-compact-line-name">${esc(item.name)}</span><span class="order-compact-line-meta">${item.quantity} × $${parseFloat(item.price).toFixed(2)}</span>${item.line_note ? `<span class="order-compact-line-note">${esc(item.line_note)}</span>` : ''}</div><span class="order-compact-line-total">$${sub}</span></div>`;
+        });
+    } else {
+        html += `<div class="order-compact-line"><span class="text-muted small">Sin líneas de producto registradas.</span></div>`;
+    }
+    const deliveryFee = parseFloat(order.fulfillment?.delivery_fee ?? 0);
+    html += `<div class="order-ticket-total"><span>${deliveryFee > 0 ? 'Total (incluye envío)' : 'Total'}</span><strong>$${parseFloat(order.total).toFixed(2)}</strong></div></div></details>`;
+    return html;
 }
 
 function openModal() {
@@ -1370,29 +1475,16 @@ function renderOrderModal(order) {
 
     const b = order.billing || {};
     let html = '<div class="order-command-center">';
+    html += renderOrderProgress(order);
     html += renderOrderNextStep(order);
+    html += renderOrderSnapshot(order);
 
-    // Resumen tipo ticket: el operador identifica el pedido y su total sin
-    // recorrer una tabla administrativa ni abrir campos que no necesita.
-    html += `<section class="order-ticket-card"><div class="order-ticket-head"><strong><i class="fas fa-bag-shopping me-1"></i>Lo que pidió el cliente</strong><span>${order.items?.length || 0} producto(s)</span></div>`;
-    if (order.items?.length) {
-        order.items.forEach(item => {
-            const sub = (parseFloat(item.price) * parseInt(item.quantity)).toFixed(2);
-            html += `<div class="order-compact-line"><div><span class="order-compact-line-name">${esc(item.name)}</span><span class="order-compact-line-meta">${item.quantity} × $${parseFloat(item.price).toFixed(2)}</span>${item.line_note ? `<span class="order-compact-line-note">${esc(item.line_note)}</span>` : ''}</div><span class="order-compact-line-total">$${sub}</span></div>`;
-        });
-    } else {
-        html += `<div class="order-compact-line"><span class="text-muted small">Sin líneas de producto registradas.</span></div>`;
-    }
-    // Sin esto, un pedido en efectivo no mostraba en ningún lado con qué iba
-    // a pagar el cliente -- la tarjeta de comprobante ("Pago del pedido")
-    // solo aparece para transferencia/tarjeta, que sí llevan comprobante.
-    html += `<div class="order-ticket-payment"><span><i class="fas fa-money-bill-wave me-1"></i>Método de pago</span><strong>${esc(order.payment?.method_label || '—')}</strong></div>`;
-    const deliveryFee = parseFloat(order.fulfillment?.delivery_fee ?? 0);
-    const totalLabel = deliveryFee > 0 ? 'Total (incluye envío)' : 'Total';
-    html += `<div class="order-ticket-total"><span>${totalLabel}</span><strong>$${parseFloat(order.total).toFixed(2)}</strong></div></section>`;
-
+    // El bloque que requiere atención aparece primero. El resto conserva sus
+    // controles, pero queda recogido para que un operador nuevo no se pierda.
+    if (order.status === 'payment_pending') html += renderPaymentProofSection(order);
     html += renderFulfillmentSection(order);
-    html += renderPaymentProofSection(order);
+    html += renderOrderItems(order);
+    if (order.status !== 'payment_pending') html += renderPaymentProofSection(order);
 
     if (CAN_UPDATE && ['pending', 'payment_pending'].includes(order.status)) {
         html += `<section class="order-quick-actions"><div class="order-quick-actions-row"><div class="order-quick-actions-copy"><strong>${order.awaiting_client_confirmation ? 'Esperando confirmación del cliente' : 'Confirmar por WhatsApp'}</strong><span>${order.awaiting_client_confirmation ? 'El ticket ya fue enviado al cliente.' : 'Envía el ticket digital con las acciones de pedido.'}</span></div><button type="button" class="o-btn primary" onclick="sendOrderConfirmation()"><i class="fab fa-whatsapp me-1"></i>${order.awaiting_client_confirmation ? 'Reenviar ticket' : 'Enviar ticket'}</button></div><details class="order-disclosure mt-3"><summary>Agregar mensaje opcional</summary><div class="order-disclosure-body"><textarea class="form-control form-control-sm" id="confirmationMessage" rows="2" placeholder="Ej.: Tu pedido estará listo en 20 minutos."></textarea></div></details></section>`;
@@ -1524,7 +1616,12 @@ function renderFulfillmentSection(order) {
     const f = order.fulfillment;
     if (!f) return '';
 
-    let html = `<section class="order-section" data-theme="fulfillment">${sectionHead('Forma de entrega', 'fas fa-store', 'fulfillment', 'fulfillment')}<div class="order-section-body">`;
+    const needsCostReview = f.pickup_mode === 'delivery' && f.delivery_fee_pending_review && !['cancelled', 'completed'].includes(order.status);
+    const shouldOpen = needsCostReview || order.status === 'pending' || order.status === 'ready';
+    const fulfillmentSummary = [f.branch, f.service_type_label, f.pickup_mode_label].filter(Boolean).join(' · ');
+    let html = `<details class="order-disclosure${needsCostReview ? ' is-priority' : ''}" ${shouldOpen ? 'open' : ''}>
+        <summary><span class="order-disclosure-summary-main"><i class="fas fa-store"></i>Entrega y sucursal</span><span class="order-disclosure-summary-meta">${esc(fulfillmentSummary)}</span></summary>
+        <div class="order-disclosure-body">`;
 
     html += `<div class="fulfillment-grid">`;
     if (f.branch) {
@@ -1547,7 +1644,7 @@ function renderFulfillmentSection(order) {
         const costsConfirmed = !f.delivery_fee_pending_review && deliveryFeeVal !== '';
 
         html += `<div class="order-step${costsConfirmed ? ' is-done' : ''}">
-            <div class="order-step-head"><span class="order-step-num">${costsConfirmed ? '<i class="fas fa-check"></i>' : '1'}</span><span class="order-step-title">Costo de envío</span></div>`;
+            <div class="order-step-head"><span class="order-step-num"><i class="fas fa-${costsConfirmed ? 'check' : 'triangle-exclamation'}"></i></span><span class="order-step-title">Costo de envío</span></div>`;
 
         if (f.delivery_fee_pending_review && !isFinalStatus) {
             html += `<div class="order-callout warning mt-3"><i class="fas fa-triangle-exclamation me-1"></i>No se pudo calcular solo (dirección a mano, fuera de la tabla de tramos, o sucursal sin tabla configurada). Confírmalo a mano antes de despachar: se suma al total y el cliente recibe el mensaje con el total final.</div>`;
@@ -1580,7 +1677,7 @@ function renderFulfillmentSection(order) {
     if (showsDelivery) {
         const lastDriver = f.last_dispatch_driver;
         html += `<div class="order-step">
-            <div class="order-step-head"><span class="order-step-num">2</span><span class="order-step-title">Enviar a repartidor</span></div>
+            <div class="order-step-head"><span class="order-step-num"><i class="fas fa-motorcycle"></i></span><span class="order-step-title">Repartidor</span></div>
             <p class="small text-muted mb-2">Le avisamos al cliente que su pedido va en camino (con el contacto del repartidor) y te abrimos WhatsApp con los datos ya listos para mandárselos a él.</p>
             ${isFinalStatus
                 ? `<p class="small text-muted mb-0"><i class="fas fa-lock me-1"></i>Este pedido está ${order.status === 'cancelled' ? 'cancelado' : 'entregado'}.</p>`
@@ -1589,7 +1686,7 @@ function renderFulfillmentSection(order) {
         </div>`;
     }
 
-    html += `</div></section>`;
+    html += `</div></details>`;
     return html;
 }
 
@@ -1627,8 +1724,11 @@ function renderPaymentProofSection(order) {
     const cardClass = isAwaiting ? 'payment-proof-card is-awaiting' : 'payment-proof-card';
     const badgeClass = isSubmitted ? 'ok' : 'wait';
     const badgeText = isSubmitted ? 'Recibido' : (isAwaiting ? 'Pendiente' : 'Sin envío');
+    const isPriority = order.status === 'payment_pending';
 
-    let html = `<div class="order-section" data-theme="payment">${sectionHead('Pago del pedido', 'fas fa-credit-card', 'payment', 'payment_proof')}<div class="order-section-body flush">`;
+    let html = isPriority
+        ? `<section class="order-section" data-theme="payment">${sectionHead('Paso actual · Pago del pedido', 'fas fa-credit-card', 'payment', 'payment_proof')}<div class="order-section-body flush">`
+        : `<details class="order-disclosure"><summary><span class="order-disclosure-summary-main"><i class="fas fa-credit-card"></i>Pago del pedido</span><span class="order-disclosure-summary-meta">${esc(payment.method_label)} · ${esc(payment.status_label)}</span></summary><div class="order-disclosure-body p-0">`;
     html += `<div class="${cardClass}">`;
     html += `<div class="payment-proof-top">
         <div class="payment-proof-title-wrap">
@@ -1687,7 +1787,7 @@ function renderPaymentProofSection(order) {
         </div>`;
     }
 
-    html += `</div></div></div>`;
+    html += `</div></div>${isPriority ? '</section>' : '</details>'}`;
     return html;
 }
 
