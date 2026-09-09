@@ -1332,13 +1332,27 @@ class AdminController extends Controller
                 ->latest()
                 ->first();
 
+            // Bug real: un carrito "payment_pending" con el comprobante ya
+            // recibido (falta que caja lo verifique) o con el costo de envío
+            // sin confirmar es un pedido real en curso, no uno "atascado" --
+            // este botón lo cancelaba igual, aunque el cliente ya hubiera
+            // hecho su parte. Mismo criterio que ya usa el timeout automático
+            // (ver WhatsappCart::isWaitingOnBusiness): si de verdad hay que
+            // cancelarlo, se hace desde el módulo de Pedidos, con intención.
+            if ($cart && $cart->isWaitingOnBusiness()) {
+                $cart = null;
+            }
+
             $closed = $cart ? $abandonedCarts->close($cart) : false;
 
             if (! $cart) {
-                // No había un pedido a medias, pero igual puede estar
-                // "atascado" en un nodo del flujo visual (grafo).
+                // No había un pedido a medias que cancelar, pero igual puede
+                // estar "atascado" en un nodo del flujo visual (grafo), o con
+                // alguna bandera de "esperando una respuesta de texto" viva
+                // en otro pedido suyo que no se tocó arriba.
                 $contact->forgetFlowPosition();
                 $contact->forgetPrivacyNoticeSent();
+                $abandonedCarts->clearLingeringInteractionFlags($contact);
             }
 
             return response()->json([

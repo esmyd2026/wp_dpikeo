@@ -85,4 +85,29 @@ class AbandonedCartWaitingOnBusinessTest extends TestCase
         $this->assertSame(1, $closed);
         $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
     }
+
+    /**
+     * Pedido explícito: el cierre por timeout comparte AbandonedCartService::close()
+     * con el botón manual de "reiniciar conversación" -- confirma que también
+     * limpia banderas de "esperando texto" en OTROS pedidos del mismo
+     * contacto que no son el que expiró (ej. uno viejo armado por "Armar
+     * lista", que queda en "pending" y nunca se cancela).
+     */
+    public function test_timeout_also_clears_lingering_flags_on_another_untouched_order_of_the_same_contact(): void
+    {
+        [, $contact] = $this->makeCompany(30);
+
+        $staleOrder = WhatsappCart::create([
+            'contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_PENDING, 'total' => 10,
+            'metadata' => ['awaiting_delivery_recipient_name' => true],
+        ]);
+        $timedOutCart = WhatsappCart::create(['contact_id' => $contact->id, 'status' => 'active', 'total' => 0]);
+        $timedOutCart->forceFill(['updated_at' => now()->subHours(2)])->saveQuietly();
+
+        app(AbandonedCartService::class)->cancelTimedOut();
+
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $timedOutCart->fresh()->status);
+        $this->assertSame(WhatsappCart::STATUS_PENDING, $staleOrder->fresh()->status, 'El pedido pending no se cancela solo por el timeout de otro carrito.');
+        $this->assertArrayNotHasKey('awaiting_delivery_recipient_name', $staleOrder->fresh()->metadata ?? []);
+    }
 }

@@ -1200,6 +1200,7 @@ class WhatsappService
             // el bot le pregunta esto (ver askNextBulkOrderFulfillmentStep).
             $cart = WhatsappCart::where('contact_id', $contact->id)
                 ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
+                ->latest('id')
                 ->first();
 
             if ($cart && ! empty($cart->metadata['awaiting_delivery_address'] ?? false)) {
@@ -3137,6 +3138,7 @@ class WhatsappService
                     } elseif ($buttonId === 'recipient_name_self' || $buttonId === 'recipient_name_other') {
                         $cartForRecipient = WhatsappCart::where('contact_id', $contact->id)
                             ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
+                            ->latest('id')
                             ->first();
 
                         if (! $cartForRecipient || empty($cartForRecipient->metadata['awaiting_delivery_recipient_name'] ?? false)) {
@@ -3187,7 +3189,7 @@ class WhatsappService
             // Obtener el último mensaje de imagen del contacto
             $lastImageMessage = WhatsappMessage::where('contact_id', $contact->id)
                 ->where('type', 'image')
-                ->latest()
+                ->latest('id')
                 ->first();
 
             if (! $lastImageMessage) {
@@ -3233,6 +3235,7 @@ class WhatsappService
     {
         $cart = WhatsappCart::where('contact_id', $contact->id)
             ->where('status', 'active')
+            ->latest('id')
             ->first();
 
         if ($cart && ($cart->metadata['pending_note'] ?? false)) {
@@ -3265,6 +3268,7 @@ class WhatsappService
         // Limpiar carrito activo con nota pendiente
         $cart = WhatsappCart::where('contact_id', $contact->id)
             ->where('status', 'active')
+            ->latest('id')
             ->first();
 
         if ($cart) {
@@ -3287,6 +3291,7 @@ class WhatsappService
     {
         $cart = WhatsappCart::where('contact_id', $contact->id)
             ->where('status', 'active')
+            ->latest('id')
             ->first();
 
         if (! $cart || $cart->items->isEmpty()) {
@@ -3406,6 +3411,17 @@ class WhatsappService
 
     private function sendBulkWebOrderLink(WhatsappContact $contact): array
     {
+        // Pedido explícito: preguntar el método de pago ANTES de mandarlo al
+        // micrositio, no después de que vuelva -- no lo vamos a hacer llegar
+        // hasta allá y devolverse para preguntarle. Mismo gate que usa
+        // addToCart() (una sola vez por pedido); submitForContact() ya sabe
+        // heredar el payment_method de este carrito al carrito nuevo que arma
+        // el micrositio (ver comentario ahí), así que en cuanto responda acá
+        // queda resuelto para cuando vuelva.
+        if ($gate = $this->interceptForPaymentMethod($contact, ['action' => 'bulk_order_web'])) {
+            return $gate;
+        }
+
         $bulkService = app(BulkOrderService::class);
 
         if (! $bulkService->isAvailable()) {
@@ -3613,6 +3629,7 @@ class WhatsappService
 
         $cart = WhatsappCart::where('contact_id', $contact->id)
             ->where('status', 'active')
+            ->latest('id')
             ->first();
 
         return $cart ? (int) $cart->items()->sum('quantity') : 0;
@@ -3866,6 +3883,7 @@ class WhatsappService
         try {
             $cart = WhatsappCart::where('contact_id', $contact->id)
                 ->where('status', 'active')
+                ->latest('id')
                 ->first();
 
             if (! $cart || $cart->items->isEmpty()) {
@@ -4828,7 +4846,7 @@ class WhatsappService
                 WhatsappCart::STATUS_PREPARING,
                 WhatsappCart::STATUS_READY,
             ])
-            ->latest()
+            ->latest('id')
             ->first();
 
         if (! $cart) {
@@ -5355,6 +5373,7 @@ class WhatsappService
             // esto no cambia nada para el flujo de chat de siempre.
             $cart = WhatsappCart::where('contact_id', $contact->id)
                 ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
+                ->latest('id')
                 ->first();
 
             $normalizedText = strtolower(trim($text));
@@ -7347,6 +7366,7 @@ class WhatsappService
         // Verificar si hay un carrito activo con nota pendiente
         $cart = WhatsappCart::where('contact_id', $contact->id)
             ->where('status', 'active')
+            ->latest('id')
             ->first();
 
         if ($cart && isset($cart->metadata['pending_note']) && $cart->metadata['pending_note']) {
@@ -7684,6 +7704,7 @@ class WhatsappService
         return match ($pending['action'] ?? null) {
             'quantity' => $this->showQuantitySelection($contact, $pending['product_id'], $pending['variation_index'] ?? null),
             'add' => $this->addToCart($contact, $pending['product_id'], $pending['quantity'] ?? 1, $pending['variation_index'] ?? null),
+            'bulk_order_web' => $this->sendBulkWebOrderLink($contact),
             default => $this->getProductsMenu($contact),
         };
     }
@@ -7917,6 +7938,24 @@ class WhatsappService
                     'type' => 'text',
                     'text' => ['body' => 'Lo siento, no se encontró el pedido.'],
                 ];
+            }
+
+            // Si esto vino del gate de "Armar lista" (método de pago
+            // preguntado ANTES de entrar al micrositio, con el carrito
+            // todavía vacío), no hay nada que cobrar todavía -- mandar un
+            // link de pago para un pedido de $0.00 no tiene sentido. Se
+            // guarda el método elegido (submitForContact lo hereda al
+            // carrito nuevo que arma el micrositio) y se manda el link del
+            // micrositio; el link de pago real se manda recién cuando
+            // vuelva con productos y un total de verdad.
+            if (($cart->metadata['pending_first_action']['action'] ?? null) === 'bulk_order_web') {
+                $cart->payment_method = 'tarjeta';
+                $metadata = $cart->metadata ?? [];
+                unset($metadata['pending_payment_method'], $metadata['pending_first_action']);
+                $cart->metadata = $metadata;
+                $cart->save();
+
+                return $this->sendBulkWebOrderLink($contact);
             }
 
             // El pago con tarjeta se resuelve fuera del chat, en la página web
@@ -8770,6 +8809,7 @@ class WhatsappService
                 WhatsappCart::STATUS_PAYMENT_PENDING,
                 WhatsappCart::STATUS_CONFIRMED,
             ])
+            ->orderByDesc('id')
             ->get()
             ->first(fn (WhatsappCart $cart) => $cart->isAwaitingPaymentProof() && ! $cart->hasPaymentProof());
     }

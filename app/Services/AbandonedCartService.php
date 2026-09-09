@@ -161,7 +161,7 @@ class AbandonedCartService
      * texto" de TODOS los carritos no finalizados del contacto, sin tocar
      * su estado ni cancelarlos.
      */
-    private function clearLingeringInteractionFlags(WhatsappContact $contact): void
+    public function clearLingeringInteractionFlags(WhatsappContact $contact): void
     {
         $contactMetadata = $contact->metadata ?? [];
         if (array_key_exists('pending_custom_quantity', $contactMetadata)) {
