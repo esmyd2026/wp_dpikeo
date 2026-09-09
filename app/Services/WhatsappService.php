@@ -1998,6 +1998,21 @@ class WhatsappService
                 }
             }
 
+            // Pedido explícito: si no hay ningún pedido en curso, no importa
+            // qué haya escrito -- se trata como si la sesión estuviera
+            // reiniciada y se manda el saludo + menú principal, en vez del
+            // paso "Mensaje no reconocido". Ese mensaje solo tiene sentido
+            // cuando el cliente está a mitad de un pedido y escribió algo
+            // que no calza con lo que se le pidió (los pasos de arriba en
+            // handleTextMessage ya cubren esos casos puntuales); si no hay
+            // nada en curso, no hay nada de qué "no entender".
+            $contactForFallback = $this->findContactByPhone($from);
+            if ($contactForFallback && ! $this->hasOpenOrder($contactForFallback)) {
+                Log::info('[generateChatbotResponse] Sin pedido en curso, se trata como sesión reiniciada');
+
+                return $this->handleGreetingMessage($from, $contactForFallback);
+            }
+
             // Si no hay respuesta de ChatGPT o falló, usar fallback configurado o menú principal
             $chatbotConfig = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first();
             $fallbackPayload = $this->buildMarketingStepPayload(MarketingStepKey::FALLBACK_MESSAGE);
@@ -2020,6 +2035,22 @@ class WhatsappService
 
             return $this->getMainMenu();
         }
+    }
+
+    /**
+     * true si el contacto tiene un pedido "en vuelo" -- carrito armándose
+     * (active), o ya enviado y a mitad del checkout (pending/payment_pending).
+     * Mismo criterio que usa el $cart de arriba de handleTextMessage() para
+     * decidir si hay un paso pendiente que interpretar. Sin esto, cualquier
+     * texto que no calzara ningún gate puntual caía en "Mensaje no
+     * reconocido" aunque el contacto no tuviera nada en curso -- un
+     * contacto sin nada pendiente debería tratarse como sesión nueva.
+     */
+    private function hasOpenOrder(WhatsappContact $contact): bool
+    {
+        return WhatsappCart::where('contact_id', $contact->id)
+            ->whereIn('status', ['active', WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_PAYMENT_PENDING])
+            ->exists();
     }
 
     private function isGreetingMessage(string $message): bool
