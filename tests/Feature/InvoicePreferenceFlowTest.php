@@ -102,8 +102,8 @@ class InvoicePreferenceFlowTest extends TestCase
         $response = $this->invoke($service, 'chooseInvoiceType', [$contact, $cart->id, 'factura']);
 
         $this->assertSame('text', $response['type']);
-        $this->assertStringContainsString('Nombre:', $response['text']['body']);
-        $this->assertStringContainsString('RUC o cédula:', $response['text']['body']);
+        $this->assertStringContainsString('nombre completo', $response['text']['body']);
+        $this->assertStringContainsString('cédula o RUC', $response['text']['body']);
         $this->assertTrue((bool) $cart->fresh()->requires_invoice);
         $this->assertSame('requested', $cart->fresh()->invoice_status);
         $this->assertTrue((bool) ($cart->fresh()->metadata['awaiting_invoice_data'] ?? false));
@@ -139,6 +139,39 @@ class InvoicePreferenceFlowTest extends TestCase
         $this->assertSame('Juan Pérez', $freshContact->billing_legal_name);
     }
 
+    /**
+     * Bug real reportado en vivo: los clientes no se ponen a escribir
+     * etiquetas ni saltos de línea, mandan todo junto en una sola línea
+     * ("gregorio osorio 0962398350001 aborada iv gregorio_osorio@gmail.com").
+     * El parser debe entenderlo igual, usando el correo y la racha de
+     * dígitos (cédula/RUC) como referencias inequívocas para separar nombre
+     * y dirección alrededor de la cédula/RUC.
+     */
+    public function test_a_single_unlabeled_line_is_understood_without_any_formatting(): void
+    {
+        [$profile, $contact] = $this->fixture();
+        $service = $this->service($profile);
+
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_CONFIRMED, 'total' => 10,
+            'metadata' => ['awaiting_invoice_data' => true], 'requires_invoice' => true, 'invoice_status' => 'requested',
+        ]);
+
+        $text = 'gregorio osorio 0962398350001 aborada iv gregorio_osorio@gmail.com';
+        $response = $this->invoke($service, 'handleInvoiceDataMessage', [$contact, $cart, $text]);
+
+        $this->assertSame('text', $response['type']);
+        $this->assertStringContainsString('gregorio osorio', $response['text']['body']);
+
+        $freshCart = $cart->fresh();
+        $this->assertSame('data_ready', $freshCart->invoice_status);
+        $this->assertSame('gregorio osorio', $freshCart->invoice_data['billing_legal_name']);
+        $this->assertSame('0962398350001', $freshCart->invoice_data['billing_id']);
+        $this->assertSame('ruc', $freshCart->invoice_data['billing_type']);
+        $this->assertSame('aborada iv', $freshCart->invoice_data['address']);
+        $this->assertSame('gregorio_osorio@gmail.com', $freshCart->invoice_data['email']);
+    }
+
     public function test_a_missing_field_is_reprompted_without_losing_the_ones_already_understood(): void
     {
         [$profile, $contact] = $this->fixture();
@@ -152,8 +185,8 @@ class InvoicePreferenceFlowTest extends TestCase
         $text = "Nombre: Juan Pérez\nDirección: Av. Siempre Viva 123";
         $response = $this->invoke($service, 'handleInvoiceDataMessage', [$contact, $cart, $text]);
 
-        $this->assertStringContainsString('RUC o cédula', $response['text']['body']);
-        $this->assertStringContainsString('Correo electrónico', $response['text']['body']);
+        $this->assertStringContainsString('cédula o RUC', $response['text']['body']);
+        $this->assertStringContainsString('correo', $response['text']['body']);
         $this->assertTrue((bool) ($cart->fresh()->metadata['awaiting_invoice_data'] ?? false));
         $this->assertNull($cart->fresh()->invoice_data);
     }
@@ -210,7 +243,7 @@ class InvoicePreferenceFlowTest extends TestCase
         $response = $this->invoke($service, 'confirmInvoiceReuse', [$contact, $newCart->id, false]);
 
         $this->assertSame('text', $response['type']);
-        $this->assertStringContainsString('Nombre:', $response['text']['body']);
+        $this->assertStringContainsString('Datos para tu factura', $response['text']['body']);
         $this->assertTrue((bool) ($newCart->fresh()->metadata['awaiting_invoice_data'] ?? false));
         $this->assertNull($newCart->fresh()->invoice_data);
     }
@@ -237,7 +270,7 @@ class InvoicePreferenceFlowTest extends TestCase
         // No debe mandar los botones de factura/consumidor (el paso está
         // desactivado), pero sí debe haber pedido los 4 datos directamente.
         Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'invoice_type_factura_'));
-        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'RUC o c'));
+        Http::assertSent(fn ($request) => str_contains(json_encode($request->data()), 'Datos para tu factura'));
         $this->assertTrue((bool) $cart->fresh()->requires_invoice);
         $this->assertTrue((bool) ($cart->fresh()->metadata['awaiting_invoice_data'] ?? false));
     }

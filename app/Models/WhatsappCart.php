@@ -333,10 +333,32 @@ class WhatsappCart extends Model
         return $this->hasPendingFulfillmentCosts() || $this->hasPaymentProof();
     }
 
-    /** Autoservicio del cliente (no un admin): solo antes de que caja marque el pedido como pagado o en preparación. */
+    /**
+     * Autoservicio del cliente (no un admin): hasta que cocina empieza a
+     * prepararlo. Pedido explícito en vivo: al principio esto se cortaba en
+     * "Pagado" (el pedido ya está "en cancha del negocio"), pero eso dejaba
+     * sin botón de cancelar a cualquier pedido que llega a Pagado antes de
+     * pasar a cocina -- que es exactamente cuando más sentido tiene poder
+     * arrepentirse (el negocio todavía no invirtió nada en prepararlo).
+     */
     public function isCancelableBySelfService(): bool
     {
-        return in_array($this->status, [self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_PAYMENT_PENDING], true);
+        return in_array($this->status, [
+            self::STATUS_PENDING, self::STATUS_CONFIRMED, self::STATUS_PAYMENT_PENDING, self::STATUS_PAID,
+        ], true);
+    }
+
+    /**
+     * En cocina o ya listo, cancelar de una no es seguro (el negocio puede
+     * ya haber gastado insumos, o el pedido puede ya estar armado) -- en vez
+     * de cancelarlo solo, el cliente puede SOLICITAR la cancelación y que el
+     * negocio decida. Pedido explícito en vivo: la cocina a veces se
+     * demora y el cliente quiere poder pedir que se cancele en vez de
+     * quedarse sin ninguna opción salvo "hablar con un asesor".
+     */
+    public function canRequestCancellation(): bool
+    {
+        return in_array($this->status, [self::STATUS_PREPARING, self::STATUS_READY], true);
     }
 
     /**

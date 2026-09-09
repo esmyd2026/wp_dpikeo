@@ -215,6 +215,7 @@
     .o-tag.proof-ok { background: #dbeafe; color: #1d4ed8; }
     .o-tag.proof-wait { background: #ffedd5; color: #c2410c; }
     .o-tag.cancel-reason { background: #fee2e2; color: #991b1b; }
+    .o-tag.cancel-request { background: #fee2e2; color: #991b1b; animation: o-tag-pulse 1.6s ease-in-out infinite; }
     .o-tag.new-order { background: #dcfce7; color: #15803d; animation: o-tag-pulse 1.6s ease-in-out infinite; }
     .o-tag.empty { color: #cbd5e1; }
     @keyframes o-tag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
@@ -1084,6 +1085,8 @@
                             $fulfillmentPickupMode = $order->metadata['pickup_mode'] ?? null;
                             $fulfillmentPending = $fulfillmentPickupMode === 'delivery'
                                 && ($order->metadata['delivery_fee_pending_review'] ?? false);
+                            $cancellationRequested = ($order->metadata['cancellation_requested_at'] ?? null)
+                                && ! in_array($order->status, ['completed', 'cancelled'], true);
                             $hasTags = $isRecentOrder
                                 || ($canViewInternalNotes && ($order->internal_notes_count ?? 0) > 0)
                                 || ($canViewFollowup && ($order->feedback_count ?? 0) > 0)
@@ -1091,6 +1094,7 @@
                                 || $order->hasPaymentProof()
                                 || $order->isAwaitingPaymentProof()
                                 || $order->status === 'cancelled'
+                                || $cancellationRequested
                                 || $fulfillmentServiceType;
                             $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
                             // Si ya llegó el comprobante, "Esperando pago" es
@@ -1154,6 +1158,9 @@
                                     @endif
                                     @if($order->status === 'cancelled' && $order->cancellationReasonLabel())
                                         <span class="o-tag cancel-reason"><i class="fas fa-ban"></i> {{ $order->cancellationReasonLabel() }}</span>
+                                    @endif
+                                    @if($cancellationRequested)
+                                        <span class="o-tag cancel-request"><i class="fas fa-triangle-exclamation"></i> Cliente pidió cancelar</span>
                                     @endif
                                     @unless($hasTags)
                                         <span class="o-tag empty"><i class="fas fa-circle-check"></i> Sin novedades</span>

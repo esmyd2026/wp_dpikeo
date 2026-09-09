@@ -136,7 +136,13 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
         ]);
     }
 
-    public function test_greeting_with_an_already_paid_order_shows_status_without_a_cancel_button(): void
+    /**
+     * Pedido explícito en vivo: un pedido "Pagado" está en cancha del
+     * negocio, pero cocina todavía no lo tocó -- se cambió el corte de
+     * "antes de pagar" a "antes de que empiece a prepararse" (ver
+     * WhatsappCart::isCancelableBySelfService).
+     */
+    public function test_greeting_with_an_already_paid_order_still_shows_a_cancel_button(): void
     {
         Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
         [, $contact] = $this->profileAndContact();
@@ -149,8 +155,20 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
             $buttonIds = collect($request['interactive']['action']['buttons'] ?? [])->pluck('reply.id')->all();
 
             return str_contains($body, $cart->getOrderNumber())
-                && ! in_array('cancelar_pedido_'.$cart->id, $buttonIds, true);
+                && in_array('cancelar_pedido_'.$cart->id, $buttonIds, true);
         });
+    }
+
+    public function test_pressing_cancel_on_an_already_paid_order_actually_cancels_it(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        $cart = WhatsappCart::create(['contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_PAID, 'total' => 10]);
+
+        $this->pressButton($contact, 'cancelar_pedido_'.$cart->id, '❌ Cancelar pedido');
+
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
+        $this->assertSame(WhatsappCart::CANCEL_REASON_CUSTOMER, $cart->fresh()->cancellationReason());
     }
 
     public function test_greeting_without_any_pending_order_does_not_mention_any_order(): void

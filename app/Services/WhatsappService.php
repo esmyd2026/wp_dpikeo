@@ -3635,6 +3635,17 @@ class WhatsappService
             'agent_note_line' => $agentNoteLine,
         ], $fallback);
 
+        // Bug real reportado en vivo: los pedidos armados por "Armar
+        // lista"/micrositio nunca pasan por buildPaymentOrderReview() (el
+        // "Resumen" clásico, que sí agrega los datos bancarios cuando el
+        // pago es por transferencia) -- este es su único mensaje antes de
+        // confirmar, así que si no se agregan aquí, el cliente nunca los
+        // recibe. Se agrega aparte del template (no como variable) para que
+        // aplique también si alguien ya personalizó "order_confirmation_ticket".
+        if ($cart->payment_method === 'transferencia') {
+            $body .= "\n\n".trim($this->buildTransferenciaNotice());
+        }
+
         return [
             'type' => 'interactive',
             'interactive' => [
@@ -4932,7 +4943,7 @@ class WhatsappService
             ."Estado actual: *{$statusLabel}*";
 
         $buttons = [];
-        if ($cart->isCancelableBySelfService()) {
+        if ($cart->isCancelableBySelfService() || $cart->canRequestCancellation()) {
             $buttons[] = [
                 'type' => 'reply',
                 'reply' => ['id' => 'cancelar_pedido_'.$cart->id, 'title' => '❌ Cancelar pedido'],
@@ -7821,11 +7832,13 @@ class WhatsappService
         return $this->buildInvoiceDataRequest();
     }
 
-    private function buildInvoiceDataRequest(): array
+    private function buildInvoiceDataRequest(string $prefix = ''): array
     {
         return [
             'type' => 'text',
-            'text' => ['body' => "🧾 *Datos para tu factura*\n\nEnvíame los 4 datos en un solo mensaje, cada uno en su propia línea así:\n\nNombre: \nRUC o cédula: \nDirección: \nCorreo: "],
+            'text' => ['body' => $prefix.'🧾 *Datos para tu factura*'
+                ."\n\nEnvíame en un solo mensaje: tu *nombre completo*, tu *cédula o RUC*, tu *dirección* y tu *correo*."
+                ."\n\nEjemplo:\nJuan Pérez 0912345678 Av. Siempre Viva 123 juan@correo.com"],
         ];
     }
 
@@ -7884,12 +7897,12 @@ class WhatsappService
         ['data' => $data, 'missing' => $missing] = $this->parseInvoiceDataMessage($text);
 
         if ($missing) {
-            $labels = ['billing_legal_name' => 'Nombre', 'billing_id' => 'RUC o cédula', 'address' => 'Dirección', 'email' => 'Correo electrónico'];
+            $labels = ['billing_legal_name' => 'nombre', 'billing_id' => 'cédula o RUC', 'address' => 'dirección', 'email' => 'correo'];
             $missingText = implode(', ', array_map(fn ($k) => $labels[$k], $missing));
 
             return [
                 'type' => 'text',
-                'text' => ['body' => "Me faltó: *{$missingText}*. Envíame los 4 datos de nuevo, cada uno en su propia línea:\n\nNombre: \nRUC o cédula: \nDirección: \nCorreo: "],
+                'text' => ['body' => "Me faltó identificar: *{$missingText}*. Envíame los 4 datos de nuevo en un solo mensaje (nombre completo, cédula o RUC, dirección y correo)."],
             ];
         }
 
@@ -7952,11 +7965,16 @@ class WhatsappService
     }
 
     /**
-     * Interpreta el mensaje de texto libre con etiquetas ("Nombre: ...",
-     * "RUC o cédula: ...", "Dirección: ...", "Correo: ..."), una por línea,
-     * en cualquier orden. Devuelve solo los campos que sí pudo encontrar más
-     * la lista de los que faltaron, para poder pedir puntualmente lo que
-     * falta en vez de descartar todo el mensaje.
+     * Interpreta el mensaje con los 4 datos de facturación. Primero intenta
+     * con etiquetas ("Nombre: ...", "RUC o cédula: ...", etc., una por
+     * línea) por si alguien las usa, pero el caso real es que el cliente
+     * escribe todo junto en una sola línea sin ponerse a formatear -- ver
+     * bug reportado en vivo. Para ese caso se ubican correo (patrón
+     * inequívoco de email) y cédula/RUC (una racha de 9 a 13 dígitos) sin
+     * importar dónde caigan, y se usa la posición de la cédula/RUC como
+     * referencia para separar lo que queda: lo de antes es el nombre, lo de
+     * después la dirección (el mismo orden en que se le pide en
+     * buildInvoiceDataRequest).
      *
      * @return array{data: array<string, string>, missing: string[]}
      */
@@ -7973,6 +7991,48 @@ class WhatsappService
         foreach ($patterns as $key => $pattern) {
             if (preg_match($pattern, $text, $m) && trim($m[1]) !== '') {
                 $data[$key] = trim($m[1]);
+            }
+        }
+
+        $workingText = $text;
+
+        if (! isset($data['email']) && preg_match('/[^\s]+@[^\s]+\.[^\s]+/u', $workingText, $m)) {
+            $data['email'] = trim($m[0], " \t\n\r\0\x0B.,;:");
+        }
+        if (isset($data['email'])) {
+            $workingText = str_ireplace($data['email'], ' ', $workingText);
+        }
+
+        if ((! isset($data['billing_legal_name']) || ! isset($data['address']) || ! isset($data['billing_id']))
+            && preg_match('/\b\d[\d\-]{7,13}\d\b/u', $workingText, $m, PREG_OFFSET_CAPTURE)) {
+            $rawId = $m[0][0];
+            $offset = $m[0][1];
+            $digitsOnly = preg_replace('/\D/', '', $rawId);
+
+            if (strlen($digitsOnly) >= 9 && strlen($digitsOnly) <= 13) {
+                if (! isset($data['billing_id'])) {
+                    $data['billing_id'] = $digitsOnly;
+                }
+
+                // PREG_OFFSET_CAPTURE mide en bytes, no en caracteres -- se
+                // usa substr() (no mb_substr) a propósito, ya que el punto de
+                // corte cae siempre sobre dígitos ASCII de un solo byte.
+                if (! isset($data['billing_legal_name'])) {
+                    $before = trim(substr($workingText, 0, $offset));
+                    $before = trim(preg_replace('/^\s*nombres?\b\s*:?\s*/iu', '', $before));
+                    if ($before !== '') {
+                        $data['billing_legal_name'] = $before;
+                    }
+                }
+
+                if (! isset($data['address'])) {
+                    $after = trim(substr($workingText, $offset + strlen($rawId)));
+                    $after = trim(preg_replace('/^\s*(?:ruc(?:\s*o\s*c[eé]dula)?|c[eé]dula|ci)\b\s*:?\s*/iu', '', $after));
+                    $after = trim(preg_replace('/^\s*direcci[oó]n\b\s*:?\s*/iu', '', $after));
+                    if ($after !== '') {
+                        $data['address'] = $after;
+                    }
+                }
             }
         }
 
@@ -8049,6 +8109,14 @@ class WhatsappService
                 ];
             }
 
+            // Solo en cocina/listo se intercepta -- cualquier otro estado
+            // (incluido el carrito 'active' todavía en armado, usado por la
+            // válvula de escape de "cancelar" a mitad de checkout) sigue el
+            // camino de siempre y deja que transition() decida si es válido.
+            if ($cart->canRequestCancellation()) {
+                return $this->requestCancellation($contact, $cart);
+            }
+
             $cart = app(OrderLifecycleService::class)
                 ->transition($cart, WhatsappCart::STATUS_CANCELLED, null, WhatsappCart::CANCEL_REASON_CUSTOMER);
             $metadata = $cart->metadata ?? [];
@@ -8097,6 +8165,55 @@ class WhatsappService
                 'type' => 'text',
                 'text' => ['body' => 'Lo siento, ha ocurrido un error al cancelar tu pedido.'],
             ];
+        }
+    }
+
+    /**
+     * Pedidos en cocina o ya listos no se cancelan solos -- el negocio pudo
+     * ya haber gastado insumos, o el pedido ya puede estar armado. En vez de
+     * cancelar directo, se registra la solicitud y se avisa al equipo por
+     * WhatsApp para que decida. Pedido explícito en vivo: la cocina a veces
+     * se demora y el cliente quiere poder pedir la cancelación en vez de
+     * quedarse sin ninguna opción más que "hablar con un asesor".
+     */
+    private function requestCancellation(WhatsappContact $contact, WhatsappCart $cart): array
+    {
+        $metadata = $cart->metadata ?? [];
+
+        // Si ya la había pedido antes (insistió, o volvió a tocar el botón)
+        // no se vuelve a alertar al equipo por lo mismo -- solo se le
+        // recuerda que ya quedó registrada.
+        if (empty($metadata['cancellation_requested_at'] ?? null)) {
+            $metadata['cancellation_requested_at'] = now()->toIso8601String();
+            $cart->metadata = $metadata;
+            $cart->save();
+
+            $this->alertStaffOfCancellationRequest($cart, $contact);
+        }
+
+        return [
+            'type' => 'text',
+            'text' => ['body' => "📩 Ya le avisamos a nuestro equipo que quieres cancelar el pedido *{$cart->getOrderNumber()}*. Te confirmarán en breve por este mismo chat."],
+        ];
+    }
+
+    private function alertStaffOfCancellationRequest(WhatsappCart $cart, WhatsappContact $contact): void
+    {
+        $numbers = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
+        if ($numbers === []) {
+            return;
+        }
+
+        $clientLabel = $contact->name ?: $contact->phone_number;
+        $stageLabel = OrderLifecycleService::statusLabel($cart->status);
+        $body = "🚫 *Solicitud de cancelación*\n\n"
+            ."📦 Pedido: {$cart->getOrderNumber()}\n"
+            ."👤 Cliente: {$clientLabel}\n"
+            ."📍 Etapa actual: {$stageLabel}\n\n"
+            .'Revísalo en el panel de Pedidos y decide si se puede cancelar.';
+
+        foreach ($numbers as $number) {
+            $this->sendStaffAlert($number, $body);
         }
     }
 
