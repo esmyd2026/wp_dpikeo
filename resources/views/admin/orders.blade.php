@@ -1605,12 +1605,12 @@ function openOrderDispatchModal(orderId) {
     const f = order?.fulfillment;
     if (!order || !f) return;
     openDriverDispatchModal(orderId, () => deliveryDispatchText(order, f), () => {
-        showToast('Cliente avisado y datos listos para el repartidor.');
+        showToast('Datos listos para el repartidor.');
         showOrderDetails(orderId);
     });
 }
 
-/** Reabre WhatsApp con el último repartidor despachado, sin volver a avisarle al cliente. */
+/** Reabre WhatsApp con el último repartidor despachado, para reenviarle los datos. */
 function reopenOrderDispatch(orderId) {
     const order = currentOrderData;
     const f = order?.fulfillment;
@@ -1685,11 +1685,11 @@ function renderFulfillmentSection(order) {
         const lastDriver = f.last_dispatch_driver;
         html += `<div class="order-step">
             <div class="order-step-head"><span class="order-step-num"><i class="fas fa-motorcycle"></i></span><span class="order-step-title">Repartidor</span></div>
-            <p class="small text-muted mb-2">Le avisamos al cliente que su pedido va en camino (con el contacto del repartidor) y te abrimos WhatsApp con los datos ya listos para mandárselos a él.</p>
+            <p class="small text-muted mb-2">Te abrimos WhatsApp con los datos del pedido ya listos para mandárselos al repartidor; él confirma la entrega por su cuenta desde el enlace que recibe.</p>
             ${isFinalStatus
                 ? `<p class="small text-muted mb-0"><i class="fas fa-lock me-1"></i>Este pedido está ${order.status === 'cancelled' ? 'cancelado' : 'entregado'}.</p>`
                 : `<button type="button" class="o-btn primary btn-sm" onclick="openOrderDispatchModal(${order.id})"><i class="fab fa-whatsapp me-1"></i>Enviar a repartidor</button>`}
-            ${lastDriver ? `<button type="button" class="o-btn btn-sm ms-2" onclick="reopenOrderDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${esc(lastDriver.name)}, sin volver a avisarle al cliente"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${esc(lastDriver.name)}</button>` : ''}
+            ${lastDriver ? `<button type="button" class="o-btn btn-sm ms-2" onclick="reopenOrderDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${esc(lastDriver.name)} para reenviarle los datos"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${esc(lastDriver.name)}</button>` : ''}
         </div>`;
     }
 
@@ -1895,10 +1895,12 @@ function openStatusModal(orderId, triggerEl) {
     }
     pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null };
 
+    // Pedido explícito: el atajo a repartidor solo tiene sentido cuando el
+    // pedido ya está "Listo" -- antes de eso (recién pagado, en cocina...)
+    // todavía no hay nada que entregar.
     const deliveryShortcut = document.getElementById('statusDeliveryShortcut');
     const isDeliveryOrder = triggerEl.dataset.fulfillmentPickupMode === 'delivery';
-    const isFinalStatus = ['completed', 'cancelled'].includes(currentStatus);
-    deliveryShortcut.hidden = !(isDeliveryOrder && !isFinalStatus);
+    deliveryShortcut.hidden = !(isDeliveryOrder && currentStatus === 'ready');
     deliveryShortcut.href = `${DELIVERY_INDEX_URL}?order=${orderId}`;
 
     document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);

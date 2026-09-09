@@ -146,12 +146,12 @@ function openDeliveryDispatchModal(orderId) {
     const order = deliveryOrders.find(o => o.id === orderId);
     if (!order) return;
     openDriverDispatchModal(orderId, (driver, dispatchResult) => deliveryShareText(order, dispatchResult), () => {
-        deliveryToast('Cliente avisado y datos listos para el repartidor.');
+        deliveryToast('Datos listos para el repartidor.');
         fetchDeliveryOrders();
     });
 }
 
-/** Reabre WhatsApp con el último repartidor despachado, sin volver a avisarle al cliente. */
+/** Reabre WhatsApp con el último repartidor despachado, para reenviarle los datos. */
 function reopenDeliveryDispatch(orderId) {
     const order = deliveryOrders.find(o => o.id === orderId);
     if (!order || !order.last_dispatch_driver) return;
@@ -186,7 +186,7 @@ function deliveryCard(order) {
 
     const shareBtn = `<button type="button" class="delivery-btn" onclick="openDeliveryDispatchModal(${order.id})"><i class="fab fa-whatsapp me-1"></i>Enviar a repartidor</button>`;
     const resendBtn = order.last_dispatch_driver
-        ? `<button type="button" class="delivery-btn" onclick="reopenDeliveryDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${deliveryEsc(order.last_dispatch_driver.name)}, sin volver a avisarle al cliente"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${deliveryEsc(order.last_dispatch_driver.name)}</button>`
+        ? `<button type="button" class="delivery-btn" onclick="reopenDeliveryDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${deliveryEsc(order.last_dispatch_driver.name)} para reenviarle los datos"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${deliveryEsc(order.last_dispatch_driver.name)}</button>`
         : '';
 
     let actions = '<div class="delivery-actions">';

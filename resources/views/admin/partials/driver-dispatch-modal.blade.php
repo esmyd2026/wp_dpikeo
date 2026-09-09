@@ -24,7 +24,7 @@
 <div class="driver-modal-overlay" id="driverDispatchModal">
     <div class="driver-modal">
         <h4><i class="fab fa-whatsapp"></i>Enviar a repartidor</h4>
-        <p class="step-hint">Paso 1: elige o agrega el repartidor. Paso 2: se le avisa al cliente que su pedido va en camino (con el contacto del repartidor) y se abre WhatsApp para que le mandes los datos.</p>
+        <p class="step-hint">Paso 1: elige o agrega el repartidor. Paso 2: se abre WhatsApp para que le mandes los datos del pedido -- el repartidor confirma la entrega él mismo desde el enlace que recibe.</p>
 
         <form id="driverDispatchForm">
             <label for="driverDispatchBranchSelect">Sucursal de retirada</label>
@@ -55,7 +55,7 @@
 
             <div class="driver-modal-actions">
                 <button type="button" class="driver-modal-btn" id="driverDispatchCancel">Cancelar</button>
-                <button type="submit" class="driver-modal-btn primary" id="driverDispatchSubmit"><i class="fas fa-paper-plane me-1"></i>Enviar y avisar al cliente</button>
+                <button type="submit" class="driver-modal-btn primary" id="driverDispatchSubmit"><i class="fas fa-paper-plane me-1"></i>Enviar a repartidor</button>
             </div>
         </form>
     </div>
@@ -254,7 +254,7 @@
             errorBox.style.display = 'block';
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Enviar y avisar al cliente';
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Enviar a repartidor';
         }
     });
 })();

@@ -10,7 +10,6 @@ use App\Services\DeliveryConfirmationService;
 use App\Services\GeoDistanceService;
 use App\Services\OrderLifecycleService;
 use App\Services\ProductImageService;
-use App\Services\WhatsappService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -118,14 +117,15 @@ class DeliveryController extends Controller
     }
 
     /**
-     * Guarda (o reutiliza) el repartidor, y le avisa al cliente por
-     * WhatsApp que su pedido va en camino, compartiéndole el contacto del
-     * repartidor. La parte de avisarle al repartidor sigue siendo manual
-     * (el frontend abre WhatsApp con el mensaje ya armado dirigido a su
-     * número): la API de WhatsApp no permite mandarle texto libre a un
-     * número que nunca le escribió al bot.
+     * Guarda (o reutiliza) el repartidor asignado al pedido. Pedido
+     * explícito: ya NO le avisa nada al cliente por WhatsApp -- ahora es el
+     * propio repartidor (o la operadora desde el panel de delivery) quien
+     * confirma la entrega por su cuenta, desde un enlace. Avisarle al
+     * repartidor sigue siendo manual (el frontend abre WhatsApp con el
+     * mensaje ya armado dirigido a su número): la API de WhatsApp no
+     * permite mandarle texto libre a un número que nunca le escribió al bot.
      */
-    public function dispatchToDriver(Request $request, int $id, WhatsappService $whatsapp, GeoDistanceService $geo): JsonResponse
+    public function dispatchToDriver(Request $request, int $id, GeoDistanceService $geo): JsonResponse
     {
         $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch'])->findOrFail($id);
 
@@ -169,11 +169,14 @@ class DeliveryController extends Controller
             $order->load('branch');
         }
 
-        $notification = $whatsapp->notifyCustomerOrderOnTheWay($order, $driver);
+        // Pedido explícito: ya no se le avisa al cliente automáticamente
+        // acá -- ahora es el propio repartidor (o la operadora desde el
+        // panel de delivery) quien confirma la entrega por su cuenta, desde
+        // un enlace. Antes esto llamaba a notifyCustomerOrderOnTheWay().
 
-        // Se guarda en el pedido para poder reenviarle SOLO al repartidor
-        // (sin volver a avisarle al cliente) si el mensaje no le llegó --
-        // ver el botón "Reenviar al repartidor" en el detalle del pedido.
+        // Se guarda en el pedido para poder reabrir WhatsApp con el mismo
+        // repartidor si hace falta -- ver el botón "Reenviar al repartidor"
+        // en el detalle del pedido.
         $metadata = $order->metadata ?? [];
         $metadata['last_dispatch_driver_id'] = $driver->id;
         $order->metadata = $metadata;
@@ -191,8 +194,6 @@ class DeliveryController extends Controller
             'branch_name' => $order->branch?->name,
             'distance_km' => $route['distance_km'],
             'maps_url' => $route['maps_url'],
-            'customer_notified' => $notification['sent'],
-            'customer_notified_reason' => $notification['reason'],
         ]);
     }
 
