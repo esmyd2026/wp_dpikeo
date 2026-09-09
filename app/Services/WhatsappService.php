@@ -2825,6 +2825,7 @@ class WhatsappService
                 case 'pagos':
                 case 'asesoria':
                 case 'redes':  // Agregado el caso para redes sociales
+                case 'promociones':
                     // Buscar la respuesta en la base de datos
                     $chatbotResponse = WhatsappChatbotResponse::where('keyword', $buttonId)
                         ->where('is_active', true)

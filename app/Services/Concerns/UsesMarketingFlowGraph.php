@@ -193,22 +193,29 @@ trait UsesMarketingFlowGraph
      * propios del grafo -- viven dentro del nodo "checkout"
      * (config.steps.<key>) para que el admin los pueda editar/desactivar sin
      * poder reordenar la lógica real del carrito/pedido.
+     *
+     * A diferencia del resto del grafo (saludo, menús, mensajes -- que solo
+     * se usan una vez PUBLICADOS), esto son ajustes de comportamiento del
+     * bot, no contenido de cara al cliente: se leen del nodo "Checkout
+     * (sistema)" tal como está guardado, sin esperar a que se publique una
+     * versión nueva. Bug real reportado en vivo: al despublicar el grafo
+     * (ver marketing-flow:unpublish) para que el saludo/menú usaran el
+     * editor clásico, estos ajustes (ej. "no preguntar para llevar/servir")
+     * dejaban de aplicarse -- el editor clásico no tiene un equivalente para
+     * configurarlos, así que exigirles publicación los dejaba sin efecto.
      */
     protected function getCheckoutStepConfig(string $stepKey): array
     {
-        $snapshot = $this->getPublishedGraphSnapshot();
-
-        if ($snapshot) {
-            foreach ($snapshot['nodes'] ?? [] as $node) {
-                if (($node['node_type'] ?? null) !== MarketingFlowNode::TYPE_CHECKOUT) {
-                    continue;
-                }
-
-                return $node['config']['steps'][$stepKey] ?? [];
-            }
+        $flow = $this->resolveMarketingFlow();
+        if (!$flow) {
+            return [];
         }
 
-        return [];
+        $node = MarketingFlowNode::where('flow_id', $flow->id)
+            ->where('node_type', MarketingFlowNode::TYPE_CHECKOUT)
+            ->first();
+
+        return $node?->config['steps'][$stepKey] ?? [];
     }
 
     /**
