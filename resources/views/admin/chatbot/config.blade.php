@@ -537,6 +537,20 @@
                                 @endforeach
                             </p>
                         @endif
+                        @if($template->key === 'order_confirmation_ticket')
+                            <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                <label class="flex min-h-11 cursor-pointer items-center gap-3">
+                                    <input type="checkbox" name="send_order_pdf_document" value="1"
+                                        {{ old('send_order_pdf_document', $config->send_order_pdf_document) ? 'checked' : '' }}
+                                        class="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                    <span class="text-sm font-semibold text-gray-800">Adjuntar también el PDF del pedido como archivo</span>
+                                </label>
+                                <p class="mt-1 text-xs text-gray-500">
+                                    Este mensaje ya incluye un enlace para ver/descargar el PDF. Si lo desactivas, ya no se manda
+                                    además el archivo como documento adjunto de WhatsApp — solo queda el enlace.
+                                </p>
+                            </div>
+                        @endif
                         @if($template->key === 'order_status_changed')
                             <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
                                 <p class="text-xs font-semibold uppercase tracking-wide text-gray-600">Avisar al cliente cuando pase a:</p>

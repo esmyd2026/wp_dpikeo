@@ -144,6 +144,7 @@ class ChatbotController extends Controller
             'is_enabled' => 'required|boolean',
             'status_notifications' => 'nullable|array',
             'status_notifications.*' => 'nullable|boolean',
+            'send_order_pdf_document' => 'nullable|boolean',
         ]);
 
         $messageTemplate->update(['body' => $validated['body']]);
@@ -159,6 +160,13 @@ class ChatbotController extends Controller
             foreach (['pending', 'confirmed', 'payment_pending', 'paid', 'preparing', 'ready', 'completed', 'cancelled'] as $status) {
                 $metadata['status_notification_enabled'][$status] = $request->boolean("status_notifications.$status");
             }
+        }
+
+        // El mensaje de confirmación ya trae un enlace al PDF -- esto solo
+        // controla si además se manda el archivo como documento adjunto
+        // (ver OrderConfirmationService::sendToClient).
+        if ($messageTemplate->key === 'order_confirmation_ticket') {
+            $metadata['send_order_pdf_document'] = $request->boolean('send_order_pdf_document');
         }
 
         $config->metadata = $metadata;

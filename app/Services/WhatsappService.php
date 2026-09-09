@@ -3309,14 +3309,7 @@ class WhatsappService
 
         $proofCart = $this->findCartPendingProofUpload($contact);
         if ($proofCart) {
-            $orderNumber = $proofCart->getOrderNumber();
-
-            return [
-                'type' => 'text',
-                'text' => ['body' => $this->renderPaymentTemplate('proof_reminder', [
-                    'order_number' => $orderNumber,
-                ])],
-            ];
+            return $this->buildProofReminderPayload($proofCart);
         }
 
         return [
@@ -5619,21 +5612,7 @@ class WhatsappService
                         Log::info('[handleTextMessage] ❌ Cancelación de pedido pendiente de comprobante', ['cart_id' => $awaitingProofCart->id]);
                         $response = $this->cancelarPedido($contact, $awaitingProofCart->id);
                     } else {
-                        $orderNumber = $awaitingProofCart->getOrderNumber();
-                        $response = [
-                            'type' => 'interactive',
-                            'interactive' => [
-                                'type' => 'button',
-                                'body' => ['text' => $this->renderPaymentTemplate('proof_reminder', [
-                                    'order_number' => $orderNumber,
-                                ])],
-                                'action' => [
-                                    'buttons' => [
-                                        ['type' => 'reply', 'reply' => ['id' => 'cancelar_pedido_'.$awaitingProofCart->id, 'title' => '❌ Cancelar pedido']],
-                                    ],
-                                ],
-                            ],
-                        ];
+                        $response = $this->buildProofReminderPayload($awaitingProofCart);
                     }
                     $processHandled = true;
                 }
@@ -9409,6 +9388,35 @@ class WhatsappService
                             'type' => 'reply',
                             'reply' => ['id' => 'menu_principal', 'title' => '🏠 Menú principal'],
                         ],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Pedido explícito en vivo: mientras se espera el comprobante, el
+     * cliente que escribe cualquier otra cosa ("cuentas bancarias",
+     * "informacion", etc.) solo veía este recordatorio con un único botón
+     * de "Cancelar pedido" -- sin salida si no quería cancelar ni tenía el
+     * comprobante a mano todavía. Se agregan los mismos dos botones de
+     * escape que ya usa el resto del bot (hablar con asesor, menú
+     * principal) para que nunca quede sin más opciones.
+     */
+    private function buildProofReminderPayload(WhatsappCart $cart): array
+    {
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => ['text' => $this->renderPaymentTemplate('proof_reminder', [
+                    'order_number' => $cart->getOrderNumber(),
+                ])],
+                'action' => [
+                    'buttons' => [
+                        ['type' => 'reply', 'reply' => ['id' => 'cancelar_pedido_'.$cart->id, 'title' => '❌ Cancelar pedido']],
+                        ['type' => 'reply', 'reply' => ['id' => 'agent', 'title' => '💬 Hablar con asesor']],
+                        ['type' => 'reply', 'reply' => ['id' => 'menu_principal', 'title' => '🏠 Menú principal']],
                     ],
                 ],
             ],

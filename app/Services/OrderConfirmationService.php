@@ -39,20 +39,26 @@ class OrderConfirmationService
         $pdfPath = null;
 
         try {
-            $pdfPath = $this->pdf->saveToTempFile($order);
-            $orderNumber = $order->getOrderNumber();
-            $caption = "📋 Orden de pedido {$orderNumber}";
+            // Pedido explícito: el mensaje de confirmación ya trae un enlace
+            // para ver/descargar el PDF (más abajo) -- adjuntarlo además
+            // como documento es opcional y se puede apagar desde
+            // Configuración del chatbot (config->send_order_pdf_document).
+            if ($config?->send_order_pdf_document ?? true) {
+                $pdfPath = $this->pdf->saveToTempFile($order);
+                $orderNumber = $order->getOrderNumber();
+                $caption = "📋 Orden de pedido {$orderNumber}";
 
-            $docSent = $this->whatsapp->sendDocumentMessage(
-                $contact,
-                $pdfPath,
-                basename($pdfPath),
-                $caption,
-                true
-            );
+                $docSent = $this->whatsapp->sendDocumentMessage(
+                    $contact,
+                    $pdfPath,
+                    basename($pdfPath),
+                    $caption,
+                    true
+                );
 
-            if (! $docSent) {
-                throw new InvalidArgumentException('No se pudo enviar el PDF por WhatsApp.');
+                if (! $docSent) {
+                    throw new InvalidArgumentException('No se pudo enviar el PDF por WhatsApp.');
+                }
             }
 
             $pdfUrl = $this->pdf->signedDownloadUrl($order);

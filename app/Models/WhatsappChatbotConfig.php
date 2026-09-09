@@ -109,6 +109,18 @@ class WhatsappChatbotConfig extends Model
     }
 
     /**
+     * El mensaje de confirmación del pedido ya trae un enlace para ver/
+     * descargar el PDF (ver OrderPdfService::signedDownloadUrl) -- esto
+     * controla si, además, se le manda el archivo PDF como documento
+     * adjunto de WhatsApp. Activado por defecto (comportamiento de siempre)
+     * para no romper nada hasta que el admin lo desactive a propósito.
+     */
+    public function getSendOrderPdfDocumentAttribute(): bool
+    {
+        return (bool) ($this->metadata['send_order_pdf_document'] ?? true);
+    }
+
+    /**
      * Texto libre (banco, número de cuenta, titular, Zelle, Pago Móvil, etc.)
      * que se le manda al cliente junto con el costo confirmado del pedido
      * cuando pagará por transferencia o depósito.
