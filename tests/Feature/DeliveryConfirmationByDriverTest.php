@@ -100,6 +100,23 @@ class DeliveryConfirmationByDriverTest extends TestCase
         $this->assertTrue(DeliveryConfirmationToken::where('token', $token)->first()->used_at !== null);
     }
 
+    public function test_an_oversized_delivery_photo_returns_a_clear_spanish_error(): void
+    {
+        Storage::fake('public');
+        $cart = $this->readyDeliveryCart();
+        $url = app(DeliveryConfirmationService::class)->urlFor($cart);
+        $token = str($url)->afterLast('/')->toString();
+
+        $response = $this->postJson(route('delivery-confirmation.confirm', ['token' => $token]), [
+            'photo' => UploadedFile::fake()->image('proof.jpg')->size(8193),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('photo')
+            ->assertJsonPath('errors.photo.0', 'La foto es demasiado pesada. El máximo permitido es 8 MB.');
+        $this->assertSame(WhatsappCart::STATUS_READY, $cart->fresh()->status);
+    }
+
     public function test_a_used_token_cannot_confirm_again(): void
     {
         Storage::fake('public');

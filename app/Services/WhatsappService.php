@@ -3206,6 +3206,14 @@ class WhatsappService
                                 'text' => ['body' => '✍️ Escribe el nombre de quien recibe el pedido.'],
                             ];
                         }
+                    } elseif (preg_match('/^invoice_type_factura_(\d+)$/', (string) $buttonId, $invMatch)) {
+                        $response = $this->chooseInvoiceType($contact, (int) $invMatch[1], 'factura');
+                    } elseif (preg_match('/^invoice_type_consumidor_(\d+)$/', (string) $buttonId, $invMatch)) {
+                        $response = $this->chooseInvoiceType($contact, (int) $invMatch[1], 'consumidor_final');
+                    } elseif (preg_match('/^invoice_reuse_yes_(\d+)$/', (string) $buttonId, $invMatch)) {
+                        $response = $this->confirmInvoiceReuse($contact, (int) $invMatch[1], true);
+                    } elseif (preg_match('/^invoice_reuse_no_(\d+)$/', (string) $buttonId, $invMatch)) {
+                        $response = $this->confirmInvoiceReuse($contact, (int) $invMatch[1], false);
                     } else {
                         // Ningún patrón conoce este button_id (versión vieja de un
                         // flujo republicado, id corrupto, etc.): antes esto dejaba
@@ -5620,6 +5628,21 @@ class WhatsappService
                 }
             }
 
+            // Pedido ya confirmado/pagado esperando la preferencia de
+            // factura (elegir factura/consumidor, confirmar reuso de datos
+            // de una factura anterior, o los 4 datos en texto libre). El
+            // $cart de arriba no sirve aquí -- solo busca en
+            // active/pending/payment_pending, y este paso ocurre después,
+            // con el pedido ya confirmed/paid.
+            if (! $processHandled) {
+                $invoiceCart = $this->findCartAwaitingInvoiceStep($contact);
+                if ($invoiceCart) {
+                    Log::info('[handleTextMessage] 🧾 Procesando paso de facturación pendiente', ['cart_id' => $invoiceCart->id]);
+                    $response = $this->handleInvoiceStepText($contact, $invoiceCart, $text);
+                    $processHandled = true;
+                }
+            }
+
             if (! $processHandled && $cart && isset($cart->metadata['pending_note']) && $cart->metadata['pending_note']) {
                 // Si hay un carrito esperando nota, procesar el mensaje como nota del pedido
                 Log::info('[handleTextMessage] 📝 Procesando nota para pedido', [
@@ -7661,6 +7684,355 @@ class WhatsappService
                 'text' => ['body' => 'Lo siento, ha ocurrido un error al confirmar tu pedido.'],
             ];
         }
+    }
+
+    /**
+     * Pedido explícito: preguntar "factura o consumidor final" al final,
+     * cuando el pedido ya quedó pagado (o confirmado, si nunca pasa por
+     * "Pagado" -- caso de efectivo). Lo dispara OrderLifecycleService::transition()
+     * en segundo plano cada vez que un pedido llega a 'paid' o 'confirmed'.
+     * metadata['invoice_prompt_sent'] evita preguntar dos veces si el mismo
+     * pedido pasa por ambos estados (paid -> confirmed).
+     *
+     * Reusa el modelo de facturación que YA existía para el panel
+     * (WhatsappCart::requires_invoice/invoice_status/invoice_data y los
+     * campos de facturación de WhatsappContact) en vez de guardar los datos
+     * en otro lado -- así lo que junta el bot aparece directo en el checklist
+     * de Pedidos que ya usa el equipo (ver OrderAdminService::agentChecklist).
+     */
+    public function triggerInvoicePreferenceFlow(WhatsappCart $cart, WhatsappContact $contact): void
+    {
+        if (! empty($cart->metadata['invoice_prompt_sent'] ?? false)) {
+            return;
+        }
+
+        $metadata = $cart->metadata ?? [];
+        $metadata['invoice_prompt_sent'] = true;
+        $cart->metadata = $metadata;
+        $cart->save();
+
+        if ($this->isCheckoutStepEnabled('invoice_type')) {
+            $metadata = $cart->metadata ?? [];
+            $metadata['awaiting_invoice_choice'] = true;
+            $cart->metadata = $metadata;
+            $cart->save();
+
+            $this->sendBotPayload($contact, $this->buildInvoiceTypeStep($cart));
+
+            return;
+        }
+
+        // Paso desactivado: se usa el valor fijo elegido por el admin. Si es
+        // "consumidor_final" no hace falta nada más ni avisarle al cliente.
+        // Si es "factura", el paso en sí no se pregunta, pero los 4 datos sí
+        // se siguen necesitando -- se piden (o se reusan) igual que si el
+        // cliente hubiera tocado el botón "Factura".
+        if ($this->getCheckoutStepDefault('invoice_type', 'consumidor_final') !== 'factura') {
+            $cart->requires_invoice = false;
+            $cart->invoice_status = 'none';
+            $cart->save();
+
+            return;
+        }
+
+        $cart->requires_invoice = true;
+        $cart->invoice_status = 'requested';
+        $cart->save();
+
+        $this->sendBotPayload($contact, $this->resolveInvoiceDataStep($contact, $cart));
+    }
+
+    private function buildInvoiceTypeStep(WhatsappCart $cart, string $prefix = ''): array
+    {
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => ['text' => $prefix.$this->getCheckoutStepMessage(
+                    'invoice_type',
+                    "🧾 *¿Cómo quieres tu comprobante?*\n\nPedido *{{order_number}}*",
+                    ['order_number' => $cart->getOrderNumber()]
+                )],
+                'action' => [
+                    'buttons' => [
+                        ['type' => 'reply', 'reply' => ['id' => 'invoice_type_factura_'.$cart->id, 'title' => '🧾 Factura']],
+                        ['type' => 'reply', 'reply' => ['id' => 'invoice_type_consumidor_'.$cart->id, 'title' => '🙂 Consumidor final']],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function chooseInvoiceType(WhatsappContact $contact, int $cartId, string $type): array
+    {
+        $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
+        if (! $cart) {
+            return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
+        }
+
+        $metadata = $cart->metadata ?? [];
+        unset($metadata['awaiting_invoice_choice']);
+        $cart->metadata = $metadata;
+
+        if ($type === 'consumidor_final') {
+            $cart->requires_invoice = false;
+            $cart->invoice_status = 'none';
+            $cart->save();
+
+            return ['type' => 'text', 'text' => ['body' => '✅ Perfecto, tu pedido queda como consumidor final.']];
+        }
+
+        $cart->requires_invoice = true;
+        $cart->invoice_status = 'requested';
+        $cart->save();
+
+        return $this->resolveInvoiceDataStep($contact, $cart);
+    }
+
+    /**
+     * Decide si le mostramos al cliente sus datos de una factura anterior
+     * para confirmarlos, o le pedimos los 4 de una vez porque no hay ninguno
+     * completo guardado todavía.
+     */
+    private function resolveInvoiceDataStep(WhatsappContact $contact, WhatsappCart $cart): array
+    {
+        $saved = $this->findPreviousInvoiceData($contact);
+
+        if ($saved) {
+            $metadata = $cart->metadata ?? [];
+            $metadata['awaiting_invoice_reuse_confirmation'] = true;
+            $cart->metadata = $metadata;
+            $cart->save();
+
+            return $this->buildInvoiceReuseConfirmation($cart, $saved);
+        }
+
+        return $this->askInvoiceDataFresh($cart);
+    }
+
+    private function askInvoiceDataFresh(WhatsappCart $cart): array
+    {
+        $metadata = $cart->metadata ?? [];
+        unset($metadata['awaiting_invoice_reuse_confirmation']);
+        $metadata['awaiting_invoice_data'] = true;
+        $cart->metadata = $metadata;
+        $cart->save();
+
+        return $this->buildInvoiceDataRequest();
+    }
+
+    private function buildInvoiceDataRequest(): array
+    {
+        return [
+            'type' => 'text',
+            'text' => ['body' => "🧾 *Datos para tu factura*\n\nEnvíame los 4 datos en un solo mensaje, cada uno en su propia línea así:\n\nNombre: \nRUC o cédula: \nDirección: \nCorreo: "],
+        ];
+    }
+
+    private function buildInvoiceReuseConfirmation(WhatsappCart $cart, array $data, string $prefix = ''): array
+    {
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button',
+                'body' => ['text' => $prefix."🧾 *Datos de facturación registrados*\n\nNombre: {$data['billing_legal_name']}\nRUC o cédula: {$data['billing_id']}\nDirección: {$data['address']}\nCorreo: {$data['email']}\n\n¿Facturamos con estos mismos datos?"],
+                'action' => [
+                    'buttons' => [
+                        ['type' => 'reply', 'reply' => ['id' => 'invoice_reuse_yes_'.$cart->id, 'title' => '✅ Sí, usar estos']],
+                        ['type' => 'reply', 'reply' => ['id' => 'invoice_reuse_no_'.$cart->id, 'title' => '✏️ No, actualizar']],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private function confirmInvoiceReuse(WhatsappContact $contact, int $cartId, bool $reuse): array
+    {
+        $cart = WhatsappCart::where('id', $cartId)->where('contact_id', $contact->id)->first();
+        if (! $cart) {
+            return ['type' => 'text', 'text' => ['body' => 'Lo siento, no se encontró el pedido.']];
+        }
+
+        if (! $reuse) {
+            return $this->askInvoiceDataFresh($cart);
+        }
+
+        $saved = $this->findPreviousInvoiceData($contact);
+        if (! $saved) {
+            return $this->askInvoiceDataFresh($cart);
+        }
+
+        $metadata = $cart->metadata ?? [];
+        unset($metadata['awaiting_invoice_reuse_confirmation']);
+        $cart->metadata = $metadata;
+        $cart->invoice_data = $saved;
+        $cart->invoice_status = 'data_ready';
+        $cart->save();
+
+        app(OrderAdminService::class)->syncBillingToContact($contact, $saved);
+
+        return $this->buildInvoiceConfirmedMessage($cart, $saved);
+    }
+
+    /**
+     * Único punto que recibe el mensaje de texto libre con los 4 datos
+     * (nombre, RUC/cédula, dirección, correo) que el cliente manda en un
+     * solo mensaje, cada uno en su propia línea con su etiqueta.
+     */
+    private function handleInvoiceDataMessage(WhatsappContact $contact, WhatsappCart $cart, string $text): array
+    {
+        ['data' => $data, 'missing' => $missing] = $this->parseInvoiceDataMessage($text);
+
+        if ($missing) {
+            $labels = ['billing_legal_name' => 'Nombre', 'billing_id' => 'RUC o cédula', 'address' => 'Dirección', 'email' => 'Correo electrónico'];
+            $missingText = implode(', ', array_map(fn ($k) => $labels[$k], $missing));
+
+            return [
+                'type' => 'text',
+                'text' => ['body' => "Me faltó: *{$missingText}*. Envíame los 4 datos de nuevo, cada uno en su propia línea:\n\nNombre: \nRUC o cédula: \nDirección: \nCorreo: "],
+            ];
+        }
+
+        $data['billing_type'] = $this->inferBillingType($data['billing_id']);
+
+        $metadata = $cart->metadata ?? [];
+        unset($metadata['awaiting_invoice_data']);
+        $cart->metadata = $metadata;
+        $cart->invoice_data = $data;
+        $cart->invoice_status = 'data_ready';
+        $cart->save();
+
+        app(OrderAdminService::class)->syncBillingToContact($contact, $data);
+
+        return $this->buildInvoiceConfirmedMessage($cart, $data);
+    }
+
+    /** Cédula ecuatoriana: 10 dígitos. RUC: 13. Cualquier otra cosa se asume cédula. */
+    private function inferBillingType(string $billingId): string
+    {
+        return strlen(preg_replace('/\D/', '', $billingId)) === 13 ? 'ruc' : 'cedula';
+    }
+
+    private function buildInvoiceConfirmedMessage(WhatsappCart $cart, array $data): array
+    {
+        return [
+            'type' => 'text',
+            'text' => ['body' => "✅ Listo, facturaremos tu pedido *{$cart->getOrderNumber()}* a nombre de *{$data['billing_legal_name']}* ({$data['billing_id']})."],
+        ];
+    }
+
+    /**
+     * Busca en los pedidos anteriores del contacto el último con datos de
+     * facturación completos, para poder ofrecer "¿facturamos con los mismos
+     * datos?" en vez de pedirlos de cero cada vez.
+     */
+    private function findPreviousInvoiceData(WhatsappContact $contact): ?array
+    {
+        return WhatsappCart::where('contact_id', $contact->id)
+            ->whereNotNull('invoice_data')
+            ->latest('id')
+            ->get()
+            ->first(fn (WhatsappCart $c) => $this->isValidInvoiceData($c->invoice_data))
+            ?->invoice_data;
+    }
+
+    private function isValidInvoiceData(?array $data): bool
+    {
+        if (! $data) {
+            return false;
+        }
+
+        foreach (['billing_id', 'billing_legal_name', 'address', 'email'] as $key) {
+            if (trim((string) ($data[$key] ?? '')) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Interpreta el mensaje de texto libre con etiquetas ("Nombre: ...",
+     * "RUC o cédula: ...", "Dirección: ...", "Correo: ..."), una por línea,
+     * en cualquier orden. Devuelve solo los campos que sí pudo encontrar más
+     * la lista de los que faltaron, para poder pedir puntualmente lo que
+     * falta en vez de descartar todo el mensaje.
+     *
+     * @return array{data: array<string, string>, missing: string[]}
+     */
+    private function parseInvoiceDataMessage(string $text): array
+    {
+        $patterns = [
+            'billing_legal_name' => '/^\s*nombres?\b\s*:?\s*(.+)$/miu',
+            'billing_id' => '/^\s*(?:ruc(?:\s*o\s*c[eé]dula)?|c[eé]dula|ci)\b\s*:?\s*(.+)$/miu',
+            'address' => '/^\s*direcci[oó]n\b\s*:?\s*(.+)$/miu',
+            'email' => '/^\s*(?:correo(?:\s*electr[oó]nico)?|e-?mail)\b\s*:?\s*(.+)$/miu',
+        ];
+
+        $data = [];
+        foreach ($patterns as $key => $pattern) {
+            if (preg_match($pattern, $text, $m) && trim($m[1]) !== '') {
+                $data[$key] = trim($m[1]);
+            }
+        }
+
+        $missing = array_values(array_diff(array_keys($patterns), array_keys($data)));
+
+        return ['data' => $data, 'missing' => $missing];
+    }
+
+    /**
+     * Cualquier carrito ya confirmado/pagado del contacto que tenga algún
+     * paso de facturación pendiente de resolver (elegir factura/consumidor,
+     * confirmar reuso de datos, o mandar los 4 datos). Separado del $cart
+     * normal de handleTextMessage porque ese solo busca en
+     * active/pending/payment_pending -- un pedido ya confirmado o pagado no
+     * entra ahí.
+     */
+    private function findCartAwaitingInvoiceStep(WhatsappContact $contact): ?WhatsappCart
+    {
+        return WhatsappCart::where('contact_id', $contact->id)
+            ->whereIn('status', [WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PAID])
+            ->latest('id')
+            ->get()
+            ->first(fn (WhatsappCart $cart) => ! empty($cart->metadata['awaiting_invoice_choice'] ?? false)
+                || ! empty($cart->metadata['awaiting_invoice_reuse_confirmation'] ?? false)
+                || ! empty($cart->metadata['awaiting_invoice_data'] ?? false));
+    }
+
+    /**
+     * Igual que el resto del bot: si el cliente escribe texto libre en vez
+     * de tocar un botón, no lo dejamos sin respuesta -- se interpreta lo que
+     * escribió si se puede, o se le reenvía el mismo paso pendiente.
+     */
+    private function handleInvoiceStepText(WhatsappContact $contact, WhatsappCart $cart, string $text): array
+    {
+        $metadata = $cart->metadata ?? [];
+        $normalized = strtolower(trim($text));
+
+        if (! empty($metadata['awaiting_invoice_data'] ?? false)) {
+            return $this->handleInvoiceDataMessage($contact, $cart, $text);
+        }
+
+        if (! empty($metadata['awaiting_invoice_reuse_confirmation'] ?? false)) {
+            if (preg_match('/\b(si|sí|yes|dale|ok)\b/i', $normalized)) {
+                return $this->confirmInvoiceReuse($contact, $cart->id, true);
+            }
+            if (preg_match('/\bno\b/i', $normalized)) {
+                return $this->confirmInvoiceReuse($contact, $cart->id, false);
+            }
+
+            return $this->buildInvoiceReuseConfirmation($cart, $this->findPreviousInvoiceData($contact) ?? [], "🙏 No entendí, elige una opción:\n\n");
+        }
+
+        if (preg_match('/factura/i', $normalized)) {
+            return $this->chooseInvoiceType($contact, $cart->id, 'factura');
+        }
+        if (preg_match('/consumidor/i', $normalized)) {
+            return $this->chooseInvoiceType($contact, $cart->id, 'consumidor_final');
+        }
+
+        return $this->buildInvoiceTypeStep($cart, "🙏 No entendí, elige una opción:\n\n");
     }
 
     private function cancelarPedido(WhatsappContact $contact, $cartId)

@@ -170,7 +170,49 @@ class OrderLifecycleService
             $this->notifyCustomerOfStatusChange($order->id, $order->status);
         }
 
+        // Pedido explícito: preguntar factura o consumidor final "al final,
+        // cuando ya confirmó y pagó" -- a diferencia del aviso de arriba,
+        // esto corre para CUALQUIER transición (con o sin $userId), porque
+        // en efectivo es el propio cliente quien dispara 'confirmed' desde
+        // WhatsApp (ver WhatsappService::confirmarPedido) y ese pedido nunca
+        // pasa por 'paid'. 'paid' sí aplica cuando caja confirma el
+        // comprobante de transferencia/tarjeta desde el panel. Un guard en
+        // metadata evita preguntar dos veces si un pedido pasa por
+        // paid -> confirmed.
+        if ($previousStatus !== $order->status && in_array($order->status, [WhatsappCart::STATUS_PAID, WhatsappCart::STATUS_CONFIRMED], true)) {
+            $this->maybeTriggerInvoicePreference($order->id);
+        }
+
         return $order;
+    }
+
+    /**
+     * Dispara (en segundo plano) la pregunta de factura/consumidor final del
+     * bot. Ver WhatsappService::triggerInvoicePreferenceFlow -- ahí vive toda
+     * la lógica real (respeta si el paso está desactivado en el checkout del
+     * grafo, y evita preguntar dos veces vía metadata['invoice_prompt_sent']).
+     */
+    private function maybeTriggerInvoicePreference(int $orderId): void
+    {
+        dispatch(function () use ($orderId) {
+            try {
+                $order = WhatsappCart::with('contact')->find($orderId);
+                $contact = $order?->contact;
+
+                if (! $order || ! $contact || ! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+                    return;
+                }
+
+                $whatsapp = app(WhatsappService::class);
+                $whatsapp->useBusinessProfile($contact->businessProfile);
+                $whatsapp->triggerInvoicePreferenceFlow($order, $contact);
+            } catch (\Throwable $e) {
+                Log::error('[OrderLifecycleService] No se pudo iniciar la preferencia de facturación', [
+                    'order_id' => $orderId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
     }
 
     /**

@@ -9,7 +9,7 @@
 
     $statusLabels = [
         'pending' => 'Nuevo · por revisar',
-        'confirmed' => 'Aceptado',
+        'confirmed' => 'Listo para cocina',
         'preparing' => 'En cocina',
         'ready' => 'Listo para entregar',
         'completed' => 'Ya entregado',
@@ -29,7 +29,7 @@
     }
     $statusMeta = [
         'pending' => ['icon' => 'fa-inbox', 'description' => 'Pedido recién recibido; todavía debe revisarse.'],
-        'confirmed' => ['icon' => 'fa-circle-check', 'description' => 'El pedido fue revisado y aceptado.'],
+        'confirmed' => ['icon' => 'fa-circle-check', 'description' => 'El pedido fue revisado y está esperando que cocina inicie la preparación.'],
         'payment_pending' => ['icon' => 'fa-clock', 'description' => 'Falta recibir o validar el pago del cliente.'],
         'paid' => ['icon' => 'fa-receipt', 'description' => 'El pago fue confirmado y el pedido puede continuar.'],
         'preparing' => ['icon' => 'fa-utensils', 'description' => 'El pedido se encuentra en preparación.'],
@@ -1233,7 +1233,7 @@
                 @foreach([
                     ['pending', 'Recibido', 'fa-inbox'],
                     ['payment', 'Pago', 'fa-credit-card'],
-                    ['confirmed', 'Aceptado', 'fa-circle-check'],
+                    ['confirmed', 'Por preparar', 'fa-circle-check'],
                     ['preparing', 'En cocina', 'fa-fire-burner'],
                     ['ready', 'Listo', 'fa-bag-shopping'],
                     ['completed', 'Entregado', 'fa-check-double'],
@@ -1378,7 +1378,7 @@ function renderOrderNextStep(order) {
             ? ['Revisa el comprobante', 'Compara el valor recibido con el total y confirma el pago.', 'fa-file-circle-check', 'is-waiting']
             : ['Espera el comprobante', 'No necesitas hacer nada todavía. Aparecerá aquí cuando el cliente lo envíe.', 'fa-hourglass-half', 'is-waiting'],
         paid: ['Pago recibido', 'El pedido ya puede continuar a preparación.', 'fa-circle-check', ''],
-        confirmed: ['Pedido aceptado', 'Verifica que cocina tenga claro lo solicitado.', 'fa-utensils', ''],
+        confirmed: ['Envía el pedido a cocina', 'Cuando cocina empiece, cambia la etapa a “En cocina”.', 'fa-utensils', ''],
         preparing: ['Pedido en cocina', 'Cuando termine la preparación, márcalo como listo para entregar.', 'fa-fire', ''],
         ready: ['Listo para entregar', 'Entrégalo al cliente o coordina el despacho.', 'fa-bag-shopping', ''],
         completed: ['Pedido finalizado', 'Este pedido ya fue entregado.', 'fa-circle-check', 'is-finished'],
@@ -1403,7 +1403,7 @@ function renderOrderProgress(order) {
         ['Preparación', 'fa-utensils'],
         ['Entrega', 'fa-bag-shopping'],
     ];
-    const currentByStatus = { pending: 0, confirmed: 1, payment_pending: 1, paid: 2, preparing: 2, ready: 3, completed: 4 };
+    const currentByStatus = { pending: 0, payment_pending: 1, paid: 2, confirmed: 2, preparing: 2, ready: 3, completed: 4 };
     const current = currentByStatus[order.status] ?? 0;
 
     return `<div class="order-process" aria-label="Avance del pedido">${stages.map((stage, index) => {

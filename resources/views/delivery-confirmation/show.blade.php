@@ -19,6 +19,7 @@
         .card .val:last-child { margin-bottom:0; }
         label { display:block; font-size:.82rem; font-weight:700; color:#475569; margin-bottom:.35rem; margin-top:.9rem; }
         input[type="file"], textarea { width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:.6rem .7rem; font-size:.85rem; font-family:inherit; }
+        .photo-help { margin:.4rem 0 0; color:#64748b; font-size:.74rem; line-height:1.35; }
         textarea { resize:vertical; }
         button { width:100%; margin-top:1.1rem; padding:.8rem; border-radius:10px; border:none; background:linear-gradient(135deg,#a21caf,#701a75); color:#fff; font-size:.95rem; font-weight:800; cursor:pointer; }
         button:disabled { opacity:.6; cursor:not-allowed; }
@@ -65,6 +66,7 @@
             <form id="confirmForm">
                 <label for="photo">Foto de la entrega (obligatoria)</label>
                 <input type="file" id="photo" name="photo" accept="image/*" capture="environment" required>
+                <p class="photo-help">Las fotos grandes se optimizan automáticamente antes de enviarse.</p>
 
                 <label for="note">Nota (opcional)</label>
                 <textarea id="note" name="note" rows="2" placeholder="Ej: Entregado en portería, recibió el guardia."></textarea>
@@ -84,6 +86,71 @@
         const form = document.getElementById('confirmForm');
         const errorBox = document.getElementById('formError');
         const submitBtn = document.getElementById('submitBtn');
+        const photoInput = document.getElementById('photo');
+
+        const MAX_DIRECT_UPLOAD = 1.5 * 1024 * 1024;
+        const MAX_IMAGE_SIDE = 1600;
+        const WEB_FORMATS = ['image/jpeg', 'image/png', 'image/webp'];
+
+        function canvasBlob(canvas, quality) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(
+                    blob => blob ? resolve(blob) : reject(new Error('No se pudo preparar la foto seleccionada.')),
+                    'image/jpeg',
+                    quality
+                );
+            });
+        }
+
+        async function loadPhoto(file) {
+            if ('createImageBitmap' in window) {
+                let bitmap;
+                try {
+                    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+                } catch (_) {
+                    bitmap = await createImageBitmap(file);
+                }
+                return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            const image = new Image();
+            try {
+                await new Promise((resolve, reject) => {
+                    image.onload = resolve;
+                    image.onerror = () => reject(new Error('El teléfono no pudo leer la foto seleccionada.'));
+                    image.src = objectUrl;
+                });
+                return { source: image, width: image.naturalWidth, height: image.naturalHeight, close: () => URL.revokeObjectURL(objectUrl) };
+            } catch (error) {
+                URL.revokeObjectURL(objectUrl);
+                throw error;
+            }
+        }
+
+        async function optimizePhoto(file) {
+            if (file.size <= MAX_DIRECT_UPLOAD && WEB_FORMATS.includes(file.type)) return file;
+
+            const decoded = await loadPhoto(file);
+            try {
+                const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(decoded.width, decoded.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(decoded.width * scale));
+                canvas.height = Math.max(1, Math.round(decoded.height * scale));
+                const context = canvas.getContext('2d', { alpha: false });
+                if (!context) throw new Error('El teléfono no pudo preparar la foto seleccionada.');
+                context.fillStyle = '#fff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
+
+                let blob = await canvasBlob(canvas, .82);
+                if (blob.size > MAX_DIRECT_UPLOAD) blob = await canvasBlob(canvas, .68);
+                if (blob.size > MAX_DIRECT_UPLOAD) blob = await canvasBlob(canvas, .55);
+                return blob;
+            } finally {
+                decoded.close();
+            }
+        }
 
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -92,12 +159,25 @@
             submitBtn.textContent = 'Enviando…';
 
             try {
+                const originalPhoto = photoInput.files?.[0];
+                if (!originalPhoto) throw new Error('Debes seleccionar una foto de la entrega.');
+
+                submitBtn.textContent = 'Preparando foto…';
+                const preparedPhoto = await optimizePhoto(originalPhoto);
+                const formData = new FormData(form);
+                const cleanName = (originalPhoto.name || 'entrega').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]+/g, '-');
+                formData.set('photo', preparedPhoto, cleanName + '.jpg');
+                submitBtn.textContent = 'Enviando…';
+
                 const res = await fetch(submitUrl, {
                     method: 'POST',
                     headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
-                    body: new FormData(form),
+                    body: formData,
                 });
-                const data = await res.json();
+                const responseText = await res.text();
+                let data = {};
+                try { data = responseText ? JSON.parse(responseText) : {}; } catch (_) {}
+                if (res.status === 413) throw new Error('La foto sigue siendo demasiado pesada para el servidor. Intenta tomarla con menor resolución.');
                 if (!res.ok || !data.ok) throw new Error(data.message || 'No se pudo confirmar la entrega.');
 
                 document.querySelector('.wrap').innerHTML = `

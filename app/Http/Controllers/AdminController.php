@@ -45,7 +45,9 @@ class AdminController extends Controller
             'all' => ['label' => 'Todos', 'statuses' => []],
             'new' => ['label' => 'Nuevos', 'statuses' => [WhatsappCart::STATUS_PENDING]],
             'payment' => ['label' => 'Por pagar', 'statuses' => [WhatsappCart::STATUS_PAYMENT_PENDING]],
-            'accepted' => ['label' => 'Aceptados', 'statuses' => [WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PAID]],
+            // Es la cola operativa previa a cocina: incluye pedidos ya
+            // confirmados y pagos verificados que todavía no se preparan.
+            'accepted' => ['label' => 'Por preparar', 'statuses' => [WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PAID]],
             'preparing' => ['label' => 'En cocina', 'statuses' => [WhatsappCart::STATUS_PREPARING]],
             'ready' => ['label' => 'Listos', 'statuses' => [WhatsappCart::STATUS_READY]],
             'closed' => ['label' => 'Finalizados', 'statuses' => [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED]],

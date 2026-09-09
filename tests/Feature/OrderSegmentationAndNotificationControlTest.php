@@ -81,6 +81,32 @@ class OrderSegmentationAndNotificationControlTest extends TestCase
             ->assertSee('En cocina');
     }
 
+    public function test_confirmed_and_paid_orders_are_presented_as_the_queue_to_prepare(): void
+    {
+        [$company, $profile, , $user] = $this->fixture();
+        $confirmedCustomer = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '593990001115',
+            'name' => 'Cliente Confirmado',
+        ]);
+        $paidCustomer = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '593990001116',
+            'name' => 'Cliente Pagado',
+        ]);
+        WhatsappCart::create(['contact_id' => $confirmedCustomer->id, 'status' => WhatsappCart::STATUS_CONFIRMED, 'total' => 10]);
+        WhatsappCart::create(['contact_id' => $paidCustomer->id, 'status' => WhatsappCart::STATUS_PAID, 'total' => 12]);
+
+        $this->actingAs($user)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders', ['segment' => 'accepted']))
+            ->assertOk()
+            ->assertSee('Por preparar')
+            ->assertSee('Listo para cocina')
+            ->assertSee('Cliente Confirmado')
+            ->assertSee('Cliente Pagado');
+    }
+
     public function test_order_cards_show_the_branch_identifier_selected_by_the_customer(): void
     {
         [$company, $profile, , $user] = $this->fixture();

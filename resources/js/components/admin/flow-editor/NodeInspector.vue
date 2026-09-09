@@ -62,6 +62,15 @@ const CHECKOUT_STEPS = [
             { value: 'tarjeta', label: '💳 Tarjeta' },
         ],
     },
+    {
+        key: 'invoice_type', label: '7. Factura o consumidor final',
+        hint: 'No es parte del checkout inicial -- se pregunta después, cuando el pedido ya quedó pagado (o confirmado, si nunca pasa por "Pagado", como en efectivo). Si elige factura, el bot pide nombre, RUC/cédula, dirección y correo en un solo mensaje (o reusa los de su última factura, con confirmación).',
+        default: '🧾 *¿Cómo quieres tu comprobante?*\n\n¿Factura o consumidor final?',
+        toggle: { question: '¿Preguntar este paso?', defaultValue: 'consumidor_final', options: [
+            { value: 'consumidor_final', label: 'No preguntar: siempre consumidor final' },
+            { value: 'factura', label: 'No preguntar: siempre pedir datos de factura' },
+        ] },
+    },
 ];
 
 const uploadingImage = ref(false);
@@ -315,7 +324,8 @@ function save() {
                 <p class="inspector-hint">
                     Después de elegir el método de pago (o al confirmar un pedido "para servir", que no pide
                     método de pago) el bot pide una nota opcional y cierra el pedido; esos dos mensajes finales
-                    todavía no son editables aquí.
+                    todavía no son editables aquí. El paso de factura (7) es aparte: llega después, una vez que
+                    el pedido ya está pagado o confirmado.
                 </p>
             </template>
 
