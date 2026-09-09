@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
@@ -26,28 +27,32 @@ class ProductQuantitySelectionTest extends TestCase
     public function test_product_with_quantity_selection_asks_quantity_before_adding(): void
     {
         [$product, $contact] = $this->catalogProduct(allowQuantity: true, min: 1, max: 8);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $details = $this->invoke($service, 'getProductDetails', [$product->id]);
         $buttonIds = collect($details['interactive']['action']['buttons'])->pluck('reply.id')->all();
-        $this->assertContains('pedir_cantidad_' . $product->id . '_base', $buttonIds);
-        $this->assertNotContains('quick_add_' . $product->id . '_base', $buttonIds);
+        $this->assertContains('pedir_cantidad_'.$product->id.'_base', $buttonIds);
+        $this->assertNotContains('quick_add_'.$product->id.'_base', $buttonIds);
 
         // Antes de la cantidad, el bot pregunta el método de pago (una vez por pedido).
         $paymentGate = $this->invoke($service, 'showQuantitySelection', [$contact, $product->id, null]);
         $this->assertSame('list', $paymentGate['interactive']['type']);
         $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
         $gateRowIds = collect($paymentGate['interactive']['action']['sections'][0]['rows'])->pluck('id')->all();
-        $this->assertContains('pago_efectivo_' . $cart->id, $gateRowIds);
+        $this->assertContains('pago_efectivo_'.$cart->id, $gateRowIds);
         $this->assertSame(['action' => 'quantity', 'product_id' => $product->id, 'variation_index' => null], $cart->fresh()->metadata['pending_first_action']);
 
         // Elige efectivo -> retoma automáticamente y muestra la cantidad pendiente.
         $qtyStep = $this->invoke($service, 'procesarPagoEfectivo', [$contact, $cart->id]);
         $this->assertSame('list', $qtyStep['interactive']['type']);
         $rowIds = collect($qtyStep['interactive']['action']['sections'][0]['rows'])->pluck('id')->all();
-        $this->assertContains('cantidad_1_' . $product->id, $rowIds);
-        $this->assertContains('cantidad_8_' . $product->id, $rowIds);
-        $this->assertNotContains('cantidad_9_' . $product->id, $rowIds, 'No debe superar max_quantity.');
+        $this->assertSame([
+            'cantidad_1_'.$product->id,
+            'cantidad_2_'.$product->id,
+            'cantidad_3_'.$product->id,
+            'otra_cantidad_'.$product->id,
+            'volver_productos',
+        ], $rowIds);
         $this->assertArrayNotHasKey('pending_first_action', $cart->fresh()->metadata);
 
         $this->invoke($service, 'addToCart', [$contact, $product->id, 4, null]);
@@ -68,16 +73,16 @@ class ProductQuantitySelectionTest extends TestCase
     public function test_choosing_card_payment_then_a_new_attempt_starts_a_fresh_cart_instead_of_blocking(): void
     {
         [$product, $contact] = $this->catalogProduct(allowQuantity: true, min: 1, max: 8);
-        \App\Models\WhatsappChatbotConfig::create([
+        WhatsappChatbotConfig::create([
             'business_profile_id' => $product->business_profile_id,
             'metadata' => ['card_payment_url' => 'https://pagar.example.com'],
         ]);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $paymentGate = $this->invoke($service, 'showQuantitySelection', [$contact, $product->id, null]);
         $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
         $gateRowIds = collect($paymentGate['interactive']['action']['sections'][0]['rows'])->pluck('id')->all();
-        $this->assertContains('pago_tarjeta_' . $cart->id, $gateRowIds);
+        $this->assertContains('pago_tarjeta_'.$cart->id, $gateRowIds);
 
         $linkResponse = $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
         $this->assertStringContainsString('pagar.example.com', json_encode($linkResponse));
@@ -95,12 +100,12 @@ class ProductQuantitySelectionTest extends TestCase
     public function test_product_without_quantity_selection_adds_one_unit_directly(): void
     {
         [$product] = $this->catalogProduct(allowQuantity: false);
-        $service = new WhatsappService();
+        $service = new WhatsappService;
 
         $details = $this->invoke($service, 'getProductDetails', [$product->id]);
         $buttonIds = collect($details['interactive']['action']['buttons'])->pluck('reply.id')->all();
-        $this->assertContains('quick_add_' . $product->id . '_base', $buttonIds);
-        $this->assertNotContains('pedir_cantidad_' . $product->id . '_base', $buttonIds);
+        $this->assertContains('quick_add_'.$product->id.'_base', $buttonIds);
+        $this->assertNotContains('pedir_cantidad_'.$product->id.'_base', $buttonIds);
     }
 
     /** @return array{WhatsappPrice, WhatsappContact} */

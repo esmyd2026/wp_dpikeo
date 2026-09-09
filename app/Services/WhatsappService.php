@@ -6616,12 +6616,16 @@ class WhatsappService
 
             $min = max(1, (int) ($price->min_quantity ?: 1));
             $max = max($min, (int) ($price->max_quantity ?: 99));
-            // Una lista de WhatsApp admite máximo 10 filas en total; dejamos
-            // hasta 8 opciones de cantidad + "Otra cantidad" + "Volver".
-            $maxOption = min($max, $min + 7);
 
             $rows = [];
-            for ($qty = $min; $qty <= $maxOption; $qty++) {
+            // Accesos rápidos deliberadamente cortos para no llenar la
+            // pantalla del teléfono. Los valores mayores siguen disponibles
+            // mediante "Otra cantidad" y respetan los límites del producto.
+            for ($qty = 1; $qty <= 3; $qty++) {
+                if ($qty < $min || $qty > $max) {
+                    continue;
+                }
+
                 $rows[] = [
                     'id' => 'cantidad_'.$qty.'_'.$productId.($variationIndex === null ? '' : '_'.$variationIndex),
                     'title' => $qty === 1 ? '1 unidad' : $qty.' unidades',

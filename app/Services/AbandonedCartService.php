@@ -123,6 +123,7 @@ class AbandonedCartService
 
         if ($contact) {
             $contact->forgetFlowPosition();
+            $this->clearLingeringInteractionFlags($contact);
 
             try {
                 $this->notifyContact($contact, $reason);
@@ -145,6 +146,50 @@ class AbandonedCartService
         ]);
 
         return true;
+    }
+
+    /**
+     * Bug real reportado en vivo: reiniciar la conversación cancela el
+     * carrito "active"/"payment_pending" del contacto, pero un pedido ya
+     * armado por "Armar lista" queda en "pending" (fuera de STALE_STATUSES a
+     * propósito -- ya es un pedido real, no se cancela solo por reiniciar el
+     * chat) y podía quedar con una bandera de "esperando dirección" o
+     * "esperando nombre de quien recibe" sin borrar. Con esa bandera viva,
+     * el próximo mensaje del cliente -- aunque fuera un simple "hola" --
+     * se interpretaba como la respuesta a esa pregunta vieja en vez de
+     * pasar por el saludo normal. Se limpian esas banderas de "esperando
+     * texto" de TODOS los carritos no finalizados del contacto, sin tocar
+     * su estado ni cancelarlos.
+     */
+    private function clearLingeringInteractionFlags(WhatsappContact $contact): void
+    {
+        $contactMetadata = $contact->metadata ?? [];
+        if (array_key_exists('pending_custom_quantity', $contactMetadata)) {
+            unset($contactMetadata['pending_custom_quantity']);
+            $contact->metadata = $contactMetadata;
+            $contact->save();
+        }
+
+        $flags = ['awaiting_delivery_address', 'awaiting_delivery_recipient_name', 'pending_note', 'pending_payment_method'];
+
+        WhatsappCart::where('contact_id', $contact->id)
+            ->whereNotIn('status', [WhatsappCart::STATUS_CANCELLED, WhatsappCart::STATUS_COMPLETED])
+            ->get()
+            ->each(function (WhatsappCart $cart) use ($flags) {
+                $metadata = $cart->metadata ?? [];
+                $changed = false;
+                foreach ($flags as $flag) {
+                    if (array_key_exists($flag, $metadata)) {
+                        unset($metadata[$flag]);
+                        $changed = true;
+                    }
+                }
+
+                if ($changed) {
+                    $cart->metadata = $metadata;
+                    $cart->save();
+                }
+            });
     }
 
     private function notifyContact(WhatsappContact $contact, string $reason): void
