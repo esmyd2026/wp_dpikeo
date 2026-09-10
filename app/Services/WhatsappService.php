@@ -2084,6 +2084,23 @@ class WhatsappService
             $this->maybeSendPrivacyNotice($contact);
         }
 
+        // Bug real reportado en vivo: si el grafo está publicado,
+        // resolveGraphStartPayload() siempre devuelve el mismo nodo de
+        // inicio estático -- sin esto, "hola" y luego "menu" (u otro
+        // saludo) el mismo día repetían la bienvenida completa en vez de
+        // mostrar el menú principal la segunda vez, porque el chequeo de
+        // "ya saludado hoy" quedaba después y nunca se llegaba a evaluar.
+        // Se evalúa primero para que el comportamiento sea el mismo
+        // (bienvenida una vez al día, menú el resto) esté o no publicado el
+        // grafo.
+        if ($contact?->wasWelcomedToday()) {
+            Log::info('[handleGreetingMessage] Saludo repetido hoy, enviando solo menú principal', [
+                'contact_id' => $contact->id,
+            ]);
+
+            return $this->getMainMenu(null, $contact);
+        }
+
         $graphPayload = $this->resolveGraphStartPayload($contact);
         if ($graphPayload) {
             if ($contact) {
@@ -2091,14 +2108,6 @@ class WhatsappService
             }
 
             return $graphPayload;
-        }
-
-        if ($contact?->wasWelcomedToday()) {
-            Log::info('[handleGreetingMessage] Saludo repetido hoy, enviando solo menú principal', [
-                'contact_id' => $contact->id,
-            ]);
-
-            return $this->getMainMenu(null, $contact);
         }
 
         if ($contact) {

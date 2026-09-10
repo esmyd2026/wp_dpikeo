@@ -107,6 +107,14 @@ function handlePublished(result) {
     showToast('Publicado (v' + result.version_number + '). El bot en vivo ya usa este flujo.');
 }
 
+function handleUnpublished() {
+    if (flow.value) {
+        flow.value.published_version = null;
+        flow.value.published_at = null;
+    }
+    showToast('Despublicado. El bot en vivo vuelve a usar el editor clásico ("Flujo del bot").');
+}
+
 onNodeDragStop(async ({ node }) => {
     try {
         await api.moveNode(node.id, { x: Math.round(node.position.x), y: Math.round(node.position.y) });
@@ -234,6 +242,7 @@ async function handleAddNode(nodeType) {
                 :published-version="flow.published_version"
                 :published-at="flow.published_at"
                 @published="handlePublished"
+                @unpublished="handleUnpublished"
             />
         </div>
 

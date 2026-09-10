@@ -8,12 +8,13 @@ const props = defineProps({
     publishedAt: { type: String, default: null },
 });
 
-const emit = defineEmits(['published']);
+const emit = defineEmits(['published', 'unpublished']);
 
 const api = useFlowApi(props.apiBase);
 
 const open = ref(false);
 const publishing = ref(false);
+const unpublishing = ref(false);
 const loadingVersions = ref(false);
 const versions = ref([]);
 const error = ref(null);
@@ -58,6 +59,31 @@ async function doPublish() {
     }
 }
 
+/**
+ * Deja de usar el grafo (sin borrar nada): el bot vuelve a atenderse con el
+ * editor clásico ("Flujo del bot") para saludo, menú, etc. Pedido explícito
+ * en vivo: mientras el grafo esté publicado, sus nodos (ej. "Bienvenida
+ * inicial") reemplazan por completo lo que se configuró en el editor
+ * clásico -- sin forma de apagarlo desde el panel, la única salida era
+ * borrar nodos que ni se pueden borrar (el de inicio).
+ */
+async function doUnpublish() {
+    if (!confirm('El bot dejará de usar este flujo visual y volverá a atenderse con el editor clásico ("Flujo del bot") -- nada de este lienzo se borra, puedes volver a publicar cuando quieras. ¿Despublicar ahora?')) {
+        return;
+    }
+    unpublishing.value = true;
+    error.value = null;
+    try {
+        await api.unpublish();
+        emit('unpublished');
+        await loadVersions();
+    } catch (e) {
+        error.value = apiErrorMessage(e);
+    } finally {
+        unpublishing.value = false;
+    }
+}
+
 async function doRestore(version) {
     if (!confirm('¿Restaurar la versión ' + version.version_number + '? Esto también actualiza el bot en vivo de inmediato.')) {
         return;
@@ -86,6 +112,10 @@ function formatDate(iso) {
         </button>
         <button type="button" class="publish-btn" :disabled="publishing" @click="doPublish">
             <i class="fas fa-cloud-arrow-up"></i> {{ publishing ? 'Publicando…' : 'Publicar' }}
+        </button>
+        <button v-if="publishedVersion" type="button" class="publish-btn publish-btn-danger" :disabled="unpublishing" @click="doUnpublish"
+            title="El bot vuelve a atenderse con el editor clásico -- nada de este flujo se borra">
+            <i class="fas fa-cloud-arrow-down"></i> {{ unpublishing ? 'Despublicando…' : 'Despublicar' }}
         </button>
 
         <div v-if="open" class="publish-dropdown">
@@ -154,6 +184,11 @@ function formatDate(iso) {
 .publish-btn:disabled {
     opacity: .6;
     cursor: not-allowed;
+}
+.publish-btn-danger {
+    background: #fff;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
 }
 .publish-dropdown {
     position: absolute;

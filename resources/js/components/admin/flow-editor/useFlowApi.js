@@ -12,6 +12,7 @@ export function useFlowApi(apiBase) {
         createEdge: (payload) => axios.post(apiBase + '/edges', payload).then((r) => r.data),
         deleteEdge: (edgeId) => axios.delete(apiBase + '/edges/' + edgeId).then((r) => r.data),
         publish: () => axios.post(apiBase + '/publish').then((r) => r.data),
+        unpublish: () => axios.post(apiBase + '/unpublish').then((r) => r.data),
         fetchVersions: () => axios.get(apiBase + '/versions').then((r) => r.data),
         restoreVersion: (versionId) => axios.post(apiBase + '/versions/' + versionId + '/restore').then((r) => r.data),
         fetchCatalogOptions: () => axios.get(apiBase + '/catalog-options').then((r) => r.data),
