@@ -103,7 +103,11 @@ class BusinessBranchController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'code' => ['nullable', 'string', 'max:24', 'alpha_dash'],
+            // Sin alpha_dash: el código se normaliza solo (Str::slug) más
+            // abajo, así "SUR 2" o "Centro Norte" nunca truenan con un error
+            // -- antes rechazaba espacios/acentos y, sin old() en la vista,
+            // borraba todo el formulario si tocaba corregirlo.
+            'code' => ['nullable', 'string', 'max:24'],
             'phone' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:500'],
             'reservations_info' => ['nullable', 'string', 'max:500'],
@@ -124,9 +128,29 @@ class BusinessBranchController extends Controller
             'delivery_fee_tiers.*.price' => ['required_with:delivery_fee_tiers.*.from_km', 'numeric', 'min:0'],
         ]);
 
+        $code = strtoupper(Str::slug($data['code'] ?: $data['name'], '-'));
+        $businessProfileId = $branch?->business_profile_id ?? CompanyContext::current()->businessProfileId();
+
+        // El código es único por empresa a nivel de base de datos (ver
+        // migración create_business_branches_and_assign_orders). Sin este
+        // chequeo, duplicar una sucursal y guardarla sin cambiar el código
+        // (el caso más probable con el botón "Duplicar") revienta con un
+        // error de base de datos en vez de un aviso claro.
+        $codeTaken = BusinessBranch::query()
+            ->where('business_profile_id', $businessProfileId)
+            ->where('code', $code)
+            ->when($branch, fn ($q) => $q->whereKeyNot($branch->id))
+            ->exists();
+
+        if ($codeTaken) {
+            throw ValidationException::withMessages([
+                'code' => "Ya existe una sucursal con el código \"{$code}\" en esta empresa. Usa uno distinto (por ejemplo, agrega el número o la zona).",
+            ]);
+        }
+
         return [
             'name' => trim($data['name']),
-            'code' => strtoupper(trim($data['code'] ?: Str::slug($data['name'], '-'))),
+            'code' => $code,
             'phone' => filled($data['phone'] ?? null) ? trim($data['phone']) : null,
             'address' => filled($data['address'] ?? null) ? trim($data['address']) : null,
             'reservations_info' => filled($data['reservations_info'] ?? null) ? trim($data['reservations_info']) : null,

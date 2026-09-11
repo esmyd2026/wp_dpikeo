@@ -3,6 +3,12 @@
 @section('header', 'Sucursales')
 
 @section('content')
+@php
+    // Qué formulario falló (una sucursal puntual, o "new") -- sin esto,
+    // old() es global y con varias tarjetas en la página el valor de la que
+    // falló se filtraba a las demás, o directamente no se aplicaba a nadie.
+    $failedFormId = old('_form_id');
+@endphp
 <style>
     .branch-page { max-width: 1060px; margin: 0 auto; }
     .branch-hero { border-radius:18px; padding:24px; margin-bottom:20px; color:#fff; background:linear-gradient(120deg,#8e2500,#e85d04 55%,#ff8a19); }
@@ -89,31 +95,36 @@
                     </div>
                 </div>
                 <p>{{ $branch->address ?: 'Sin dirección registrada' }}<br>{{ $branch->phone ?: 'Sin teléfono registrado' }}</p>
+                @php
+                    $isFailedEdit = $failedFormId !== null && (string) $failedFormId === (string) $branch->id;
+                    $editTiers = $isFailedEdit ? old('delivery_fee_tiers', []) : $branch->deliveryFeeTiers->mapWithKeys(fn ($t, $i) => [$i => ['from_km' => $t->from_km, 'to_km' => $t->to_km, 'price' => $t->price]])->all();
+                @endphp
                 <form class="branch-form" method="POST" action="{{ route('admin.branches.update', $branch) }}">
                     @csrf @method('PUT')
-                    <label>Nombre<input name="name" required maxlength="120" value="{{ old('name', $branch->name) }}"></label>
-                    <label>Código<input name="code" maxlength="24" value="{{ old('code', $branch->code) }}"></label>
-                    <label>Teléfono<input name="phone" maxlength="30" value="{{ old('phone', $branch->phone) }}"></label>
-                    <label>Dirección<textarea name="address" rows="2" maxlength="500">{{ old('address', $branch->address) }}</textarea></label>
-                    <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación">{{ old('reservations_info', $branch->reservations_info) }}</textarea></label>
+                    <input type="hidden" name="_form_id" value="{{ $branch->id }}">
+                    <label>Nombre<input name="name" required maxlength="120" value="{{ $isFailedEdit ? old('name') : $branch->name }}"></label>
+                    <label>Código<input name="code" maxlength="24" value="{{ $isFailedEdit ? old('code') : $branch->code }}"></label>
+                    <label>Teléfono<input name="phone" maxlength="30" value="{{ $isFailedEdit ? old('phone') : $branch->phone }}"></label>
+                    <label>Dirección<textarea name="address" rows="2" maxlength="500">{{ $isFailedEdit ? old('address') : $branch->address }}</textarea></label>
+                    <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación">{{ $isFailedEdit ? old('reservations_info') : $branch->reservations_info }}</textarea></label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                        <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998" value="{{ old('latitude', $branch->latitude) }}"></label>
-                        <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359" value="{{ old('longitude', $branch->longitude) }}"></label>
+                        <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998" value="{{ $isFailedEdit ? old('latitude') : $branch->latitude }}"></label>
+                        <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359" value="{{ $isFailedEdit ? old('longitude') : $branch->longitude }}"></label>
                     </div>
-                    <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ old('delivery_fee_minimum', $branch->delivery_fee_minimum) }}"></label>
-                    <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($branch->is_default)> Usar como sucursal predeterminada</label>
-                    <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($branch->is_active)> Sucursal activa (aparece en "Información" del bot)</label>
-                    <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" @checked($branch->orders_enabled) title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
-                    <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked($branch->dine_in_enabled)> Permite pedidos para servir en mesa</label>
+                    <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ $isFailedEdit ? old('delivery_fee_minimum') : $branch->delivery_fee_minimum }}"></label>
+                    <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($isFailedEdit ? old('is_default') : $branch->is_default)> Usar como sucursal predeterminada</label>
+                    <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked($isFailedEdit ? old('is_active') : $branch->is_active)> Sucursal activa (aparece en "Información" del bot)</label>
+                    <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" @checked($isFailedEdit ? old('orders_enabled') : $branch->orders_enabled) title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
+                    <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked($isFailedEdit ? old('dine_in_enabled') : $branch->dine_in_enabled)> Permite pedidos para servir en mesa</label>
 
                     <div class="branch-tiers js-tiers">
                         <p class="branch-tiers-title">Tarifas de delivery por km</p>
                         <p class="branch-tiers-hint">Desde qué km hasta qué km cuesta cuánto. Dejar "hasta" vacío = "en adelante". Se calcula solo cuando el cliente comparte su ubicación.</p>
-                        @foreach($branch->deliveryFeeTiers as $i => $tier)
+                        @foreach($editTiers as $i => $tier)
                             <div class="branch-tier-row">
-                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][from_km]" placeholder="Desde (km)" value="{{ $tier->from_km }}">
-                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][to_km]" placeholder="Hasta (km)" value="{{ $tier->to_km }}">
-                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][price]" placeholder="Precio $" value="{{ $tier->price }}">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][from_km]" placeholder="Desde (km)" value="{{ $tier['from_km'] ?? '' }}">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][to_km]" placeholder="Hasta (km)" value="{{ $tier['to_km'] ?? '' }}">
+                                <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][price]" placeholder="Precio $" value="{{ $tier['price'] ?? '' }}">
                                 <button type="button" class="branch-tier-remove js-tier-remove">&times;</button>
                             </div>
                         @endforeach
@@ -123,13 +134,19 @@
                     <div class="branch-hours">
                         <p class="branch-hours-title">Horario de atención</p>
                         @foreach($branch->hoursByDay() as $day => $hour)
+                            @php
+                                $oldHour = $isFailedEdit ? old('hours.'.$day, []) : [];
+                                $dayClosed = $isFailedEdit ? !empty($oldHour['is_closed']) : $hour->is_closed;
+                                $dayOpens = $isFailedEdit ? ($oldHour['opens_at'] ?? '') : ($hour->opens_at ? \Illuminate\Support\Carbon::parse($hour->opens_at)->format('H:i') : '');
+                                $dayCloses = $isFailedEdit ? ($oldHour['closes_at'] ?? '') : ($hour->closes_at ? \Illuminate\Support\Carbon::parse($hour->closes_at)->format('H:i') : '');
+                            @endphp
                             <div class="branch-hours-row">
                                 <span>{{ $hour->dayLabel() }}</span>
                                 <label class="branch-check">
-                                    <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1" @checked($hour->is_closed)> Cerrado
+                                    <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1" @checked($dayClosed)> Cerrado
                                 </label>
-                                <input type="time" name="hours[{{ $day }}][opens_at]" value="{{ $hour->opens_at ? \Illuminate\Support\Carbon::parse($hour->opens_at)->format('H:i') : '' }}" @disabled($hour->is_closed)>
-                                <input type="time" name="hours[{{ $day }}][closes_at]" value="{{ $hour->closes_at ? \Illuminate\Support\Carbon::parse($hour->closes_at)->format('H:i') : '' }}" @disabled($hour->is_closed)>
+                                <input type="time" name="hours[{{ $day }}][opens_at]" value="{{ $dayOpens }}" @disabled($dayClosed)>
+                                <input type="time" name="hours[{{ $day }}][closes_at]" value="{{ $dayCloses }}" @disabled($dayClosed)>
                             </div>
                         @endforeach
                     </div>
@@ -145,42 +162,59 @@
             </article>
         @endforeach
 
+        @php
+            $isFailedCreate = $failedFormId === 'new';
+            $createTiers = $isFailedCreate ? old('delivery_fee_tiers', []) : [];
+        @endphp
         <article class="branch-card branch-add">
             <h3>Nueva sucursal</h3>
             <p>Agrega un local o punto de venta adicional.</p>
             <form class="branch-form" method="POST" action="{{ route('admin.branches.store') }}">
                 @csrf
-                <label>Nombre<input name="name" required maxlength="120" placeholder="Ej.: Sucursal Centro"></label>
-                <label>Código<input name="code" maxlength="24" placeholder="Ej.: KENNEDY"></label>
-                <label>Teléfono<input name="phone" maxlength="30" placeholder="WhatsApp o teléfono"></label>
-                <label>Dirección<textarea name="address" rows="2" maxlength="500" placeholder="Dirección o referencia"></textarea></label>
-                <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación"></textarea></label>
+                <input type="hidden" name="_form_id" value="new">
+                <label>Nombre<input name="name" required maxlength="120" placeholder="Ej.: Sucursal Centro" value="{{ $isFailedCreate ? old('name') : '' }}"></label>
+                <label>Código<input name="code" maxlength="24" placeholder="Ej.: KENNEDY" value="{{ $isFailedCreate ? old('code') : '' }}"></label>
+                <label>Teléfono<input name="phone" maxlength="30" placeholder="WhatsApp o teléfono" value="{{ $isFailedCreate ? old('phone') : '' }}"></label>
+                <label>Dirección<textarea name="address" rows="2" maxlength="500" placeholder="Dirección o referencia">{{ $isFailedCreate ? old('address') : '' }}</textarea></label>
+                <label>Información de reservas (se muestra en "Información" del bot)<textarea name="reservations_info" rows="2" maxlength="500" placeholder="Ej: Reservas al 099-123-4567, con 1 día de anticipación">{{ $isFailedCreate ? old('reservations_info') : '' }}</textarea></label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                    <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998"></label>
-                    <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359"></label>
+                    <label>Latitud<input name="latitude" type="text" inputmode="decimal" placeholder="-2.170998" value="{{ $isFailedCreate ? old('latitude') : '' }}"></label>
+                    <label>Longitud<input name="longitude" type="text" inputmode="decimal" placeholder="-79.922359" value="{{ $isFailedCreate ? old('longitude') : '' }}"></label>
                 </div>
-                <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00"></label>
-                <label class="branch-check"><input type="checkbox" name="is_default" value="1"> Usar como predeterminada</label>
-                <label class="branch-check"><input type="checkbox" name="is_active" value="1" checked> Sucursal activa (aparece en "Información" del bot)</label>
-                <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" checked title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
-                <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" checked> Permite pedidos para servir en mesa</label>
+                <label>Costo mínimo de envío $ (si no se puede calcular por km)<input name="delivery_fee_minimum" type="text" inputmode="decimal" placeholder="2.00" value="{{ $isFailedCreate ? old('delivery_fee_minimum') : '' }}"></label>
+                <label class="branch-check"><input type="checkbox" name="is_default" value="1" @checked($isFailedCreate && old('is_default'))> Usar como predeterminada</label>
+                <label class="branch-check"><input type="checkbox" name="is_active" value="1" @checked(!$isFailedCreate || old('is_active'))> Sucursal activa (aparece en "Información" del bot)</label>
+                <label class="branch-check"><input type="checkbox" name="orders_enabled" value="1" @checked(!$isFailedCreate || old('orders_enabled')) title="Si la destildas, esta sucursal deja de poder elegirse para pedidos/delivery, pero sigue mostrándose en Información."> Disponible para pedidos/envíos</label>
+                <label class="branch-check"><input type="checkbox" name="dine_in_enabled" value="1" @checked(!$isFailedCreate || old('dine_in_enabled'))> Permite pedidos para servir en mesa</label>
 
                 <div class="branch-tiers js-tiers">
                     <p class="branch-tiers-title">Tarifas de delivery por km</p>
                     <p class="branch-tiers-hint">Desde qué km hasta qué km cuesta cuánto. Dejar "hasta" vacío = "en adelante". Se puede completar después.</p>
+                    @foreach($createTiers as $i => $tier)
+                        <div class="branch-tier-row">
+                            <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][from_km]" placeholder="Desde (km)" value="{{ $tier['from_km'] ?? '' }}">
+                            <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][to_km]" placeholder="Hasta (km)" value="{{ $tier['to_km'] ?? '' }}">
+                            <input type="text" inputmode="decimal" name="delivery_fee_tiers[{{ $i }}][price]" placeholder="Precio $" value="{{ $tier['price'] ?? '' }}">
+                            <button type="button" class="branch-tier-remove js-tier-remove">&times;</button>
+                        </div>
+                    @endforeach
                     <button type="button" class="branch-tier-add js-tier-add">+ Agregar tramo</button>
                 </div>
 
                 <div class="branch-hours">
                     <p class="branch-hours-title">Horario de atención (opcional, se puede completar después)</p>
                     @foreach(\App\Models\BusinessBranchHour::DAYS as $day => $label)
+                        @php
+                            $oldHour = $isFailedCreate ? old('hours.'.$day, []) : [];
+                            $dayClosed = !empty($oldHour['is_closed']);
+                        @endphp
                         <div class="branch-hours-row">
                             <span>{{ $label }}</span>
                             <label class="branch-check">
-                                <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1"> Cerrado
+                                <input type="checkbox" class="js-day-closed" name="hours[{{ $day }}][is_closed]" value="1" @checked($dayClosed)> Cerrado
                             </label>
-                            <input type="time" name="hours[{{ $day }}][opens_at]">
-                            <input type="time" name="hours[{{ $day }}][closes_at]">
+                            <input type="time" name="hours[{{ $day }}][opens_at]" value="{{ $oldHour['opens_at'] ?? '' }}" @disabled($dayClosed)>
+                            <input type="time" name="hours[{{ $day }}][closes_at]" value="{{ $oldHour['closes_at'] ?? '' }}" @disabled($dayClosed)>
                         </div>
                     @endforeach
                 </div>
@@ -285,5 +319,12 @@
     document.querySelectorAll('.js-branch-duplicate').forEach((button) => {
         button.addEventListener('click', () => fillNewBranchForm(JSON.parse(button.dataset.branch)));
     });
+
+    @if($isFailedCreate)
+        // Si "Nueva sucursal" falló (ej.: se corrigió el código), vuelve a
+        // mostrarla con lo ya escrito en vez de perderlo -- antes tocaba
+        // escribir todo de nuevo.
+        newBranchForm?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    @endif
 </script>
 @endsection
