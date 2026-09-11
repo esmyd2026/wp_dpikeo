@@ -321,6 +321,19 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         ->middleware('permission:chatbot.update')
         ->name('chatbot.message-templates.update');
 
+    Route::get('/chatbot/palabras-clave', [App\Http\Controllers\Admin\ChatbotKeywordController::class, 'index'])
+        ->middleware('permission:chatbot.view,chatbot.menu')
+        ->name('chatbot-keywords.index');
+    Route::post('/chatbot/palabras-clave', [App\Http\Controllers\Admin\ChatbotKeywordController::class, 'store'])
+        ->middleware('permission:chatbot.update')
+        ->name('chatbot-keywords.store');
+    Route::put('/chatbot/palabras-clave/{keyword}', [App\Http\Controllers\Admin\ChatbotKeywordController::class, 'update'])
+        ->middleware('permission:chatbot.update')
+        ->name('chatbot-keywords.update');
+    Route::delete('/chatbot/palabras-clave/{keyword}', [App\Http\Controllers\Admin\ChatbotKeywordController::class, 'destroy'])
+        ->middleware('permission:chatbot.update')
+        ->name('chatbot-keywords.destroy');
+
     Route::prefix('empresas')->name('empresas.')->group(function () {
         Route::get('/', [App\Http\Controllers\Admin\CompanyWhatsappController::class, 'index'])
             ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')

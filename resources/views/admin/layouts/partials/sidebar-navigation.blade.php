@@ -101,6 +101,7 @@
         $whatsappMenuOpen = request()->routeIs('admin.chat*')
             || request()->routeIs('admin.marketing-flow*')
             || request()->routeIs('admin.chatbot.config*')
+            || request()->routeIs('admin.chatbot-keywords.*')
             || request()->routeIs('admin.empresas.*')
             || request()->routeIs('admin.marketing.*')
             || request()->routeIs('admin.reports.whatsapp')
@@ -125,6 +126,7 @@
                 @endperm
                 @perm('chatbot.menu')
                     <a href="{{ route('admin.chatbot.config') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.chatbot.config*') ? 'active' : '' }}"><i class="fas fa-sliders-h"></i><span class="sidebar-text">Configuración del bot</span></a>
+                    <a href="{{ route('admin.chatbot-keywords.index') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.chatbot-keywords.*') ? 'active' : '' }}"><i class="fas fa-comment-dots"></i><span class="sidebar-text">Palabras clave</span></a>
                 @endperm
                 @perm('companies.menu')
                     <a href="{{ route('admin.empresas.index') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.empresas.*') ? 'active' : '' }}"><i class="fas fa-building"></i><span class="sidebar-text">Empresas y Meta</span></a>

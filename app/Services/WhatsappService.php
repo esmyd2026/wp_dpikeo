@@ -9,6 +9,7 @@ use App\Mail\MonitoringNotification;
 use App\Models\BusinessBranch;
 use App\Models\BusinessBranchHour;
 use App\Models\BusinessFaq;
+use App\Models\ChatbotKeywordReply;
 use App\Models\DeliveryDriver;
 use App\Models\MarketingFlowStep;
 use App\Models\MessageTemplate;
@@ -1887,11 +1888,35 @@ class WhatsappService
     private function generateChatbotResponse(string $message, string $from): array
     {
         try {
+            $contact = $this->findContactByPhone($from);
+
             // Si el mensaje es un saludo, bienvenida (1 vez al día) + menú principal
             if ($this->isGreetingMessage($message)) {
-                $contact = $this->findContactByPhone($from);
-
                 return $this->handleGreetingMessage($from, $contact);
+            }
+
+            // Palabras clave configurables desde el panel (Chatbot > Palabras
+            // clave), con alcance por empresa y, opcionalmente, por sucursal
+            // (la última que el contacto confirmó en un pedido). Se revisan
+            // antes que WhatsappChatbotResponse porque son multiempresa; la
+            // tabla legacy de abajo es global a toda la instalación.
+            if ($this->businessProfile) {
+                $keywordMatch = ChatbotKeywordReply::findMatch(
+                    $this->businessProfile->id,
+                    $message,
+                    $contact?->getLastBranchId()
+                );
+
+                if ($keywordMatch) {
+                    Log::info('[generateChatbotResponse] 🔑 Palabra clave configurada encontrada', [
+                        'keywords' => $keywordMatch->keywords,
+                    ]);
+
+                    return [
+                        'type' => 'text',
+                        'text' => ['body' => $keywordMatch->response_text],
+                    ];
+                }
             }
 
             // Buscar respuesta específica en la base de datos
@@ -2007,11 +2032,10 @@ class WhatsappService
             // que no calza con lo que se le pidió (los pasos de arriba en
             // handleTextMessage ya cubren esos casos puntuales); si no hay
             // nada en curso, no hay nada de qué "no entender".
-            $contactForFallback = $this->findContactByPhone($from);
-            if ($contactForFallback && ! $this->hasOpenOrder($contactForFallback)) {
+            if ($contact && ! $this->hasOpenOrder($contact)) {
                 Log::info('[generateChatbotResponse] Sin pedido en curso, se trata como sesión reiniciada');
 
-                return $this->handleGreetingMessage($from, $contactForFallback);
+                return $this->handleGreetingMessage($from, $contact);
             }
 
             // Si no hay respuesta de ChatGPT o falló, usar fallback configurado o menú principal
