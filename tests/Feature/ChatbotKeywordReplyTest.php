@@ -175,6 +175,85 @@ class ChatbotKeywordReplyTest extends TestCase
         $this->assertNull(ChatbotKeywordReply::findMatch($profile->id, 'promo', $branchNorte->id));
     }
 
+    /**
+     * Pedido explícito en vivo: "pila que cuando detecta que existe ya una
+     * palabra clave borra todo el formulario" -- el formulario de crear no
+     * traía old(), así que un choque de palabra repetida vaciaba todo lo
+     * escrito. Ahora debe reabrir el modal solo, con lo escrito intacto.
+     */
+    public function test_a_failed_create_reopens_the_modal_with_the_typed_values_kept(): void
+    {
+        [$company, $profile, $admin] = $this->adminFixture();
+        ChatbotKeywordReply::create([
+            'business_profile_id' => $profile->id,
+            'keywords' => ['horarios'],
+            'all_branches' => true,
+            'response_text' => 'Ya existe',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->post(route('admin.chatbot-keywords.store'), [
+                '_form_id' => 'new',
+                'keywords' => 'horarios, ubicaciones',
+                'response_text' => 'Texto que el operador ya había escrito',
+                'all_branches' => '1',
+            ])
+            ->assertSessionHasErrors('keywords');
+
+        $page = $this->get(route('admin.chatbot-keywords.index'));
+
+        $page->assertOk();
+        // El modal debe reabrirse solo (script de auto-apertura presente) y
+        // conservar exactamente lo que el operador ya había escrito.
+        $page->assertSee("modal?.showModal();", false);
+        $page->assertSee('value="horarios, ubicaciones"', false);
+        $page->assertSee('Texto que el operador ya había escrito');
+    }
+
+    /**
+     * El bug latente que esto evita: old('keywords') es global, así que sin
+     * distinguir "qué formulario falló" (_form_id), el valor del formulario
+     * que SÍ falló se filtraba también a las tarjetas de las demás palabras
+     * clave que no tuvieron nada que ver con el error.
+     */
+    public function test_editing_one_entry_with_an_error_does_not_leak_into_other_cards(): void
+    {
+        [$company, $profile, $admin] = $this->adminFixture();
+        ChatbotKeywordReply::create([
+            'business_profile_id' => $profile->id,
+            'keywords' => ['direcciones'],
+            'all_branches' => true,
+            'response_text' => 'Texto de direcciones',
+        ]);
+        $entryB = ChatbotKeywordReply::create([
+            'business_profile_id' => $profile->id,
+            'keywords' => ['promo'],
+            'all_branches' => true,
+            'response_text' => 'Texto de promo',
+        ]);
+
+        // Intenta editar B para que use la misma palabra que A -- debe fallar.
+        $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->put(route('admin.chatbot-keywords.update', $entryB), [
+                '_form_id' => (string) $entryB->id,
+                'keywords' => 'direcciones',
+                'response_text' => 'Intento fallido para B',
+                'all_branches' => '1',
+            ])
+            ->assertSessionHasErrors('keywords');
+
+        $page = $this->get(route('admin.chatbot-keywords.index'));
+
+        $page->assertOk();
+        // La tarjeta de A debe seguir intacta con SU propio valor, no el de B.
+        $page->assertSee('value="direcciones"', false);
+        $page->assertSee('Texto de direcciones');
+        // La tarjeta de B sí debe reflejar lo que se intentó guardar (para corregirlo).
+        $page->assertSee('Intento fallido para B');
+    }
+
     /** Invoca el método privado generateChatbotResponse() vía reflexión, como el resto de la suite. */
     private function invokeGenerateChatbotResponse(string $message, string $from): array
     {

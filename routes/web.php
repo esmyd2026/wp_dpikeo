@@ -66,6 +66,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/reports/orders', [OrdersReportsController::class, 'index'])
         ->middleware(['permission:orders.view,orders.menu,orders_reports.menu', 'platform.feature:orders'])
         ->name('reports.orders');
+    Route::get('/reports/orders/contable', [OrdersReportsController::class, 'exportAccounting'])
+        ->middleware(['permission:orders.view,orders.menu,orders_reports.menu', 'platform.feature:orders'])
+        ->name('reports.orders.accounting-export');
     Route::get('/reports/inventory', [App\Http\Controllers\Admin\InventoryReportController::class, 'index'])
         ->middleware('permission:products.view,products.menu,inventory.menu')
         ->name('reports.inventory');

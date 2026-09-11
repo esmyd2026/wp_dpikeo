@@ -88,6 +88,23 @@
     .panel-chart { height: 240px; position: relative; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1rem; margin-bottom: .85rem; }
     .panel-chart h3 { font-size: .95rem; font-weight: 600; margin: 0 0 1rem; color: #0f172a; }
     .report-footer-link { font-size: .82rem; color: #128c7e; text-decoration: none; font-weight: 600; }
+
+    /* Desglose contable: métodos de pago, tipo de entrega, envíos, facturación. */
+    .acct-section-title { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin: 1.4rem 0 .6rem; }
+    .acct-section-title h3 { margin:0; font-size:1.05rem; font-weight:800; color:#0f172a; }
+    .acct-section-title p { margin:.15rem 0 0; font-size:.78rem; color:#64748b; }
+    .acct-export-form { display:flex; gap:.5rem; align-items:center; }
+    .acct-charts { display:grid; grid-template-columns:1fr 1fr; gap:.85rem; margin-bottom:.85rem; }
+    @media (max-width:900px) { .acct-charts { grid-template-columns:1fr; } }
+    .acct-delivery-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:.65rem; margin-bottom:.85rem; }
+    @media (max-width:900px) { .acct-delivery-cards { grid-template-columns:1fr; } }
+    .acct-delivery-card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:.85rem 1rem; box-shadow:0 1px 3px rgba(15,23,42,.04); }
+    .acct-delivery-card .lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+    .acct-delivery-card .val { font-size:1.25rem; font-weight:800; color:#0f172a; margin-top:.15rem; }
+    .acct-tables { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.85rem; margin-bottom:.85rem; align-items:start; }
+    @media (max-width:1100px) { .acct-tables { grid-template-columns:1fr; } }
+    .acct-tables .orders-table-wrap { margin-bottom:0; }
+    .acct-tables h4 { font-size:.8rem; font-weight:800; color:#0f172a; margin:0 0 .4rem; padding:0 .1rem; }
 </style>
 
 <div class="orders-page">
@@ -140,6 +157,94 @@
         <h3>Tendencia de ingresos diarios</h3>
         <div style="height:180px;position:relative;">
             <canvas id="ordersRevenueChart"></canvas>
+        </div>
+    </div>
+
+    <div class="acct-section-title">
+        <div>
+            <h3><i class="fas fa-file-invoice-dollar me-1 text-success"></i> Desglose contable</h3>
+            <p>Método de pago, tipo de entrega, envíos cobrados y facturación en el período filtrado. Los pedidos cancelados no se contabilizan.</p>
+        </div>
+        <form class="acct-export-form" method="get" action="{{ route('admin.reports.orders.accounting-export') }}">
+            <input type="hidden" name="from" value="{{ $from->format('Y-m-d') }}">
+            <input type="hidden" name="to" value="{{ $to->format('Y-m-d') }}">
+            <button type="submit" class="o-btn export"><i class="fas fa-file-excel"></i> Exportar reporte contable</button>
+        </form>
+    </div>
+
+    <div class="acct-delivery-cards">
+        <div class="acct-delivery-card">
+            <div class="lbl">Pedidos con delivery</div>
+            <div class="val">{{ number_format($accounting['delivery_costs']['orders']) }}</div>
+        </div>
+        <div class="acct-delivery-card">
+            <div class="lbl">Total cobrado por envíos</div>
+            <div class="val">${{ number_format($accounting['delivery_costs']['total'], 2) }}</div>
+        </div>
+        <div class="acct-delivery-card">
+            <div class="lbl">Envío promedio</div>
+            <div class="val">${{ number_format($accounting['delivery_costs']['average'], 2) }}</div>
+        </div>
+    </div>
+
+    <div class="acct-charts">
+        <div class="panel-chart" style="height:280px;">
+            <h3>Ingresos por método de pago</h3>
+            <div style="height:220px;position:relative;">
+                <canvas id="paymentMethodChart"></canvas>
+            </div>
+        </div>
+        <div class="panel-chart" style="height:280px;">
+            <h3>Pedidos por tipo de entrega</h3>
+            <div style="height:220px;position:relative;">
+                <canvas id="fulfillmentChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="acct-tables">
+        <div>
+            <h4>Método de pago</h4>
+            <div class="orders-table-wrap">
+                <table class="orders-table">
+                    <thead><tr><th>Método</th><th>Pedidos</th><th>Monto</th></tr></thead>
+                    <tbody>
+                        @forelse($accounting['payment_methods'] as $row)
+                            <tr><td>{{ $row['label'] }}</td><td>{{ number_format($row['count']) }}</td><td class="order-cell-money">${{ number_format($row['amount'], 2) }}</td></tr>
+                        @empty
+                            <tr><td colspan="3" class="text-center text-muted py-3">Sin datos.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h4>Tipo de entrega</h4>
+            <div class="orders-table-wrap">
+                <table class="orders-table">
+                    <thead><tr><th>Tipo</th><th>Pedidos</th><th>Monto</th></tr></thead>
+                    <tbody>
+                        @forelse($accounting['fulfillment'] as $row)
+                            <tr><td>{{ $row['label'] }}</td><td>{{ number_format($row['count']) }}</td><td class="order-cell-money">${{ number_format($row['amount'], 2) }}</td></tr>
+                        @empty
+                            <tr><td colspan="3" class="text-center text-muted py-3">Sin datos.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h4>Facturación</h4>
+            <div class="orders-table-wrap">
+                <table class="orders-table">
+                    <thead><tr><th>Tipo</th><th>Pedidos</th><th>Monto</th></tr></thead>
+                    <tbody>
+                        @foreach($accounting['invoicing'] as $row)
+                            <tr><td>{{ $row['label'] }}</td><td>{{ number_format($row['count']) }}</td><td class="order-cell-money">${{ number_format($row['amount'], 2) }}</td></tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -232,6 +337,47 @@ document.addEventListener('DOMContentLoaded', function() {
             scales: {
                 y: { beginAtZero: true, ticks: { callback: v => '$' + v } }
             }
+        }
+    });
+
+    const paymentMethods = {!! json_encode($accounting['payment_methods']) !!};
+    new Chart(document.getElementById('paymentMethodChart'), {
+        type: 'doughnut',
+        data: {
+            labels: paymentMethods.length ? paymentMethods.map(r => r.label) : ['Sin datos'],
+            datasets: [{
+                data: paymentMethods.length ? paymentMethods.map(r => r.amount) : [1],
+                backgroundColor: ['#0f766e', '#f59e0b', '#2563eb', '#94a3b8'],
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                tooltip: { callbacks: { label: ctx => ctx.label + ': $' + Number(ctx.parsed).toFixed(2) } },
+            },
+        }
+    });
+
+    const fulfillment = {!! json_encode($accounting['fulfillment']) !!};
+    new Chart(document.getElementById('fulfillmentChart'), {
+        type: 'bar',
+        data: {
+            labels: fulfillment.length ? fulfillment.map(r => r.label) : ['Sin datos'],
+            datasets: [{
+                label: 'Pedidos',
+                data: fulfillment.length ? fulfillment.map(r => r.count) : [0],
+                backgroundColor: '#0f766e',
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
         }
     });
 });

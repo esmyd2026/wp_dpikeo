@@ -5,13 +5,17 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\ResolvesReportPeriod;
 use App\Http\Controllers\Controller;
 use App\Models\WhatsappCart;
+use App\Services\OrderAccountingReportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrdersReportsController extends Controller
 {
     use ResolvesReportPeriod;
+
+    public function __construct(private readonly OrderAccountingReportService $accountingReport) {}
 
     public function index(Request $request)
     {
@@ -20,6 +24,7 @@ class OrdersReportsController extends Controller
         $statusBreakdown = $this->statusBreakdown($from, $to);
         $statusCards = $this->statusSummaryCards($statusBreakdown);
         $dailyTrend = $this->dailyOrderTrend($from, $to);
+        $accounting = $this->accountingReport->summarize($from, $to);
         $recentOrders = WhatsappCart::reportable()->forActiveCompany()
             ->with(['contact'])
             ->whereBetween('created_at', [$from, $to])
@@ -42,12 +47,21 @@ class OrdersReportsController extends Controller
             'statusCards',
             'statusBreakdown',
             'dailyTrend',
+            'accounting',
             'recentOrders',
             'statusLabels',
             'from',
             'to',
             'periodPreset',
         ));
+    }
+
+    /** Mismo período que la pantalla (respeta el filtro activo) -- los números del Excel siempre calzan con lo que se ve en pantalla. */
+    public function exportAccounting(Request $request): StreamedResponse
+    {
+        [$from, $to] = $this->resolveReportPeriod($request);
+
+        return $this->accountingReport->downloadResponse($from, $to);
     }
 
     /** @param  array<int, array{status: string, count: int, amount: float}>  $breakdown */

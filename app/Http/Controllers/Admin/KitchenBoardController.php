@@ -116,8 +116,8 @@ class KitchenBoardController extends Controller
                 WhatsappCart::STATUS_READY,
             ])
             ->with(['items.product', 'contact', 'branch'])
-            ->orderByRaw("CASE status WHEN 'confirmed' THEN 1 WHEN 'paid' THEN 2 WHEN 'preparing' THEN 3 WHEN 'ready' THEN 4 ELSE 5 END")
             ->orderBy('created_at')
+            ->orderBy('id')
             ->get()
             ->map(fn (WhatsappCart $order) => $this->mapOrder($order))
             ->all();
