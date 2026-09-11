@@ -121,6 +121,34 @@ class WhatsappChatbotConfig extends Model
     }
 
     /**
+     * Pedido explícito: "permíteme seleccionar los sonidos desde el panel
+     * administrativo". Cada evento de la pantalla de Pedidos (pedido nuevo,
+     * comprobante, factura confirmada, pedido de asesor) tiene su propio
+     * tono configurable -- ver los presets en public/js/admin-order-alerts.js.
+     *
+     * @return array<string, string>
+     */
+    public function getAlertSoundsAttribute(): array
+    {
+        $defaults = [
+            'new_order' => 'fuerte',
+            'payment_proof' => 'fuerte',
+            'invoice_confirmed' => 'normal',
+            'agent_request' => 'urgente',
+        ];
+        $allowed = ['suave', 'normal', 'fuerte', 'urgente'];
+        $stored = is_array($this->metadata['alert_sounds'] ?? null) ? $this->metadata['alert_sounds'] : [];
+
+        foreach (array_keys($defaults) as $key) {
+            if (in_array($stored[$key] ?? null, $allowed, true)) {
+                $defaults[$key] = $stored[$key];
+            }
+        }
+
+        return $defaults;
+    }
+
+    /**
      * Texto libre (banco, número de cuenta, titular, Zelle, Pago Móvil, etc.)
      * que se le manda al cliente junto con el costo confirmado del pedido
      * cuando pagará por transferencia o depósito.

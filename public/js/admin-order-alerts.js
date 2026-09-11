@@ -8,8 +8,36 @@
     if (!pollUrl) return;
 
     const CURSOR_KEY = 'wa_orders_since_id';
+    const EVENT_CURSOR_KEY = 'wa_order_events_since_id';
     const DISMISSED_KEY = 'wa_orders_dismissed_v1';
     const POLL_MS = 6000;
+
+    /**
+     * Pedido explícito: "quiero que sea más ruidoso o permíteme seleccionar
+     * los sonidos desde el panel administrativo". Cada perfil es un patrón
+     * de tonos distinto (volumen y repeticiones) -- el admin elige cuál usa
+     * cada evento desde Configuración del chatbot (config.alert_sounds),
+     * inyectado en window.WaOrderAlertsConfig.sounds.
+     */
+    const TONE_PRESETS = {
+        suave: { freqs: [660], gain: 0.07, duration: 0.3, repeats: 1, gapMs: 0 },
+        normal: { freqs: [740, 990], gain: 0.11, duration: 0.32, repeats: 1, gapMs: 180 },
+        fuerte: { freqs: [740, 990], gain: 0.22, duration: 0.4, repeats: 1, gapMs: 180 },
+        urgente: { freqs: [880, 1180], gain: 0.26, duration: 0.28, repeats: 3, gapMs: 160 },
+    };
+    const DEFAULT_SOUNDS = {
+        new_order: 'fuerte',
+        payment_proof: 'fuerte',
+        invoice_confirmed: 'normal',
+        agent_request: 'urgente',
+    };
+    const soundConfig = Object.assign({}, DEFAULT_SOUNDS, config.sounds || {});
+
+    const EVENT_LABELS = {
+        payment_proof: { icon: 'fa-receipt', title: 'Comprobante enviado' },
+        invoice_confirmed: { icon: 'fa-file-invoice', title: 'Factura confirmada' },
+        agent_request: { icon: 'fa-headset', title: 'Pidió hablar con un asesor' },
+    };
     const pageTitleBase = document.title;
     let audioContext = null;
     let pollInitialized = false;
@@ -42,6 +70,15 @@
         localStorage.setItem(CURSOR_KEY, String(id));
     }
 
+    function getEventCursor() {
+        const v = parseInt(localStorage.getItem(EVENT_CURSOR_KEY) || '0', 10);
+        return Number.isNaN(v) ? 0 : v;
+    }
+
+    function setEventCursor(id) {
+        localStorage.setItem(EVENT_CURSOR_KEY, String(id));
+    }
+
     function getDismissed() {
         try {
             return JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]');
@@ -54,29 +91,45 @@
         localStorage.setItem(DISMISSED_KEY, JSON.stringify(ids));
     }
 
-    /** Chime de dos tonos — distinto del de solicitud de asesor. */
-    function playOrderChime() {
+    /**
+     * Reproduce un patrón de tonos (ver TONE_PRESETS). presetName puede ser
+     * cualquier clave de TONE_PRESETS; si no existe, cae a "normal".
+     */
+    function playTone(presetName) {
         unlockAudio();
+        const preset = TONE_PRESETS[presetName] || TONE_PRESETS.normal;
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = audioContext || new AudioContext();
             audioContext = ctx;
 
-            [0, 0.18].forEach((delay, i) => {
-                const t0 = ctx.currentTime + delay;
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(i === 0 ? 740 : 990, t0);
-                gain.gain.setValueAtTime(0.0001, t0);
-                gain.gain.exponentialRampToValueAtTime(0.11, t0 + 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
-                osc.connect(gain).connect(ctx.destination);
-                osc.start(t0);
-                osc.stop(t0 + 0.32);
-            });
+            const repeatSpacing = preset.freqs.length * preset.gapMs + 260;
+            for (let r = 0; r < preset.repeats; r++) {
+                preset.freqs.forEach((freq, i) => {
+                    const t0 = ctx.currentTime + (r * repeatSpacing + i * preset.gapMs) / 1000;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, t0);
+                    gain.gain.setValueAtTime(0.0001, t0);
+                    gain.gain.exponentialRampToValueAtTime(preset.gain, t0 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + preset.duration);
+                    osc.connect(gain).connect(ctx.destination);
+                    osc.start(t0);
+                    osc.stop(t0 + preset.duration + 0.02);
+                });
+            }
         } catch (e) { /* ignore */ }
+    }
+
+    /** Compat: el sonido de pedido nuevo usa su propio preset configurable. */
+    function playOrderChime() {
+        playTone(soundConfig.new_order);
+    }
+
+    function playEventTone(eventType) {
+        playTone(soundConfig[eventType] || 'normal');
     }
 
     function escapeHtml(text) {
@@ -120,6 +173,33 @@
         toast.dataset.removing = '1';
         toast.style.animation = 'waToastOut .25s ease forwards';
         setTimeout(() => toast.remove(), 260);
+    }
+
+    /** Toast para los eventos de pedidos ya conocidos (comprobante, factura, asesor). */
+    function showEventToast(event) {
+        const stack = document.getElementById('wa-agent-toast-stack');
+        if (!stack) return;
+
+        const meta = EVENT_LABELS[event.type] || { icon: 'fa-bell', title: 'Actualización de pedido' };
+        const name = event.contact_name || 'Cliente';
+        const toast = document.createElement('div');
+        toast.className = 'wa-agent-toast';
+        toast.innerHTML = `
+            <div class="wa-agent-toast-icon wa-order-toast-icon"><i class="fas ${meta.icon}"></i></div>
+            <div class="wa-agent-toast-body">
+                <p class="wa-agent-toast-title">${escapeHtml(meta.title)} · ${escapeHtml(event.order_number || ('#' + event.order_id))}</p>
+                <p class="wa-agent-toast-text">${escapeHtml(name)}</p>
+                <div class="wa-agent-toast-time">Ahora · Toca para abrir el pedido</div>
+            </div>
+        `;
+
+        toast.addEventListener('click', function () {
+            window.location.href = ordersUrl(event.order_id);
+            removeToast(toast);
+        });
+
+        stack.prepend(toast);
+        setTimeout(() => removeToast(toast), 10000);
     }
 
     function showDesktopNotification(order) {
@@ -322,11 +402,37 @@
         deliverNotification(order, true);
     }
 
+    /**
+     * Igual que handleNewOrder pero para los eventos de pedidos YA
+     * conocidos (comprobante, factura, asesor) -- cada tipo tiene su propio
+     * sonido configurable (ver soundConfig) y dispara 'wa-orders:alert' para
+     * que la pantalla de Pedidos se refresque, igual que ya hace con
+     * 'wa-orders:new'.
+     */
+    function deliverEvent(event, playSound) {
+        if (playSound) playEventTone(event.type);
+        showEventToast(event);
+        flashTitle();
+        window.dispatchEvent(new CustomEvent('wa-orders:alert', { detail: { event } }));
+    }
+
+    function handleOrderEvent(event) {
+        const claimKey = `wa_order_event_claim_${event.id}`;
+        if (localStorage.getItem(claimKey)) return;
+        localStorage.setItem(claimKey, String(Date.now()));
+        setTimeout(() => localStorage.removeItem(claimKey), 15000);
+
+        if (broadcast) broadcast.postMessage({ type: 'order_event', event, playSound: true });
+        deliverEvent(event, true);
+    }
+
     if (broadcast) {
         broadcast.onmessage = function (event) {
             const data = event.data || {};
             if (data.type === 'new_order' && data.order) {
                 deliverNotification(data.order, !!data.playSound);
+            } else if (data.type === 'order_event' && data.event) {
+                deliverEvent(data.event, !!data.playSound);
             } else if (data.type === 'dismiss' && data.orderId) {
                 dismissOrder(data.orderId, false);
             }
@@ -334,7 +440,7 @@
     }
 
     function poll() {
-        fetch(pollUrl + '?since_id=' + getCursor(), {
+        fetch(pollUrl + '?since_id=' + getCursor() + '&since_event_id=' + getEventCursor(), {
             cache: 'no-store',
             headers: {
                 Accept: 'application/json',
@@ -356,12 +462,18 @@
                 updateGlobalBadge(pendingOrders.length);
                 if (panelOpen) renderNotificationPanel();
 
+                const incomingEvents = Array.isArray(data.events) ? data.events : [];
+                if (typeof data.latest_event_id === 'number') {
+                    setEventCursor(data.latest_event_id);
+                }
+
                 if (!pollInitialized) {
                     pollInitialized = true;
                     return;
                 }
 
                 brandNew.forEach(handleNewOrder);
+                incomingEvents.forEach(handleOrderEvent);
             })
             .catch(err => { console.warn('[WaOrderAlerts] poll falló', err); });
     }
@@ -412,5 +524,7 @@
     window.WaOrderAlerts = {
         dismiss: dismissOrder,
         playTest: playOrderChime,
+        playPreset: playTone,
+        presets: Object.keys(TONE_PRESETS),
     };
 })();

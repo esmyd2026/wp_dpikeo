@@ -12,6 +12,7 @@ use App\Models\BusinessFaq;
 use App\Models\DeliveryDriver;
 use App\Models\MarketingFlowStep;
 use App\Models\MessageTemplate;
+use App\Models\OrderAlertEvent;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
@@ -7778,6 +7779,8 @@ class WhatsappService
             $cart->invoice_status = 'none';
             $cart->save();
 
+            $this->alertStaffOfInvoicePreference($cart, $contact, 'consumidor_final');
+
             return ['type' => 'text', 'text' => ['body' => '✅ Perfecto, tu pedido queda como consumidor final.']];
         }
 
@@ -7785,7 +7788,41 @@ class WhatsappService
         $cart->invoice_status = 'requested';
         $cart->save();
 
+        $this->alertStaffOfInvoicePreference($cart, $contact, 'factura');
+
         return $this->resolveInvoiceDataStep($contact, $cart);
+    }
+
+    /**
+     * Pedido explícito en vivo: avisar al equipo por WhatsApp apenas el
+     * cliente elige factura o consumidor final -- mismo canal que ya se usa
+     * para comprobante de pago y solicitud de cancelación (ver
+     * alertStaffOfPaymentProof/alertStaffOfCancellationRequest).
+     */
+    private function alertStaffOfInvoicePreference(WhatsappCart $cart, WhatsappContact $contact, string $type): void
+    {
+        $this->logOrderAlertEvent($cart, OrderAlertEvent::TYPE_INVOICE_CONFIRMED, [
+            'order_number' => $cart->getOrderNumber(),
+            'contact_name' => $contact->name ?: $contact->phone_number,
+            'invoice_type' => $type,
+        ]);
+
+        $numbers = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
+        if ($numbers === []) {
+            return;
+        }
+
+        $clientLabel = $contact->name ?: $contact->phone_number;
+        $choiceLabel = $type === 'factura' ? 'Factura (pidió datos fiscales)' : 'Consumidor final';
+        $body = "🧾 *Preferencia de facturación*\n\n"
+            ."📦 Pedido: {$cart->getOrderNumber()}\n"
+            ."👤 Cliente: {$clientLabel}\n"
+            ."📄 Eligió: {$choiceLabel}\n\n"
+            .'Revísalo en el panel de Pedidos.';
+
+        foreach ($numbers as $number) {
+            $this->sendStaffAlert($number, $body);
+        }
     }
 
     /**
@@ -9589,8 +9626,35 @@ class WhatsappService
      * (delivery_dispatch_numbers) que ya se usa para alertar pedidos
      * demorados, ver OrderDelayAlertService.
      */
+    /**
+     * Registra un evento "sonoro" del panel de Pedidos (pago enviado,
+     * factura elegida, solicitud de asesor) -- lo consume
+     * AdminController::pollNewOrders() para que la pantalla de Pedidos
+     * suene/actualice ante estos cambios, no solo ante pedidos nuevos. No
+     * depende de tener números de despacho configurados (eso es solo para
+     * el aviso por WhatsApp al staff); esto es aparte, para el panel web.
+     */
+    private function logOrderAlertEvent(WhatsappCart $cart, string $type, array $payload = []): void
+    {
+        if (! $this->businessProfile) {
+            return;
+        }
+
+        OrderAlertEvent::create([
+            'business_profile_id' => $this->businessProfile->id,
+            'whatsapp_cart_id' => $cart->id,
+            'event_type' => $type,
+            'payload' => $payload,
+        ]);
+    }
+
     private function alertStaffOfPaymentProof(WhatsappCart $cart, WhatsappContact $contact): void
     {
+        $this->logOrderAlertEvent($cart, OrderAlertEvent::TYPE_PAYMENT_PROOF, [
+            'order_number' => $cart->getOrderNumber(),
+            'contact_name' => $contact->name ?: $contact->phone_number,
+        ]);
+
         $numbers = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
         if ($numbers === []) {
             return;
@@ -9621,6 +9685,23 @@ class WhatsappService
             'phone' => substr($phone, 0, 4).'****'.substr($phone, -4),
             'source' => $source,
         ]);
+
+        // Si tiene un pedido en curso, se asocia el evento a ese pedido para
+        // que la pantalla de Pedidos suene/actualice -- sin uno, no hay
+        // tarjeta de pedido a la que engancharlo, así que se omite.
+        $relatedCart = WhatsappCart::where('contact_id', $contact->id)
+            ->whereIn('status', [
+                WhatsappCart::STATUS_PENDING, WhatsappCart::STATUS_CONFIRMED, WhatsappCart::STATUS_PAYMENT_PENDING,
+                WhatsappCart::STATUS_PAID, WhatsappCart::STATUS_PREPARING, WhatsappCart::STATUS_READY,
+            ])
+            ->latest('id')
+            ->first();
+        if ($relatedCart) {
+            $this->logOrderAlertEvent($relatedCart, OrderAlertEvent::TYPE_AGENT_REQUEST, [
+                'order_number' => $relatedCart->getOrderNumber(),
+                'contact_name' => $contact->name ?: $contact->phone_number,
+            ]);
+        }
 
         $this->sendMessage($phone, $agentMessage);
     }

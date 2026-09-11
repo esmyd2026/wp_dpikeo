@@ -195,6 +195,8 @@ class ChatbotController extends Controller
             'card_payment_url' => 'nullable|url|starts_with:https://|max:500',
             'delivery_dispatch_keyword' => 'nullable|string|max:30',
             'delivery_dispatch_numbers' => 'nullable|string|max:500',
+            'alert_sounds' => 'nullable|array',
+            'alert_sounds.*' => 'nullable|string|in:suave,normal,fuerte,urgente',
             'privacy_notice_enabled' => 'nullable|boolean',
             'privacy_notice_text' => 'nullable|string|max:1024',
             'privacy_notice_link' => 'nullable|url|max:500',
@@ -276,6 +278,9 @@ class ChatbotController extends Controller
         $metadata['card_payment_url'] = trim((string) ($validated['card_payment_url'] ?? '')) ?: null;
         $metadata['delivery_dispatch_keyword'] = trim((string) ($validated['delivery_dispatch_keyword'] ?? '')) ?: '2501';
         $metadata['delivery_dispatch_numbers'] = trim((string) ($validated['delivery_dispatch_numbers'] ?? '')) ?: null;
+        if (array_key_exists('alert_sounds', $validated)) {
+            $metadata['alert_sounds'] = array_filter((array) $validated['alert_sounds']);
+        }
         $metadata['privacy_notice_enabled'] = $request->boolean('privacy_notice_enabled');
         $metadata['privacy_notice_text'] = $validated['privacy_notice_text'] ?? null;
         $metadata['privacy_notice_link'] = $validated['privacy_notice_link'] ?? url('/privacidad');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\WhatsappMessageFormatter;
+use App\Models\OrderAlertEvent;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappCartNote;
@@ -134,6 +135,7 @@ class AdminController extends Controller
     public function pollNewOrders(Request $request)
     {
         $sinceId = (int) $request->query('since_id', 0);
+        $sinceEventId = (int) $request->query('since_event_id', 0);
 
         // No tiene sentido alertar (ni seguir mostrando en el timbre) un
         // pedido que ya se canceló o ya se entregó -- esos ya no requieren
@@ -148,6 +150,24 @@ class AdminController extends Controller
 
         $latestId = max($sinceId, (int) (WhatsappCart::reportable()->forActiveCompany()->max('id') ?? 0));
 
+        // Pedido explícito: la pantalla de Pedidos debe sonar/actualizarse
+        // ante CUALQUIER cambio importante del cliente (pago enviado,
+        // factura elegida, pedido de asesor), no solo pedidos nuevos -- el
+        // cursor de arriba (since_id) nunca vuelve a traer un pedido YA
+        // conocido aunque le cambie el estado/metadata. Se sondea aparte,
+        // con su propio cursor, ver migración create_order_alert_events_table.
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $events = collect();
+        $latestEventId = $sinceEventId;
+        if ($businessProfileId) {
+            $events = OrderAlertEvent::where('business_profile_id', $businessProfileId)
+                ->where('id', '>', $sinceEventId)
+                ->orderBy('id')
+                ->limit(20)
+                ->get();
+            $latestEventId = max($sinceEventId, (int) (OrderAlertEvent::where('business_profile_id', $businessProfileId)->max('id') ?? 0));
+        }
+
         return response()->json([
             'latest_id' => $latestId,
             'orders' => $orders->map(fn (WhatsappCart $order) => [
@@ -156,6 +176,15 @@ class AdminController extends Controller
                 'contact_name' => $order->contact->name ?? 'Cliente',
                 'total' => (float) $order->total,
                 'created_at' => $order->created_at?->toIso8601String(),
+            ])->values(),
+            'latest_event_id' => $latestEventId,
+            'events' => $events->map(fn (OrderAlertEvent $event) => [
+                'id' => $event->id,
+                'order_id' => $event->whatsapp_cart_id,
+                'type' => $event->event_type,
+                'order_number' => $event->payload['order_number'] ?? null,
+                'contact_name' => $event->payload['contact_name'] ?? 'Cliente',
+                'created_at' => $event->created_at?->toIso8601String(),
             ])->values(),
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
@@ -297,6 +326,7 @@ class AdminController extends Controller
             'billing_id' => ['nullable', 'string', 'max:20'],
             'billing_legal_name' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],
+            'email' => ['nullable', 'email', 'max:255'],
             'sync_profile' => ['nullable', 'boolean'],
         ]);
 
@@ -307,6 +337,7 @@ class AdminController extends Controller
             'billing_id',
             'billing_legal_name',
             'address',
+            'email',
             'sync_profile',
         ];
         $updatesBilling = array_intersect($billingFields, array_keys($validated)) !== [];

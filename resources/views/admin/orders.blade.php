@@ -71,6 +71,7 @@
         'billing_id' => 'Número de cédula o RUC según el tipo seleccionado. Debe coincidir con los datos del SRI.',
         'billing_legal_name' => 'Nombre completo o razón social tal como debe figurar en la factura.',
         'address' => 'Dirección fiscal registrada para la factura electrónica.',
+        'email' => 'Correo donde se le envía la factura electrónica al cliente.',
         'confirmation_message' => 'Texto opcional que acompaña el PDF y los botones de confirmación en WhatsApp.',
         'product_name' => 'Nombre del producto o servicio incluido en el pedido.',
         'product_qty' => 'Unidades solicitadas de ese producto.',
@@ -218,6 +219,8 @@
     .o-tag.cancel-request { background: #fee2e2; color: #991b1b; animation: o-tag-pulse 1.6s ease-in-out infinite; }
     .o-tag.new-order { background: #dcfce7; color: #15803d; animation: o-tag-pulse 1.6s ease-in-out infinite; }
     .o-tag.empty { color: #cbd5e1; }
+    .o-tag.invoice-yes { background: #ede9fe; color: #5b21b6; }
+    .o-tag.invoice-no { background: #f1f5f9; color: #475569; }
     @keyframes o-tag-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 
     .o-tag.fulfil-retiro { background: #e0f2fe; color: #0369a1; }
@@ -1087,6 +1090,13 @@
                                 && ($order->metadata['delivery_fee_pending_review'] ?? false);
                             $cancellationRequested = ($order->metadata['cancellation_requested_at'] ?? null)
                                 && ! in_array($order->status, ['completed', 'cancelled'], true);
+                            // "Consumidor final" solo se marca si el bot ya
+                            // preguntó/decidió (invoice_prompt_sent) -- antes
+                            // de eso requires_invoice=false solo significa
+                            // "todavía no se sabe", no que el cliente haya
+                            // elegido consumidor final.
+                            $invoiceDecided = (bool) ($order->metadata['invoice_prompt_sent'] ?? false);
+                            $showsInvoiceTag = $order->requires_invoice || $invoiceDecided;
                             $hasTags = $isRecentOrder
                                 || ($canViewInternalNotes && ($order->internal_notes_count ?? 0) > 0)
                                 || ($canViewFollowup && ($order->feedback_count ?? 0) > 0)
@@ -1095,6 +1105,7 @@
                                 || $order->isAwaitingPaymentProof()
                                 || $order->status === 'cancelled'
                                 || $cancellationRequested
+                                || $showsInvoiceTag
                                 || $fulfillmentServiceType;
                             $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
                             // Si ya llegó el comprobante, "Esperando pago" es
@@ -1161,6 +1172,11 @@
                                     @endif
                                     @if($cancellationRequested)
                                         <span class="o-tag cancel-request"><i class="fas fa-triangle-exclamation"></i> Cliente pidió cancelar</span>
+                                    @endif
+                                    @if($order->requires_invoice)
+                                        <span class="o-tag invoice-yes"><i class="fas fa-file-invoice"></i> Con datos</span>
+                                    @elseif($invoiceDecided)
+                                        <span class="o-tag invoice-no"><i class="fas fa-user"></i> Consumidor final</span>
                                     @endif
                                     @unless($hasTags)
                                         <span class="o-tag empty"><i class="fas fa-circle-check"></i> Sin novedades</span>
@@ -1531,13 +1547,17 @@ function renderOrderModal(order) {
                         <label class="form-label small d-block">${fieldLabel('Dirección fiscal', 'address')}</label>
                         <input type="text" class="form-control form-control-sm" name="address" value="${esc(b.address || '')}">
                     </div>
+                    <div class="col-12">
+                        <label class="form-label small d-block">${fieldLabel('Correo', 'email')}</label>
+                        <input type="email" class="form-control form-control-sm" name="email" value="${esc(b.email || '')}">
+                    </div>
                 </div>
                 <div class="order-callout sync mb-2"><i class="fas fa-sync-alt me-1"></i> Al guardar, los datos fiscales se copian al perfil del cliente.</div>
                 <button type="submit" class="o-btn primary btn-sm"><i class="fas fa-save me-1"></i>Guardar facturación</button>
             </form>`;
         } else if (order.requires_invoice) {
             html += `<p class="mb-1"><strong>${esc(order.invoice_status_label)}</strong></p>
-                <p class="small text-muted mb-0">${esc(b.billing_type?.toUpperCase())} ${esc(b.billing_id)} · ${esc(b.billing_legal_name)}</p>`;
+                <p class="small text-muted mb-0">${esc(b.billing_type?.toUpperCase())} ${esc(b.billing_id)} · ${esc(b.billing_legal_name)}${b.email ? ' · ' + esc(b.email) : ''}</p>`;
         }
         if (order.agent_checklist?.length) {
             html += `<ul class="checklist mt-3 pt-2 border-top">`;
@@ -1697,6 +1717,36 @@ function renderFulfillmentSection(order) {
     return html;
 }
 
+/**
+ * Pedido explícito en vivo: este botón manda un mensaje real al cliente
+ * cada vez que se aprieta -- si ya se le había avisado este costo antes, o
+ * si ya mandó su comprobante de pago, reenviarlo puede confundirlo (o hacer
+ * que pague de más creyendo que el monto cambió). Se le advierte al
+ * operador con lo que el sistema YA sabe (no hay que llenar nada a mano:
+ * delivery_fee_confirmed_at lo guarda solo el primer "Confirmar", y el
+ * estado del comprobante ya viene en order.payment).
+ */
+function confirmFulfillmentCostsSend(fee) {
+    const f = currentOrderData?.fulfillment;
+    const payment = currentOrderData?.payment;
+    const warnings = [];
+
+    if (f?.delivery_fee_confirmed_at) {
+        const when = new Date(f.delivery_fee_confirmed_at).toLocaleString('es-EC', { dateStyle: 'medium', timeStyle: 'short' });
+        warnings.push(`⚠️ Ya le avisaste este costo al cliente antes (${when}).`);
+    }
+    if (payment?.state === 'submitted') {
+        warnings.push('⚠️ El cliente YA ENVIÓ su comprobante de pago. Reenviar este mensaje puede confundirlo o hacer que pague de más.');
+    } else if (['paid', 'confirmed', 'preparing', 'ready', 'completed'].includes(currentOrderData?.status)) {
+        warnings.push('⚠️ Este pedido ya avanzó de etapa (probablemente ya se pagó). Revisa antes de reenviar.');
+    }
+
+    const question = `¿Confirmar $${fee.toFixed(2)} de envío y avisarle al cliente por WhatsApp?`;
+    const message = warnings.length ? warnings.join('\n') + '\n\n' + question : question;
+
+    return confirm(message);
+}
+
 function sendFulfillmentCosts(e) {
     e.preventDefault();
     if (!currentOrderId) return;
@@ -1706,6 +1756,7 @@ function sendFulfillmentCosts(e) {
     const raw = form.get('delivery_fee');
     const fee = parseFloat(raw);
     if (raw === '' || isNaN(fee) || fee < 0) return;
+    if (!confirmFulfillmentCostsSend(fee)) return;
     payload.delivery_fee = fee;
 
     fetch(FULFILLMENT_COSTS_URL_TEMPLATE.replace('__ID__', currentOrderId), {
@@ -1849,6 +1900,7 @@ function saveOrderInvoice(e) {
         billing_id: fd.get('billing_id'),
         billing_legal_name: fd.get('billing_legal_name'),
         address: fd.get('address'),
+        email: fd.get('email'),
         sync_profile: true,
     };
     fetch(`/admin/orders/${currentOrderId}`, {
@@ -2159,6 +2211,33 @@ document.addEventListener('keydown', e => {
         const modalOpen = document.getElementById('orderModal')?.classList.contains('is-open')
             || document.getElementById('statusModal')?.classList.contains('is-open');
         if (!modalOpen) {
+            setTimeout(() => window.location.reload(), 2500);
+        }
+    });
+
+    // Pedido explícito: la pantalla de Pedidos debe actualizarse ante
+    // CUALQUIER cambio importante del cliente, no solo pedidos nuevos --
+    // comprobante enviado, factura elegida, o pedido de hablar con un
+    // asesor (ver admin-order-alerts.js, evento 'wa-orders:alert').
+    window.addEventListener('wa-orders:alert', function (e) {
+        const event = e.detail?.event;
+        if (!event) return;
+
+        const labels = {
+            payment_proof: '📎 Comprobante enviado',
+            invoice_confirmed: '🧾 Factura confirmada',
+            agent_request: '🎧 Pidió hablar con un asesor',
+        };
+        showToast((labels[event.type] || 'Actualización') + ' · ' + (event.order_number || ('#' + event.order_id)));
+
+        const modalOpen = document.getElementById('orderModal')?.classList.contains('is-open');
+        const statusModalOpen = document.getElementById('statusModal')?.classList.contains('is-open');
+        if (statusModalOpen) return;
+
+        if (modalOpen && currentOrderId === event.order_id) {
+            // Mismo pedido que ya se está viendo: refresca solo ese detalle.
+            showOrderDetails(event.order_id);
+        } else if (!modalOpen) {
             setTimeout(() => window.location.reload(), 2500);
         }
     });

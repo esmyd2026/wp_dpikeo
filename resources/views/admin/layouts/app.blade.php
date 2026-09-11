@@ -1464,14 +1464,32 @@
     @endperm
 
     @perm('orders.view')
+    @php
+        // Este layout se comparte con TODA página admin -- si la empresa
+        // activa tiene varios números y ninguno marcado como principal,
+        // CompanyContext::current()->businessProfileId() lanza a propósito
+        // (fail-closed, ver WhatsappPrimaryProfileResolutionTest). Sin este
+        // try/catch, eso tumbaba cualquier pantalla del panel, no solo la
+        // config de sonidos -- que en ese caso simplemente usa los
+        // predeterminados.
+        try {
+            $orderAlertsBusinessProfileId = \App\Support\CompanyContext::current()->businessProfileId();
+        } catch (\Throwable $e) {
+            $orderAlertsBusinessProfileId = null;
+        }
+        $orderAlertsConfig = $orderAlertsBusinessProfileId
+            ? \App\Models\WhatsappChatbotConfig::where('business_profile_id', $orderAlertsBusinessProfileId)->first()
+            : null;
+    @endphp
     <script>
         window.WaOrderAlertsConfig = {
             pollUrl: @json(route('admin.orders.poll')),
             ordersUrl: @json(route('admin.orders')),
             favicon: @json(asset('favicon.svg')),
+            sounds: @json($orderAlertsConfig?->alert_sounds ?? []),
         };
     </script>
-    <script src="{{ asset('js/admin-order-alerts.js') }}?v=2" defer></script>
+    <script src="{{ asset('js/admin-order-alerts.js') }}?v=3" defer></script>
     @endperm
 
     @perm('message_failures.view')

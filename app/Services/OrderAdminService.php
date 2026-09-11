@@ -119,6 +119,11 @@ class OrderAdminService
             'delivery_fee' => $order->metadata['delivery_fee'] ?? null,
             'delivery_fee_pending_review' => (bool) ($order->metadata['delivery_fee_pending_review'] ?? false),
             'delivery_distance_km' => $order->metadata['delivery_distance_km'] ?? null,
+            // Pedido explícito en vivo: reenviar "Confirmar y avisar al
+            // cliente" sin darse cuenta de que ya se le avisó antes (y ya
+            // pagó) puede confundirlo o llevarlo a pagar de más -- el
+            // frontend usa esto para advertir al operador antes de reenviar.
+            'delivery_fee_confirmed_at' => $order->metadata['delivery_fee_confirmed_at'] ?? null,
         ];
     }
 
@@ -186,6 +191,10 @@ class OrderAdminService
             'billing_id' => $stored['billing_id'] ?? $contact?->billing_id ?? $contact?->national_id ?? '',
             'billing_legal_name' => $stored['billing_legal_name'] ?? $contact?->billing_legal_name ?? $contact?->name ?? '',
             'address' => $stored['address'] ?? $contact?->address ?? '',
+            // La clave en invoice_data es "email" (así lo guarda el bot, ver
+            // WhatsappService::parseInvoiceDataMessage) -- el contacto en
+            // cambio usa la columna "billing_email".
+            'email' => $stored['email'] ?? $contact?->billing_email ?? '',
         ];
     }
 
@@ -209,7 +218,7 @@ class OrderAdminService
             }
         }
 
-        $billingKeys = ['billing_type', 'billing_id', 'billing_legal_name', 'address'];
+        $billingKeys = ['billing_type', 'billing_id', 'billing_legal_name', 'address', 'email'];
         $billingInput = array_intersect_key($data, array_flip($billingKeys));
         if ($billingInput !== []) {
             $current = is_array($order->invoice_data) ? $order->invoice_data : [];
@@ -255,6 +264,9 @@ class OrderAdminService
         }
         if (!empty($billing['address'])) {
             $updates['address'] = trim($billing['address']);
+        }
+        if (!empty($billing['email'])) {
+            $updates['billing_email'] = trim($billing['email']);
         }
 
         if ($updates !== []) {

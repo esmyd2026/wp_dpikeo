@@ -130,7 +130,42 @@
                         <p class="mt-1 text-xs text-gray-500">
                             Solo estos números pueden usar la palabra clave — para cualquier otro contacto (incluidos
                             los clientes), el bot la ignora por completo. Déjalo vacío para desactivar esta función.
+                            Estos mismos números también reciben por WhatsApp los avisos automáticos de comprobante
+                            recibido y preferencia de facturación.
                         </p>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700">🔔 Sonidos de alerta en el panel</label>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Elige qué tan fuerte suena cada evento en la pantalla de Pedidos. "Urgente" repite el tono
+                            3 veces — pensado para lo que necesita atención inmediata.
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
+                            @php
+                                $alertSoundLabels = [
+                                    'new_order' => 'Pedido nuevo',
+                                    'payment_proof' => 'Comprobante enviado',
+                                    'invoice_confirmed' => 'Factura / consumidor final elegido',
+                                    'agent_request' => 'Pidió hablar con un asesor',
+                                ];
+                                $alertSoundOptions = ['suave' => 'Suave', 'normal' => 'Normal', 'fuerte' => 'Fuerte', 'urgente' => 'Urgente (repite 3x)'];
+                            @endphp
+                            @foreach($alertSoundLabels as $eventKey => $eventLabel)
+                                <div>
+                                    <label for="alert_sound_{{ $eventKey }}" class="block text-xs font-medium text-gray-700">{{ $eventLabel }}</label>
+                                    <div class="mt-1 flex gap-1">
+                                        <select id="alert_sound_{{ $eventKey }}" name="alert_sounds[{{ $eventKey }}]"
+                                            class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                                            @foreach($alertSoundOptions as $value => $label)
+                                                <option value="{{ $value }}" {{ old('alert_sounds.'.$eventKey, $config->alert_sounds[$eventKey] ?? '') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="button" class="alert-sound-test-btn px-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50" title="Probar sonido" data-target="alert_sound_{{ $eventKey }}"><i class="fas fa-play"></i></button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
                     </div>
 
                     <div class="sm:col-span-2">
@@ -582,6 +617,14 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    document.querySelectorAll('.alert-sound-test-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+            const select = document.getElementById(button.dataset.target);
+            if (!select || !window.WaOrderAlerts) return;
+            window.WaOrderAlerts.playPreset(select.value);
+        });
+    });
+
     document.querySelectorAll('[data-template-variable]').forEach((button) => {
         button.addEventListener('click', () => {
             const textarea = document.getElementById(button.dataset.templateTarget);

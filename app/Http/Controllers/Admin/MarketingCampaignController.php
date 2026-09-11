@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCampaign;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappPrice;
@@ -113,9 +112,15 @@ class MarketingCampaignController extends Controller
             'send_immediately' => 'nullable|boolean',
         ]);
 
-        $businessProfile = WhatsappBusinessProfile::first();
+        // Bug real reportado en vivo: esto usaba WhatsappBusinessProfile::first()
+        // -- el primer perfil de TODA la plataforma, sin importar la empresa
+        // activa. La campaña quedaba creada con el business_profile_id de
+        // otra empresa, así que al redirigir a "ver campaña" (que sí filtra
+        // por la empresa activa, ver campaignQuery()) el findOrFail() nunca
+        // la encontraba y mostraba 404.
+        $businessProfile = CompanyContext::current()->businessProfile;
         if (! $businessProfile) {
-            return redirect()->back()->with('error', 'No se encontró un perfil de negocio configurado');
+            return redirect()->back()->with('error', 'No se encontró un perfil de negocio configurado para tu empresa');
         }
 
         // Manejar números manuales - crear contactos temporales si es necesario
@@ -175,12 +180,12 @@ class MarketingCampaignController extends Controller
             'recipient_type' => $validated['recipient_type'],
             'recipient_filters' => $validated['recipient_filters'] ?? null,
             'selected_contacts' => $validated['selected_contacts'] ?? null,
-            'status' => $validated['scheduled_at'] ? 'scheduled' : 'draft',
+            'status' => ($validated['scheduled_at'] ?? null) ? 'scheduled' : 'draft',
             'scheduled_at' => $validated['scheduled_at'] ?? null,
             'total_recipients' => $totalRecipients,
         ]);
 
-        if ($request->boolean('send_immediately') && ! $validated['scheduled_at']) {
+        if ($request->boolean('send_immediately') && ! ($validated['scheduled_at'] ?? null)) {
             $result = $this->executeCampaignSend($campaign->fresh());
             $route = redirect()->route('admin.marketing.show', $campaign);
 
@@ -192,7 +197,7 @@ class MarketingCampaignController extends Controller
         }
 
         return redirect()->route('admin.marketing.index')
-            ->with('success', $validated['scheduled_at']
+            ->with('success', ($validated['scheduled_at'] ?? null)
                 ? 'Campaña programada. Se enviará automáticamente si el programador (cron) está activo.'
                 : 'Campaña creada. Pulsa "Enviar" en la lista para lanzarla.');
     }
@@ -306,7 +311,7 @@ class MarketingCampaignController extends Controller
             'recipient_type' => $validated['recipient_type'],
             'recipient_filters' => $validated['recipient_filters'] ?? null,
             'selected_contacts' => $validated['selected_contacts'] ?? null,
-            'status' => $validated['scheduled_at'] ? 'scheduled' : 'draft',
+            'status' => ($validated['scheduled_at'] ?? null) ? 'scheduled' : 'draft',
             'scheduled_at' => $validated['scheduled_at'] ?? null,
             'total_recipients' => $totalRecipients,
         ]);
