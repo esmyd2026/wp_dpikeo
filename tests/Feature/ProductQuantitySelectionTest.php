@@ -108,6 +108,48 @@ class ProductQuantitySelectionTest extends TestCase
         $this->assertNotContains('pedir_cantidad_'.$product->id.'_base', $buttonIds);
     }
 
+    public function test_stale_product_buttons_recover_without_creating_an_empty_cart(): void
+    {
+        [$product, $contact] = $this->catalogProduct(allowQuantity: true);
+        $productId = $product->id;
+        $product->delete();
+        $service = new WhatsappService;
+
+        $quantityResponse = $this->invoke($service, 'showQuantitySelection', [$contact, $productId, null]);
+        $variationResponse = $this->invoke($service, 'showVariationSelection', [$productId, $contact]);
+
+        $this->assertStringContainsString('ya no está disponible', $quantityResponse['text']['body']);
+        $this->assertStringContainsString('ya no está disponible', $variationResponse['text']['body']);
+        $this->assertDatabaseMissing('whatsapp_carts', ['contact_id' => $contact->id]);
+    }
+
+    public function test_invalid_or_excessive_quantities_never_create_or_corrupt_a_cart(): void
+    {
+        [$product, $contact] = $this->catalogProduct(allowQuantity: true, min: 1, max: 8);
+        $service = new WhatsappService;
+
+        foreach ([0, -2, 9, 999999] as $invalidQuantity) {
+            $response = $this->invoke($service, 'addToCart', [$contact, $product->id, $invalidQuantity, null]);
+            $this->assertStringContainsString('cantidad debe estar entre', $response['text']['body']);
+        }
+
+        $this->assertDatabaseMissing('whatsapp_carts', ['contact_id' => $contact->id]);
+    }
+
+    public function test_invalid_variation_does_not_fall_back_to_the_base_product(): void
+    {
+        [$product, $contact] = $this->catalogProduct(allowQuantity: true);
+        $product->forceFill([
+            'metadata' => ['variations' => [['title' => 'Grande', 'price' => 12.50]]],
+        ])->save();
+        $service = new WhatsappService;
+
+        $response = $this->invoke($service, 'addToCart', [$contact, $product->id, 1, 99]);
+
+        $this->assertStringContainsString('opción del producto ya no está disponible', $response['text']['body']);
+        $this->assertDatabaseMissing('whatsapp_carts', ['contact_id' => $contact->id]);
+    }
+
     /** @return array{WhatsappPrice, WhatsappContact} */
     private function catalogProduct(bool $allowQuantity, int $min = 1, int $max = 99): array
     {

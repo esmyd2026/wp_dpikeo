@@ -481,7 +481,7 @@ class AdminController extends Controller
         }
 
         $botWhatsApp = WhatsappBusinessProfile::publicWhatsAppLink();
-        $chatbotConfig = WhatsappChatbotConfig::first();
+        $chatbotConfig = CompanyContext::current()->chatbotConfig();
         if ($botWhatsApp && $chatbotConfig?->bot_name) {
             $botWhatsApp['label'] = $chatbotConfig->bot_name;
         }
@@ -783,9 +783,9 @@ class AdminController extends Controller
         $lastInboundWamid = $whatsappService->syncContactLastInbound($contact);
         $typingAvailable = ! empty($lastInboundWamid);
 
-        $chatbotConfig = ($contact->business_profile_id
+        $chatbotConfig = $contact->business_profile_id
             ? WhatsappChatbotConfig::where('business_profile_id', $contact->business_profile_id)->first()
-            : null) ?? WhatsappChatbotConfig::first();
+            : CompanyContext::current()->chatbotConfig();
 
         return view('admin.chat', compact('contacts', 'contact', 'messages', 'stats', 'globalStats', 'lastInboundWamid', 'typingAvailable', 'chatbotConfig'));
     }
@@ -801,7 +801,11 @@ class AdminController extends Controller
         // dashboard aparte), así que las mismas consultas por-mensaje que
         // se arreglaron en chat() acá se multiplicaban por todos los
         // contactos de la empresa.
-        $allMessages = WhatsappMessage::orderBy('created_at')->get();
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $allMessages = WhatsappMessage::query()
+            ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+            ->orderBy('created_at')
+            ->get();
 
         $isClient = fn ($m) => $m->sender_type === 'client';
         $isSystem = fn ($m) => $m->sender_type === 'system';
@@ -1022,7 +1026,8 @@ class AdminController extends Controller
 
     public function contactDetails($id)
     {
-        $contact = WhatsappContact::findOrFail($id);
+        $contact = $this->findContactForActiveCompany($id);
+        abort_unless($contact, 404);
 
         return response()->json($contact);
     }
@@ -1034,7 +1039,10 @@ class AdminController extends Controller
             'whatsapp_message_id' => 'nullable|string|max:255',
         ]);
 
-        $contact = WhatsappContact::findOrFail($request->contact_id);
+        $contact = $this->findContactForActiveCompany($request->contact_id);
+        if (! $contact) {
+            return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+        }
         $whatsappService = new WhatsappService;
 
         try {
@@ -1099,7 +1107,10 @@ class AdminController extends Controller
         ]);
 
         try {
-            $contact = WhatsappContact::findOrFail($request->contact_id);
+            $contact = $this->findContactForActiveCompany($request->contact_id);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
             $whatsappService = new WhatsappService;
             $whatsappService->useBusinessProfile($contact->businessProfile);
 
@@ -1299,7 +1310,10 @@ class AdminController extends Controller
                 'enabled' => 'required|boolean',
             ]);
 
-            $contact = WhatsappContact::findOrFail($contactId);
+            $contact = $this->findContactForActiveCompany($contactId);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
             $contact->bot_enabled = $request->enabled;
             $contact->save();
 
@@ -1329,7 +1343,10 @@ class AdminController extends Controller
     public function dismissAgentRequest($contactId)
     {
         try {
-            $contact = WhatsappContact::findOrFail($contactId);
+            $contact = $this->findContactForActiveCompany($contactId);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
             $contact->clearAgentRequest(auth()->id());
 
             return response()->json([
@@ -1358,7 +1375,10 @@ class AdminController extends Controller
     public function resetConversation($contactId, AbandonedCartService $abandonedCarts)
     {
         try {
-            $contact = WhatsappContact::findOrFail($contactId);
+            $contact = $this->findContactForActiveCompany($contactId);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
 
             $cart = WhatsappCart::where('contact_id', $contact->id)
                 ->whereIn('status', ['active', WhatsappCart::STATUS_PAYMENT_PENDING])
@@ -1484,6 +1504,15 @@ class AdminController extends Controller
         return $this->enrichContactsForSidebar($contacts, $currentContactId);
     }
 
+    private function findContactForActiveCompany($contactId): ?WhatsappContact
+    {
+        $businessProfileId = CompanyContext::current()->businessProfileId();
+
+        return WhatsappContact::query()
+            ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+            ->find($contactId);
+    }
+
     /**
      * Datos de sidebar: último mensaje (cualquier emisor), preview y fecha.
      */
@@ -1580,7 +1609,10 @@ class AdminController extends Controller
     public function getImage($messageId)
     {
         try {
-            $message = WhatsappMessage::findOrFail($messageId);
+            $businessProfileId = CompanyContext::current()->businessProfileId();
+            $message = WhatsappMessage::query()
+                ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+                ->findOrFail($messageId);
 
             if ($message->type !== 'image') {
                 // Retornar placeholder en lugar de error JSON

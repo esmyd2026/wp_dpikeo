@@ -206,10 +206,7 @@ class WhatsappService
     private function scopedChatbotConfig(): ?WhatsappChatbotConfig
     {
         if ($this->businessProfile) {
-            $config = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first();
-            if ($config) {
-                return $config;
-            }
+            return WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first();
         }
 
         return WhatsappChatbotConfig::first();
@@ -791,11 +788,33 @@ class WhatsappService
                 //    'contenido' => $message['text'] ?? ($message['interactive'] ?? null)
                 // ]);
 
+                // Se chequea ANTES de despachar al handler del tipo (cada uno
+                // crea el contacto por su cuenta con firstOrCreate/create si
+                // no existía) para poder avisar "cliente nuevo" sin importar
+                // con qué tipo de mensaje se presentó por primera vez.
+                $isFirstContactMessage = ! WhatsappContact::query()
+                    ->where('phone_number', $message['from'])
+                    ->when($this->businessProfile, fn ($q) => $q->where('business_profile_id', $this->businessProfile->id))
+                    ->exists();
+
                 // Procesar según el tipo de mensaje
                 if ($message['type'] === 'text') {
-                    $this->handleTextMessage($message);
+                    $text = is_array($message['text'] ?? null)
+                        ? ($message['text']['body'] ?? null)
+                        : ($message['text'] ?? null);
+                    if (! is_string($text) || trim($text) === '') {
+                        $this->handleMalformedInboundMessage($message, 'mensaje de texto vacío');
+                    } else {
+                        $this->handleTextMessage($message);
+                    }
                 } elseif ($message['type'] === 'interactive') {
-                    $this->handleInteractiveMessage($message);
+                    $interactive = $message['interactive'] ?? null;
+                    if (! is_array($interactive)
+                        || ! in_array($interactive['type'] ?? null, ['button_reply', 'list_reply', 'nfm_reply'], true)) {
+                        $this->handleMalformedInboundMessage($message, 'respuesta interactiva incompleta');
+                    } else {
+                        $this->handleInteractiveMessage($message);
+                    }
                 } elseif ($message['type'] === 'order') {
                     $this->handleNativeCatalogOrder($message);
                 } elseif ($message['type'] === 'image') {
@@ -810,6 +829,8 @@ class WhatsappService
                     $this->handleLocationMessage($message);
                 } elseif ($message['type'] === 'sticker') {
                     $this->handleStickerMessage($message);
+                } elseif ($message['type'] === 'contacts' || $message['type'] === 'contact') {
+                    $this->handleSharedContactsMessage($message);
                 } elseif ($message['type'] === 'button') {
                     $this->handleButtonMessage($message);
                 }
@@ -819,8 +840,14 @@ class WhatsappService
                     $this->markMessageAsRead($message['id'], $message['from']);
                 }
 
-                // Enviar notificaciones de monitoreo
-                $this->sendMonitoringNotifications($message);
+                if ($isFirstContactMessage) {
+                    $this->sendMonitoringNotificationForEvent(
+                        'new_contact',
+                        'Cliente nuevo',
+                        '👋 Un cliente nuevo escribió por primera vez al bot.',
+                        $message['from']
+                    );
+                }
             } finally {
                 $lock->release();
             }
@@ -893,6 +920,95 @@ class WhatsappService
                 'line' => $e->getLine(),
                 'message' => $message,
             ]);
+        }
+    }
+
+    /**
+     * WhatsApp permite compartir tarjetas de contacto. El bot no las usa
+     * como datos de entrega, pero debe registrarlas y ofrecer una salida
+     * clara; antes las ignoraba por completo y el cliente quedaba en silencio.
+     */
+    private function handleSharedContactsMessage(array $message): void
+    {
+        $from = (string) $message['from'];
+        $contact = $this->findContactByPhone($from);
+
+        if (! $contact) {
+            $sender = $message['contacts'][0] ?? [];
+            $contact = WhatsappContact::create([
+                'business_profile_id' => $this->businessProfile->id,
+                'phone_number' => $from,
+                'name' => $sender['profile']['name'] ?? 'Contacto sin nombre',
+                'status' => 'active',
+            ]);
+        }
+
+        $sharedContacts = $message['shared_contacts'] ?? $message['contact'] ?? [];
+        $firstShared = is_array($sharedContacts) ? ($sharedContacts[0] ?? $sharedContacts) : [];
+        $sharedName = trim((string) ($firstShared['name']['formatted_name'] ?? $firstShared['name'] ?? ''));
+
+        WhatsappMessage::create([
+            'contact_id' => $contact->id,
+            'business_profile_id' => $this->businessProfile->id,
+            'message_id' => $message['id'],
+            'content' => $sharedName !== '' ? 'Contacto compartido: '.$sharedName : 'Contacto compartido',
+            'type' => 'contacts',
+            'status' => 'received',
+            'sender_type' => 'client',
+            'receiver_type' => 'system',
+            'metadata' => ['shared_contacts' => $sharedContacts],
+        ]);
+
+        if ($this->botMayRespondToContact($contact)) {
+            $this->sendMessage(
+                $from,
+                $this->getMainMenu('✅ Recibí el contacto. Si necesitas usarlo para tu pedido, escríbenos o elige una opción:', $contact)
+            );
+        }
+    }
+
+    /**
+     * Conserva la idempotencia y ofrece recuperación ante payloads que tienen
+     * remitente e id válidos, pero cuyo contenido llegó vacío o incompleto.
+     */
+    private function handleMalformedInboundMessage(array $message, string $reason): void
+    {
+        $from = (string) $message['from'];
+        $contact = $this->findContactByPhone($from);
+
+        if (! $contact) {
+            $sender = $message['contacts'][0] ?? [];
+            $contact = WhatsappContact::create([
+                'business_profile_id' => $this->businessProfile->id,
+                'phone_number' => $from,
+                'name' => $sender['profile']['name'] ?? 'Contacto sin nombre',
+                'status' => 'active',
+            ]);
+        }
+
+        WhatsappMessage::create([
+            'contact_id' => $contact->id,
+            'business_profile_id' => $this->businessProfile->id,
+            'message_id' => $message['id'],
+            'content' => 'Mensaje no procesable',
+            'type' => (string) ($message['type'] ?? 'unknown'),
+            'status' => 'received',
+            'sender_type' => 'client',
+            'receiver_type' => 'system',
+            'metadata' => ['processing_issue' => $reason],
+        ]);
+
+        Log::warning('[processIncomingMessage] Contenido incompleto; se ofrece recuperación', [
+            'message_id' => $message['id'],
+            'type' => $message['type'] ?? null,
+            'reason' => $reason,
+        ]);
+
+        if ($this->botMayRespondToContact($contact)) {
+            $this->sendMessage(
+                $from,
+                $this->getMainMenu('🙏 No pude leer esa respuesta. Puedes intentarlo otra vez o continuar desde el menú:', $contact)
+            );
         }
     }
 
@@ -1392,8 +1508,21 @@ class WhatsappService
                 return;
             }
 
-            // Solo actualizar si el nuevo estado es más reciente
-            if ($timestamp && $message->updated_at && strtotime($timestamp) <= strtotime($message->updated_at)) {
+            // Meta entrega este valor normalmente como epoch Unix en texto.
+            // No se debe comparar contra updated_at: esa fecha pertenece a
+            // nuestra base y puede ser posterior aunque el evento sea válido.
+            $eventTimestamp = is_numeric($timestamp)
+                ? (int) $timestamp
+                : (($parsed = $timestamp ? strtotime((string) $timestamp) : false) !== false ? $parsed : null);
+            $metadata = is_array($message->metadata) ? $message->metadata : [];
+            $lastEventTimestamp = isset($metadata['status_timestamp']) && is_numeric($metadata['status_timestamp'])
+                ? (int) $metadata['status_timestamp']
+                : null;
+
+            // Solo actualizar si el evento no es anterior al último estado de
+            // Meta ya aplicado. Eventos con igual timestamp pueden representar
+            // el avance sent -> delivered -> read dentro del mismo segundo.
+            if ($eventTimestamp !== null && $lastEventTimestamp !== null && $eventTimestamp < $lastEventTimestamp) {
                 Log::info('[updateMessageStatus] ⏭️ Estado obsoleto ignorado', [
                     'message_id' => $status['id'],
                     'estado_actual' => $message->status,
@@ -1404,6 +1533,10 @@ class WhatsappService
             }
 
             $message->status = $newStatus;
+            if ($eventTimestamp !== null) {
+                $metadata['status_timestamp'] = $eventTimestamp;
+                $message->metadata = $metadata;
+            }
             $message->save();
 
             Log::info('[updateMessageStatus] ✅ Estado actualizado', [
@@ -1416,6 +1549,16 @@ class WhatsappService
                 'linea' => $e->getLine(),
             ]);
         }
+    }
+
+    /**
+     * Punto de entrada controlado para los estados enviados por el webhook.
+     * El controlador no debe conocer ni replicar las reglas de orden temporal
+     * que aplica updateMessageStatus().
+     */
+    public function processMessageStatus(array $status): void
+    {
+        $this->updateMessageStatus($status);
     }
 
     /**
@@ -2159,8 +2302,7 @@ class WhatsappService
             return;
         }
 
-        $config = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first()
-            ?? WhatsappChatbotConfig::first();
+        $config = $this->scopedChatbotConfig();
 
         if (! ($config?->metadata['privacy_notice_enabled'] ?? false)) {
             return;
@@ -2713,7 +2855,7 @@ class WhatsappService
             $contact = $this->findContactByPhone($from);
             if (! $contact) {
                 // Obtener datos del contacto del webhook
-                $contactData = $message['contacts'][0] ?? [];
+                $contactData = $data['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
                 $contactName = $profile['name'] ?? 'Contacto sin nombre';
 
@@ -2732,7 +2874,7 @@ class WhatsappService
                 ]);
             } elseif ($contact->name === 'Contacto sin nombre') {
                 // Si el contacto existe pero tiene nombre genérico, intentar actualizarlo
-                $contactData = $message['contacts'][0] ?? [];
+                $contactData = $data['contacts'][0] ?? [];
                 $profile = $contactData['profile'] ?? [];
                 $contactName = $profile['name'] ?? null;
 
@@ -3846,6 +3988,36 @@ class WhatsappService
     private function addToCart(WhatsappContact $contact, $priceId, $quantity = 1, ?int $variationIndex = null)
     {
         try {
+            $quantity = filter_var($quantity, FILTER_VALIDATE_INT);
+            $price = WhatsappPrice::query()->whereKey($priceId)
+                ->where('business_profile_id', $this->businessProfile?->id)
+                ->where('is_active', true)->where('stock', '>', 0)->first();
+
+            if (! $price) {
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => 'Ese producto ya no está disponible. Escribe *menú* para ver las opciones vigentes.'],
+                ];
+            }
+
+            $minimum = $price->allow_quantity_selection ? max(1, (int) ($price->min_quantity ?: 1)) : 1;
+            $maximum = $price->allow_quantity_selection ? max($minimum, (int) ($price->max_quantity ?: 999)) : 999;
+            $maximum = min($maximum, (int) $price->stock);
+            if ($quantity === false || $quantity < $minimum || $quantity > $maximum) {
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => "La cantidad debe estar entre {$minimum} y {$maximum}. Intenta otra vez o escribe *menú*."],
+                ];
+            }
+
+            $variation = $this->productVariation($price, $variationIndex);
+            if ($variationIndex !== null && ! $variation) {
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => 'Esa opción del producto ya no está disponible. Vuelve a abrir el producto desde el *menú*.'],
+                ];
+            }
+
             if ($gate = $this->interceptForPaymentMethod($contact, [
                 'action' => 'add',
                 'product_id' => (int) $priceId,
@@ -3854,11 +4026,6 @@ class WhatsappService
             ])) {
                 return $gate;
             }
-
-            $price = WhatsappPrice::query()->whereKey($priceId)
-                ->where('business_profile_id', $this->businessProfile?->id)
-                ->where('is_active', true)->where('stock', '>', 0)->firstOrFail();
-            $variation = $this->productVariation($price, $variationIndex);
             $unitPrice = $variation['price'] ?? ($price->is_promo ? $price->promo_price : $price->price);
             $lineNote = $variation ? 'Variación: '.$variation['title'] : null;
 
@@ -3875,6 +4042,12 @@ class WhatsappService
                 ->first();
 
             if ($existingItem) {
+                if (($existingItem->quantity + $quantity) > $maximum) {
+                    return [
+                        'type' => 'text',
+                        'text' => ['body' => "Ya tienes {$existingItem->quantity} unidad(es). El máximo disponible es {$maximum}. Ajusta la cantidad o continúa al carrito."],
+                    ];
+                }
                 // Incrementar cantidad si ya existe
                 $existingItem->quantity += $quantity;
                 $existingItem->save();
@@ -4053,7 +4226,24 @@ class WhatsappService
                 ];
             }
 
-            // Paso 1: confirmar la sucursal del pedido (una sola vez por carrito)
+            // Una sesión corrupta puede conservar branch_confirmed aunque la
+            // sucursal haya sido borrada, desactivada o pertenezca a otro
+            // negocio. Se invalida ese dato antes de continuar el checkout.
+            $branch = $cart->branch_id
+                ? BusinessBranch::whereKey($cart->branch_id)
+                    ->where('business_profile_id', $this->businessProfile->id)
+                    ->availableForOrders()
+                    ->first()
+                : null;
+            if (! empty($cart->metadata['branch_confirmed'] ?? false) && ! $branch) {
+                $metadata = $cart->metadata ?? [];
+                unset($metadata['branch_confirmed']);
+                $cart->branch_id = null;
+                $cart->metadata = $metadata;
+                $cart->save();
+            }
+
+            // Paso 1: confirmar la sucursal (una sola vez por carrito)
             if (empty($cart->metadata['branch_confirmed'] ?? false)) {
                 return $this->buildSucursalStep($contact, $cart);
             }
@@ -4063,7 +4253,6 @@ class WhatsappService
             // "llevar"), o el admin desactivó el paso completo desde el
             // editor visual (usa el valor por defecto que haya elegido).
             if (empty($cart->metadata['service_type'] ?? null)) {
-                $branch = $cart->branch_id ? BusinessBranch::find($cart->branch_id) : null;
                 $branchAllowsDineIn = ! $branch || $branch->dine_in_enabled;
 
                 if (! $branchAllowsDineIn || ! $this->isCheckoutStepEnabled('service_type')) {
@@ -4619,8 +4808,7 @@ class WhatsappService
         $cart->loadMissing('items');
         $subtotal = (float) $cart->items->sum(fn ($item) => $item->price * $item->quantity);
 
-        $config = WhatsappChatbotConfig::where('business_profile_id', $this->businessProfile->id)->first()
-            ?? WhatsappChatbotConfig::first();
+        $config = $this->scopedChatbotConfig();
 
         $lines = '';
 
@@ -4947,9 +5135,9 @@ class WhatsappService
      * Null si no hay ningún pedido enviado "en curso" (nada que anclar) --
      * deja seguir el flujo normal (menú, ChatGPT, etc.) sin interrumpir nada.
      */
-    private function buildActiveOrderStatusResponse(WhatsappContact $contact): ?array
+    private function latestSelfServiceOrderCart(WhatsappContact $contact): ?WhatsappCart
     {
-        $cart = WhatsappCart::where('contact_id', $contact->id)
+        return WhatsappCart::where('contact_id', $contact->id)
             ->whereIn('status', [
                 WhatsappCart::STATUS_PENDING,
                 WhatsappCart::STATUS_CONFIRMED,
@@ -4960,11 +5148,21 @@ class WhatsappService
             ])
             ->latest('id')
             ->first();
+    }
+
+    private function buildActiveOrderStatusResponse(WhatsappContact $contact): ?array
+    {
+        $cart = $this->latestSelfServiceOrderCart($contact);
 
         if (! $cart) {
             return null;
         }
 
+        return $this->buildActiveOrderStatusCardFor($cart);
+    }
+
+    private function buildActiveOrderStatusCardFor(WhatsappCart $cart): array
+    {
         $statusLabel = OrderLifecycleService::statusLabel($cart->status);
         $body = "📦 Tienes un pedido en curso: *{$cart->getOrderNumber()}*\n\n"
             ."Estado actual: *{$statusLabel}*";
@@ -5735,9 +5933,22 @@ class WhatsappService
             // pedido ya enviado. De lo contrario escribir el nombre de otro
             // producto saltaba el mensaje de pedido en curso.
             if (! $processHandled && ! $this->isAgentRequestText($text)) {
-                $statusResponse = $this->buildActiveOrderStatusResponse($contact);
-                if ($statusResponse) {
-                    $response = $statusResponse;
+                $activeCart = $this->latestSelfServiceOrderCart($contact);
+                if ($activeCart) {
+                    // Pedido explícito en vivo: si el cliente YA mandó su
+                    // comprobante y solo escribe algo trivial ("gracias", un
+                    // saludo, "ok"), no hace falta reimprimirle la tarjeta
+                    // completa de "pedido en curso" con "Cancelar pedido" --
+                    // ya hizo lo que le tocaba, solo falta que caja lo
+                    // verifique. Repetir esa tarjeta justo después de subir
+                    // el comprobante se sentía como un mensaje innecesario.
+                    // Ojo: NO se usa matchCommonIntentReply() acá porque esa
+                    // también reconoce preguntas reales ("horarios",
+                    // "catálogo") que sí merecen su propia respuesta, no este
+                    // acuse de recibo genérico.
+                    $response = ($this->isTrivialAcknowledgementText($text) && $activeCart->hasPaymentProof())
+                        ? ['type' => 'text', 'text' => ['body' => '🙏 ¡Con gusto! Ya tenemos tu comprobante, en cuanto lo verifiquemos te avisamos.']]
+                        : $this->buildActiveOrderStatusCardFor($activeCart);
                     $processHandled = true;
                 }
             }
@@ -6466,6 +6677,14 @@ class WhatsappService
             return;
         }
 
+        $this->sendMonitoringNotificationForEvent(
+            'new_order',
+            'Pedido nuevo',
+            "📦 Nuevo pedido: {$cart->getOrderNumber()} por \${$cart->total}.",
+            $contact->phone_number,
+            $contact->name
+        );
+
         $summary = $cart->items()->get()->map(fn ($line) => "• {$line->quantity} × {$line->name}")->implode("\n");
         $greeting = ($community = $this->scopedChatbotConfig()?->community_name)
             ? "✅ *¡Recibimos tu pedido!* Gracias por ser parte de {$community}."
@@ -6770,7 +6989,10 @@ class WhatsappService
     {
         $price = $this->findCatalogProduct($productId);
         if (! $price) {
-            return null;
+            return [
+                'type' => 'text',
+                'text' => ['body' => 'Ese producto ya no está disponible. Escribe *menú* para ver las opciones vigentes.'],
+            ];
         }
 
         $variations = $this->productVariations($price);
@@ -6802,18 +7024,23 @@ class WhatsappService
     private function showQuantitySelection(WhatsappContact $contact, $productId, ?int $variationIndex = null)
     {
         try {
+            // Validar antes de abrir/alterar un carrito. Un botón antiguo de
+            // un producto eliminado no debe crear un pedido vacío ni mandar
+            // al cliente al paso de pago.
+            $price = $this->findCatalogProduct($productId);
+            if (! $price || ! $price->is_active) {
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => 'Ese producto ya no está disponible. Escribe *menú* para ver las opciones vigentes.'],
+                ];
+            }
+
             if ($gate = $this->interceptForPaymentMethod($contact, [
                 'action' => 'quantity',
                 'product_id' => (int) $productId,
                 'variation_index' => $variationIndex,
             ])) {
                 return $gate;
-            }
-
-            $price = $this->findCatalogProduct($productId);
-
-            if (! $price) {
-                return null;
             }
 
             if (! $price->allow_quantity_selection) {
@@ -9073,7 +9300,16 @@ class WhatsappService
     /**
      * Envía notificaciones de monitoreo (WhatsApp y Email) cuando se recibe un mensaje
      */
-    private function sendMonitoringNotifications(array $message)
+    /**
+     * Pedido explícito en vivo: "quiero evitar que me lleguen [notificaciones]
+     * cada vez que escribe alguien" -- antes esto se llamaba en CADA mensaje
+     * entrante sin distinción (ver git history). Ahora cada evento real
+     * (cliente nuevo, pedido nuevo, pago confirmado, pide asesor) llama
+     * aquí explícitamente con su propia etiqueta y resumen, y esta función
+     * solo entrega si `monitoring_enabled` Y ese evento puntual están
+     * marcados en WhatsappChatbotConfig::monitoring_events.
+     */
+    private function sendMonitoringNotificationForEvent(string $eventKey, string $eventLabel, string $summary, string $contactPhone, ?string $contactName = null): void
     {
         try {
             $profileId = $this->businessProfile?->id;
@@ -9085,117 +9321,50 @@ class WhatsappService
                 return;
             }
 
-            // Obtener información del contacto
-            $from = $message['from'];
-            $contact = $this->findContactByPhone($from);
-            $contactName = $contact ? $contact->name : 'Contacto sin nombre';
+            if (! in_array($eventKey, $config->monitoring_events, true)) {
+                return;
+            }
 
-            // Extraer contenido del mensaje según su tipo
-            $messageContent = $this->extractMessageContent($message);
-            $messageType = $message['type'] ?? 'desconocido';
-            $timestamp = isset($message['timestamp'])
-                ? Carbon::createFromTimestamp((int) $message['timestamp'])->format('Y-m-d H:i:s')
-                : now()->format('Y-m-d H:i:s');
+            $contactName = $contactName ?: ($this->findContactByPhone($contactPhone)?->name ?: 'Contacto sin nombre');
+            $timestamp = now()->format('Y-m-d H:i:s');
 
-            // Enviar mensaje de WhatsApp si está configurado
-            // No enviar si el número de monitoreo es el mismo que el que está escribiendo
+            // No enviar si el número de monitoreo es el mismo que el que está escribiendo.
             if (! empty($config->monitoring_phone_number)) {
-                // Normalizar números para comparación (quitar espacios, guiones, etc.)
-                $normalizedFrom = preg_replace('/[^0-9]/', '', $from);
+                $normalizedFrom = preg_replace('/[^0-9]/', '', $contactPhone);
                 $normalizedMonitoring = preg_replace('/[^0-9]/', '', $config->monitoring_phone_number);
 
-                // Solo enviar si los números son diferentes
                 if ($normalizedFrom !== $normalizedMonitoring) {
                     $this->sendMonitoringWhatsAppMessage(
                         $config->monitoring_phone_number,
                         $contactName,
-                        $from,
-                        $messageContent,
-                        $messageType,
+                        $contactPhone,
+                        $summary,
+                        $eventLabel,
                         $timestamp
                     );
                 } else {
-                    Log::info('⏭️ Mensaje de monitoreo omitido: el número de monitoreo es el mismo que el remitente', [
-                        'phone' => substr($from, 0, 4).'****'.substr($from, -4),
+                    Log::info('⏭️ Notificación de monitoreo omitida: el número de monitoreo es el mismo que el remitente', [
+                        'phone' => substr($contactPhone, 0, 4).'****'.substr($contactPhone, -4),
                     ]);
                 }
             }
 
-            // Enviar email si está configurado
             if (! empty($config->monitoring_email)) {
                 $this->sendMonitoringEmail(
                     $config->monitoring_email,
                     $contactName,
-                    $from,
-                    $messageContent,
-                    $messageType,
+                    $contactPhone,
+                    $summary,
+                    $eventLabel,
                     $timestamp
                 );
             }
         } catch (\Exception $e) {
-            Log::error('❌ Error enviando notificaciones de monitoreo', [
+            Log::error('❌ Error enviando notificación de monitoreo', [
+                'event' => $eventKey,
                 'error' => $e->getMessage(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
             ]);
-        }
-    }
-
-    /**
-     * Extrae el contenido del mensaje según su tipo
-     */
-    private function extractMessageContent(array $message): string
-    {
-        $type = $message['type'] ?? 'text';
-
-        switch ($type) {
-            case 'text':
-                if (is_array($message['text'] ?? null)) {
-                    return $message['text']['body'] ?? 'Mensaje de texto sin contenido';
-                }
-
-                return $message['text'] ?? 'Mensaje de texto sin contenido';
-
-            case 'interactive':
-                $interactive = $message['interactive'] ?? null;
-                if ($interactive) {
-                    if (isset($interactive['button_reply']['title'])) {
-                        return 'Botón: '.$interactive['button_reply']['title'];
-                    }
-                    if (isset($interactive['list_reply']['title'])) {
-                        return 'Lista: '.$interactive['list_reply']['title'];
-                    }
-                }
-
-                return 'Mensaje interactivo';
-
-            case 'image':
-                return '📷 Imagen enviada';
-
-            case 'audio':
-                return '🎵 Audio enviado';
-
-            case 'video':
-                return '🎥 Video enviado';
-
-            case 'document':
-                $document = $message['document'] ?? [];
-                $filename = $document['filename'] ?? 'Documento';
-
-                return '📄 Documento: '.$filename;
-
-            case 'location':
-                $location = $message['location'] ?? [];
-                $latitude = $location['latitude'] ?? '';
-                $longitude = $location['longitude'] ?? '';
-
-                return '📍 Ubicación: '.$latitude.', '.$longitude;
-
-            case 'sticker':
-                return '😊 Sticker enviado';
-
-            default:
-                return 'Tipo de mensaje: '.$type;
         }
     }
 
@@ -9225,12 +9394,11 @@ class WhatsappService
             }
 
             // Formatear el mensaje de monitoreo
-            $monitoringMessage = "🔔 *Nuevo mensaje recibido*\n\n";
+            $monitoringMessage = "🔔 *{$messageType}*\n\n";
             $monitoringMessage .= '👤 *Contacto:* '.$contactName."\n";
             $monitoringMessage .= '📱 *Teléfono:* '.$contactPhone."\n";
-            $monitoringMessage .= '📝 *Tipo:* '.ucfirst($messageType)."\n";
             $monitoringMessage .= '🕐 *Fecha/Hora:* '.$timestamp."\n\n";
-            $monitoringMessage .= "*Mensaje:*\n".$messageContent;
+            $monitoringMessage .= $messageContent;
 
             // Enviar el mensaje
             $this->sendTextMessage($monitoringContact, $monitoringMessage, false);
@@ -9397,7 +9565,23 @@ class WhatsappService
 
     private function syncOrderDetails(WhatsappCart $cart): array
     {
+        // assign() es idempotente (devuelve el mismo turno si ya se asignó
+        // antes), así que este chequeo PREVIO es lo único que distingue "se
+        // acaba de confirmar el pedido" de las veces posteriores que se
+        // re-sincroniza el mismo pedido -- sin esto, "Pedido nuevo" se
+        // hubiera avisado una y otra vez por cada paso del checkout.
+        $isFirstAssignment = ! isset($cart->metadata['order_details']['turn_number']);
         $turnNumber = app(DailyOrderNumberService::class)->assign($cart);
+
+        if ($isFirstAssignment) {
+            $this->sendMonitoringNotificationForEvent(
+                'new_order',
+                'Pedido nuevo',
+                "📦 Nuevo pedido: ORD-{$turnNumber} por \${$cart->total}.",
+                $cart->contact?->phone_number ?? '',
+                $cart->contact?->name
+            );
+        }
 
         $orderDetails = [
             'order_number' => 'ORD-'.$turnNumber,
@@ -9698,6 +9882,14 @@ class WhatsappService
             'contact_name' => $contact->name ?: $contact->phone_number,
         ]);
 
+        $this->sendMonitoringNotificationForEvent(
+            'payment_confirmed',
+            'Pago confirmado',
+            "💳 El cliente mandó su comprobante de pago para el pedido {$cart->getOrderNumber()} (\${$cart->total}).",
+            $contact->phone_number,
+            $contact->name
+        );
+
         $numbers = $this->scopedChatbotConfig()?->delivery_dispatch_numbers ?? [];
         if ($numbers === []) {
             return;
@@ -9745,6 +9937,14 @@ class WhatsappService
                 'contact_name' => $contact->name ?: $contact->phone_number,
             ]);
         }
+
+        $this->sendMonitoringNotificationForEvent(
+            'agent_request',
+            'Solicita asesor',
+            '💬 El cliente pidió hablar con un asesor/humano.'.($relatedCart ? " (pedido {$relatedCart->getOrderNumber()})" : ''),
+            $phone,
+            $contact->name
+        );
 
         $this->sendMessage($phone, $agentMessage);
     }
@@ -9804,6 +10004,23 @@ class WhatsappService
      * cartHasPendingCheckoutStep). No interrumpe el paso pendiente: solo
      * cambia el mensaje con el que se reenvía.
      */
+    /**
+     * Solo saludo o agradecimiento puro -- a propósito más angosto que
+     * matchCommonIntentReply(), que también reconoce preguntas reales
+     * (horarios, catálogo) que sí necesitan su propia respuesta y no deben
+     * tratarse como un simple acuse de recibo.
+     */
+    private function isTrivialAcknowledgementText(string $text): bool
+    {
+        $normalized = mb_strtolower(trim($text));
+
+        // Los emoji no tienen "límite de palabra" para \b (no son \w), así
+        // que van en su propio patrón -- si no, "👍" solo nunca hacía match.
+        return $this->isGreetingMessage($normalized)
+            || (bool) preg_match('/^(gracias|muchas gracias|thanks|thank you|ok|okay|vale|dale|listo)\b/u', $normalized)
+            || (bool) preg_match('/^(👍|🙏|😊|🙌)+$/u', $normalized);
+    }
+
     private function matchCommonIntentReply(string $text): ?string
     {
         $normalized = mb_strtolower(trim($text));

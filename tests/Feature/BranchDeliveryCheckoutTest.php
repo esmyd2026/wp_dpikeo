@@ -234,6 +234,22 @@ class BranchDeliveryCheckoutTest extends TestCase
         $this->assertStringContainsString('llevar o para servir', $next['interactive']['body']['text']);
     }
 
+    public function test_corrupt_confirmed_branch_is_revalidated_before_checkout_continues(): void
+    {
+        [$product, $contact] = $this->fixture();
+        $cart = $this->cartWithItem($contact, $product);
+        $cart->forceFill([
+            'branch_id' => null,
+            'metadata' => ['branch_confirmed' => true],
+        ])->save();
+
+        $response = $this->invoke(new WhatsappService, 'finalizarCompra', [$contact]);
+
+        $this->assertSame('list', $response['interactive']['type']);
+        $this->assertStringContainsString('sucursal', mb_strtolower($response['interactive']['body']['text']));
+        $this->assertArrayNotHasKey('branch_confirmed', $cart->fresh()->metadata);
+    }
+
     public function test_cancel_escape_valve_cancels_order_with_pending_checkout_step(): void
     {
         [$product, $contact] = $this->fixture();

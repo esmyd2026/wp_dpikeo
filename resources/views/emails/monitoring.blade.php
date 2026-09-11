@@ -150,7 +150,7 @@
         <!-- Header -->
         <div class="email-header">
             <div class="icon">📱</div>
-            <h1>Nuevo Mensaje Recibido</h1>
+            <h1>{{ $messageType }}</h1>
             <p style="opacity: 0.9; font-size: 14px;">Bot de WhatsApp - Sistema de Monitoreo</p>
         </div>
 
@@ -167,22 +167,6 @@
                     <span class="info-value">{{ $phoneNumber }}</span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">📝 Tipo:</span>
-                    <span class="info-value">
-                        <span class="badge
-                            @if($messageType === 'text') badge-text
-                            @elseif($messageType === 'image') badge-image
-                            @elseif($messageType === 'audio') badge-audio
-                            @elseif($messageType === 'video') badge-video
-                            @elseif($messageType === 'document') badge-document
-                            @elseif($messageType === 'location') badge-location
-                            @else badge-interactive
-                            @endif">
-                            {{ ucfirst($messageType) }}
-                        </span>
-                    </span>
-                </div>
-                <div class="info-row">
                     <span class="info-label">🕐 Fecha/Hora:</span>
                     <span class="info-value">{{ $timestamp }}</span>
                 </div>
@@ -191,7 +175,7 @@
             <!-- Contenido del Mensaje -->
             <div class="message-content">
                 <div style="font-weight: 600; color: #333; margin-bottom: 10px; font-size: 14px;">
-                    Mensaje:
+                    Detalle:
                 </div>
                 <div class="message-content-text">{{ $messageContent }}</div>
             </div>

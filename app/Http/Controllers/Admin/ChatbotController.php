@@ -208,6 +208,8 @@ class ChatbotController extends Controller
             'font_family' => 'nullable|string|max:50',
             'monitoring_phone_number' => 'nullable|string|max:20',
             'monitoring_email' => 'nullable|email|max:255',
+            'monitoring_events' => 'nullable|array',
+            'monitoring_events.*' => 'nullable|string|in:new_contact,new_order,payment_confirmed,agent_request',
             'landing_accent_color' => 'nullable|string|max:20',
             'landing_logo_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
             'remove_landing_logo' => 'nullable|boolean',
@@ -281,6 +283,12 @@ class ChatbotController extends Controller
         if (array_key_exists('alert_sounds', $validated)) {
             $metadata['alert_sounds'] = array_filter((array) $validated['alert_sounds']);
         }
+        // Se guarda SIEMPRE (incluso como []) para poder distinguir "nunca
+        // se configuró" (getMonitoringEventsAttribute cae a los 4 activos)
+        // de "el admin guardó sin marcar ninguno a propósito" (de verdad
+        // ninguno). Checkboxes desmarcados no llegan en el request, por eso
+        // no se puede usar array_key_exists($validated) para esto.
+        $metadata['monitoring_events'] = array_values(array_filter((array) ($validated['monitoring_events'] ?? [])));
         $metadata['privacy_notice_enabled'] = $request->boolean('privacy_notice_enabled');
         $metadata['privacy_notice_text'] = $validated['privacy_notice_text'] ?? null;
         $metadata['privacy_notice_link'] = $validated['privacy_notice_link'] ?? url('/privacidad');

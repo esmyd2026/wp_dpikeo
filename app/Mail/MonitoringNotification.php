@@ -37,7 +37,7 @@ class MonitoringNotification extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Nuevo mensaje recibido en el bot de WhatsApp',
+            subject: $this->messageType.' · Bot de WhatsApp',
         );
     }
 

@@ -211,6 +211,66 @@ class ActiveOrderStatusSelfServiceTest extends TestCase
         Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'pedido en curso'));
     }
 
+    /**
+     * Bug real reportado en vivo: el cliente mandó su comprobante, el bot
+     * confirmó "Comprobante recibido", y justo después el cliente escribió
+     * algo trivial ("gracias") -- el bot le repetía innecesariamente la
+     * tarjeta completa "Tienes un pedido en curso... Cancelar pedido /
+     * Hablar con asesor", como si nada se hubiera resuelto todavía.
+     */
+    public function test_a_trivial_thanks_after_the_proof_was_already_sent_does_not_repeat_the_full_order_card(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id,
+            'status' => WhatsappCart::STATUS_PAYMENT_PENDING,
+            'total' => 10,
+            'payment_status' => 'proof_submitted',
+            'metadata' => ['payment_proof' => ['message_id' => 'wamid.proof']],
+        ]);
+
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+        $this->invoke($service, 'handleTextMessage', [[
+            'from' => $contact->phone_number,
+            'id' => 'wamid.'.uniqid(),
+            'text' => ['body' => 'gracias'],
+        ]]);
+
+        Http::assertSent(fn ($request) => str_contains($request['text']['body'] ?? '', 'Ya tenemos tu comprobante'));
+        Http::assertNotSent(fn ($request) => str_contains(json_encode($request->data()), 'pedido en curso'));
+        Http::assertNotSent(fn ($request) => in_array('cancelar_pedido_'.$cart->id, collect($request['interactive']['action']['buttons'] ?? [])->pluck('reply.id')->all(), true));
+    }
+
+    /** Si todavía NO mandó el comprobante, un "gracias" sigue mostrando la tarjeta completa -- no se le puede dejar de recordar que falta ese paso. */
+    public function test_a_trivial_thanks_before_sending_the_proof_still_shows_the_full_order_card(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $contact] = $this->profileAndContact();
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id,
+            'status' => WhatsappCart::STATUS_PAYMENT_PENDING,
+            'total' => 10,
+            'payment_status' => 'awaiting_proof',
+        ]);
+
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+        $this->invoke($service, 'handleTextMessage', [[
+            'from' => $contact->phone_number,
+            'id' => 'wamid.'.uniqid(),
+            'text' => ['body' => 'gracias'],
+        ]]);
+
+        Http::assertSent(function ($request) use ($cart) {
+            $buttonIds = collect($request['interactive']['action']['buttons'] ?? [])->pluck('reply.id')->all();
+
+            return str_contains($request['interactive']['body']['text'] ?? '', $cart->getOrderNumber())
+                && in_array('cancelar_pedido_'.$cart->id, $buttonIds, true);
+        });
+    }
+
     /** Pedido explícito: un pedido "listo" (ya no cancelable) debe poder escalar a un asesor, no solo volver al menú. */
     public function test_a_ready_order_that_cannot_be_cancelled_still_offers_talking_to_an_agent(): void
     {

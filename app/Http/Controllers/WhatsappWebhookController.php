@@ -28,19 +28,23 @@ class WhatsappWebhookController extends Controller
         try {
             if ($tokenEsperado === '') {
                 Log::error('WHATSAPP_VERIFY_TOKEN/WEBHOOK_VERIFY_TOKEN no está configurado; rechazando verificación del webhook.');
+
                 return response('Verify token no configurado', 500)->header('Content-Type', 'text/plain');
             }
 
             if ($modo === 'subscribe' && hash_equals($tokenEsperado, $tokenRecibido)) {
-                Log::info("Respondiendo con challenge: " . $desafio);
+                Log::info('Respondiendo con challenge: '.$desafio);
+
                 return response($desafio, 200);
             }
-            return response("Token inválido", 403)->header('Content-Type', 'text/plain');
+
+            return response('Token inválido', 403)->header('Content-Type', 'text/plain');
         } catch (\Throwable $excepcion) {
-            Log::error("Error en la verificación del webhook: " . $excepcion->getMessage());
+            Log::error('Error en la verificación del webhook: '.$excepcion->getMessage());
+
             return response()->json([
                 'estado' => false,
-                'mensaje' => $excepcion->getMessage()
+                'mensaje' => $excepcion->getMessage(),
             ], 500);
         }
     }
@@ -54,14 +58,16 @@ class WhatsappWebhookController extends Controller
     {
         $appSecret = (string) config('whatsapp.app_secret');
         if ($appSecret === '') {
-            // Configuración pendiente: se deja pasar para no romper el bot en
-            // producción, pero queda registrado para que se complete el setup.
-            Log::warning('WHATSAPP_APP_SECRET no configurado: el webhook está aceptando payloads sin verificar su firma.');
-            return true;
+            // Sin secreto no existe forma de distinguir a Meta de un tercero.
+            // Fallar cerrado evita inyectar mensajes o pedidos falsos por una
+            // configuración incompleta.
+            Log::error('WHATSAPP_APP_SECRET no configurado: webhook rechazado por seguridad.');
+
+            return false;
         }
 
         $header = (string) $request->header('X-Hub-Signature-256');
-        if (!str_starts_with($header, 'sha256=')) {
+        if (! str_starts_with($header, 'sha256=')) {
             return false;
         }
 
@@ -73,192 +79,139 @@ class WhatsappWebhookController extends Controller
     public function webhook(Request $request)
     {
         try {
-            if (!$this->hasValidSignature($request)) {
+            if (! $this->hasValidSignature($request)) {
                 Log::warning('Webhook de WhatsApp rechazado: firma X-Hub-Signature-256 inválida o ausente.');
+
                 return response()->json(['estado' => false, 'mensaje' => 'Firma inválida'], 403);
             }
 
-            // Decodificar el JSON recibido
             $data = json_decode($request->getContent(), true);
-            // TEMPORAL - DIAGNÓSTICO (revertir después de confirmar la forma
-            // del payload de coexistencia para 593959520743).
-            Log::info('[DEBUG-TEMPORAL] Webhook payload crudo:', $data ?? []);
+            if (! is_array($data)) {
+                Log::warning('Webhook de WhatsApp rechazado: JSON inválido.');
 
-            // Extraer la variable 'object'
-            $object = $data['object'] ?? null;
-            //Log::info("Objeto recibido: " . $object);
+                return response()->json(['estado' => false, 'mensaje' => 'JSON inválido'], 400);
+            }
 
-            // Extraer la primera entrada (entry)
-            $entry = $data['entry'][0] ?? null;
-            if (!$entry) {
-                Log::warning("No se encontró entry en el payload");
+            $entries = $data['entry'] ?? [];
+            if (! is_array($entries) || $entries === []) {
+                Log::warning('No se encontró entry en el payload');
+
                 return response()->json(['estado' => false, 'mensaje' => 'No entry encontrada'], 400);
             }
 
-            $entryId = $entry['id'] ?? null;
-            //Log::info("ID de la entrada: " . $entryId);
+            $processedMessages = 0;
+            $processedStatuses = 0;
 
-            // Extraer el primer cambio dentro de la entrada
-            $change = $entry['changes'][0] ?? null;
-            if (!$change) {
-                Log::warning("No se encontró change en la entry");
-                return response()->json(['estado' => false, 'mensaje' => 'No change encontrado'], 400);
-            }
+            // Meta puede agrupar varias cuentas, cambios y mensajes en una
+            // misma petición. Recorrer todos evita perder mensajes silenciosamente.
+            foreach ($entries as $entry) {
+                foreach (($entry['changes'] ?? []) as $change) {
+                    $value = $change['value'] ?? null;
+                    if (! is_array($value)) {
+                        Log::warning('Cambio de webhook omitido: no contiene value.');
 
-            $value = $change['value'] ?? null;
-            if (!$value) {
-                Log::warning("No se encontró value en el change");
-                return response()->json(['estado' => false, 'mensaje' => 'No value encontrado'], 400);
-            }
+                        continue;
+                    }
 
-            // Extraer variables desde 'value'
-            $messagingProduct = $value['messaging_product'] ?? null;
-            $metadata = $value['metadata'] ?? [];
-            $contactsArray = $value['contacts'] ?? [];
-            $messagesArray = $value['messages'] ?? [];
-            $statusesArray = $value['statuses'] ?? [];
+                    $metadata = is_array($value['metadata'] ?? null) ? $value['metadata'] : [];
+                    $contacts = is_array($value['contacts'] ?? null) ? $value['contacts'] : [];
+                    $phoneNumberId = $metadata['phone_number_id'] ?? null;
 
-            //Log::info("Producto de mensajería: " . $messagingProduct);
-            //Log::info("Metadata: " . json_encode($metadata, JSON_UNESCAPED_UNICODE));
+                    if ($phoneNumberId) {
+                        $this->whatsappService->setWebhookPhoneNumberId($phoneNumberId);
+                    }
 
-            // Extraer y desglosar el primer contacto
-            $contact = $contactsArray[0] ?? [];
-            $contactName = $contact['profile']['name'] ?? null;
-            $contactWaId = $contact['wa_id'] ?? null;
-            Log::info("Contacto recibido - Nombre: " . $contactName . ", WA_ID: " . $contactWaId);
+                    foreach (($value['messages'] ?? []) as $message) {
+                        if (! is_array($message)) {
+                            continue;
+                        }
 
-            // Si hay mensajes, procesarlos
-            if (!empty($messagesArray)) {
-                $message = $messagesArray[0];
-                $from = $message['from'] ?? null;
-                $messageId = $message['id'] ?? null;
-                $timestamp = $message['timestamp'] ?? null;
-                $type = $message['type'] ?? null;
-                $mensajeContent = null;
+                        $messageData = $this->normalizeIncomingMessage($message, $contacts);
+                        $type = $messageData['type'];
 
-                // Procesar según el tipo de mensaje
-                switch ($type) {
-                    case 'text':
-                        $mensajeContent = $message['text']['body'] ?? null;
-                        break;
-                    case 'image':
-                        $mensajeContent = $message['image'] ?? null;
-                        break;
-                    case 'audio':
-                        $mensajeContent = $message['audio'] ?? null;
-                        break;
-                    case 'video':
-                        $mensajeContent = $message['video'] ?? null;
-                        break;
-                    case 'document':
-                        $mensajeContent = $message['document'] ?? null;
-                        break;
-                    case 'sticker':
-                        $mensajeContent = $message['sticker'] ?? null;
-                        break;
-                    case 'location':
-                        $mensajeContent = $message['location'] ?? null;
-                        break;
-                    case 'contact':
-                        $mensajeContent = $message['contact'] ?? null;
-                        break;
-                    case 'interactive':
-                        $interactive = $message['interactive'] ?? null;
-                        if ($interactive) {
-                            if (isset($interactive['button_reply'])) {
-                                $mensajeContent = $interactive['button_reply'];
-                            } elseif (isset($interactive['list_reply'])) {
-                                $mensajeContent = $interactive['list_reply'];
+                        try {
+                            if ($type === 'order') {
+                                dispatch(function () use ($messageData, $phoneNumberId) {
+                                    $service = app(WhatsappService::class);
+                                    if ($phoneNumberId) {
+                                        $service->setWebhookPhoneNumberId($phoneNumberId);
+                                    }
+                                    $service->processIncomingMessage($messageData);
+                                })->afterResponse();
+                            } else {
+                                $this->whatsappService->processIncomingMessage($messageData);
                             }
+                            $processedMessages++;
+                        } catch (\Throwable $exception) {
+                            Log::error('Error procesando mensaje individual del webhook', [
+                                'message_id' => $messageData['id'],
+                                'type' => $type,
+                                'error' => $exception->getMessage(),
+                            ]);
                         }
-                        break;
-                    case 'order':
-                        $mensajeContent = $message['order'] ?? null;
-                        break;
-                    default:
-                        $mensajeContent = "Tipo de mensaje no soportado";
-                        break;
-                }
+                    }
 
-                //Log::info("Mensaje recibido desde: " . $from);
-                //Log::info("ID del mensaje: " . $messageId);
-                //Log::info("Timestamp: " . $timestamp);
-                Log::info("Tipo de mensaje: " . $type);
-                Log::info("Contenido del mensaje: " . json_encode($mensajeContent, JSON_UNESCAPED_UNICODE));
-
-                if (!empty($metadata['phone_number_id'])) {
-                    $this->whatsappService->setWebhookPhoneNumberId($metadata['phone_number_id']);
-                }
-
-                // Preparar datos para el servicio
-                $messageData = [
-                    'from' => $from,
-                    'id' => $messageId,
-                    'type' => $type,
-                    'timestamp' => $timestamp,
-                    'text' => $mensajeContent,
-                    'contacts' => $contactsArray,
-                    'interactive' => $message['interactive'] ?? null,
-                    'order' => $message['order'] ?? null,
-                    'location' => $message['location'] ?? null,
-                ];
-
-                // Los carritos del catálogo nativo deben recibir un 200 lo más
-                // rápido posible. Crear el pedido también puede enviar una
-                // respuesta a WhatsApp y tardar varios segundos; por eso se
-                // procesa después de responder al webhook. Así Meta no marca
-                // la solicitud del cliente como fallida por tiempo de espera.
-                if ($type === 'order') {
-                    dispatch(function () use ($messageData, $metadata) {
-                        $service = app(WhatsappService::class);
-
-                        if (!empty($metadata['phone_number_id'])) {
-                            $service->setWebhookPhoneNumberId($metadata['phone_number_id']);
+                    foreach (($value['statuses'] ?? []) as $status) {
+                        if (! is_array($status)) {
+                            continue;
                         }
-
-                        $service->processIncomingMessage($messageData);
-                    })->afterResponse();
-                } else {
-                    // Los demás mensajes conservan su comportamiento actual,
-                    // para que el cliente siga recibiendo navegación inmediata.
-                    $this->whatsappService->processIncomingMessage($messageData);
+                        $this->whatsappService->processMessageStatus($status);
+                        $processedStatuses++;
+                    }
                 }
             }
-            // Si hay actualizaciones de estado, procesarlas
-            elseif (!empty($statusesArray)) {
-                $status = $statusesArray[0];
-                Log::info("Actualización de estado recibida:", $status);
-                // Aquí puedes procesar las actualizaciones de estado si es necesario
-            }
-            else {
-                Log::info("No hay mensajes ni actualizaciones de estado para procesar");
-            }
+
+            Log::info('Webhook de WhatsApp procesado', [
+                'entries' => count($entries),
+                'messages' => $processedMessages,
+                'statuses' => $processedStatuses,
+            ]);
 
             return response()->json([
                 'estado' => true,
                 'mensaje' => 'Webhook procesado correctamente',
-                'datos' => [
-                    'object' => $object,
-                    'entry_id' => $entryId,
-                    'messaging_product' => $messagingProduct,
-                    'metadata' => $metadata,
-                    'contact' => [
-                        'nombre' => $contactName,
-                        'wa_id' => $contactWaId,
-                    ],
-                    'from' => $from ?? null,
-                    'message_id' => $messageId ?? null,
-                    'timestamp' => $timestamp ?? null,
-                    'type' => $type ?? null,
-                    'contenido' => $mensajeContent ?? null,
-                ]
+                'procesados' => [
+                    'mensajes' => $processedMessages,
+                    'estados' => $processedStatuses,
+                ],
             ], 200);
         } catch (\Throwable $excepcion) {
-            Log::error("Error en el procesamiento del webhook: " . $excepcion->getMessage());
+            Log::error('Error en el procesamiento del webhook: '.$excepcion->getMessage());
+
             return response()->json([
                 'estado' => false,
-                'mensaje' => $excepcion->getMessage()
+                'mensaje' => $excepcion->getMessage(),
             ], 500);
         }
+    }
+
+    /** @return array<string, mixed> */
+    private function normalizeIncomingMessage(array $message, array $contacts): array
+    {
+        $type = (string) ($message['type'] ?? 'unknown');
+        $typePayload = is_array($message[$type] ?? null) ? $message[$type] : null;
+
+        $normalized = [
+            'from' => $message['from'] ?? null,
+            'id' => $message['id'] ?? null,
+            'type' => $type,
+            'timestamp' => $message['timestamp'] ?? null,
+            'text' => $type === 'text' ? ($message['text']['body'] ?? null) : $typePayload,
+            'contacts' => $contacts,
+        ];
+
+        // Los manejadores de multimedia, ubicación, respuestas interactivas
+        // y pedidos esperan además la carga bajo su nombre de tipo.
+        foreach (['image', 'audio', 'video', 'document', 'sticker', 'location', 'interactive', 'order', 'button'] as $payloadKey) {
+            if (array_key_exists($payloadKey, $message)) {
+                $normalized[$payloadKey] = $message[$payloadKey];
+            }
+        }
+
+        if (array_key_exists('contacts', $message)) {
+            $normalized['shared_contacts'] = $message['contacts'];
+        }
+
+        return $normalized;
     }
 }

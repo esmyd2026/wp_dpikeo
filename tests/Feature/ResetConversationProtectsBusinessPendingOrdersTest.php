@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Company;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WhatsappBusinessProfile;
@@ -36,7 +37,14 @@ class ResetConversationProtectsBusinessPendingOrdersTest extends TestCase
     /** @return array{WhatsappBusinessProfile, WhatsappContact, User} */
     private function fixture(): array
     {
+        $company = Company::create([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'DPIKEOS',
+            'slug' => 'dpikeos-reset-test',
+            'status' => 'active',
+        ]);
         $profile = WhatsappBusinessProfile::create([
+            'company_id' => $company->id,
             'business_name' => 'DPIKEOS', 'display_name' => 'DPIKEOS', 'phone_number' => '593990000001',
             'phone_number_id' => 'PHONE-TEST', 'whatsapp_business_id' => 'WABA-TEST', 'access_token' => 'test',
             'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
@@ -44,6 +52,7 @@ class ResetConversationProtectsBusinessPendingOrdersTest extends TestCase
         $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593987654321', 'name' => 'Cliente', 'status' => 'active']);
         $role = Role::where('slug', 'admin')->firstOrFail();
         $user = User::factory()->create(['is_admin' => true, 'role_id' => $role->id]);
+        $company->users()->attach($user->id);
 
         return [$profile, $contact, $user];
     }

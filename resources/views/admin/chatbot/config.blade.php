@@ -277,7 +277,7 @@
             <div class="mt-6 bg-gray-50 p-6 rounded-lg">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">🔔 Configuración de Monitoreo</h3>
                 <p class="text-sm text-gray-600 mb-4">
-                    Recibe notificaciones cada vez que alguien escriba al bot. Las notificaciones se enviarán por WhatsApp y/o Email.
+                    Recibe notificaciones por WhatsApp y/o Email solo para los eventos que elijas abajo -- no en cada mensaje que escriba un cliente.
                 </p>
 
                 <div class="space-y-4">
@@ -294,8 +294,8 @@
                         <label for="monitoring_phone_number" class="block text-sm font-medium text-gray-700">
                             Número de WhatsApp para monitoreo
                         </label>
-                        <input type="text" id="monitoring_phone_number" name="monitoring_phone_number" 
-                            value="{{ $config->monitoring_phone_number ?? '' }}" 
+                        <input type="text" id="monitoring_phone_number" name="monitoring_phone_number"
+                            value="{{ $config->monitoring_phone_number ?? '' }}"
                             placeholder="Ej: 521234567890 (con código de país)"
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         <p class="mt-1 text-xs text-gray-500">
@@ -307,12 +307,42 @@
                         <label for="monitoring_email" class="block text-sm font-medium text-gray-700">
                             Email para monitoreo
                         </label>
-                        <input type="email" id="monitoring_email" name="monitoring_email" 
-                            value="{{ $config->monitoring_email ?? '' }}" 
+                        <input type="email" id="monitoring_email" name="monitoring_email"
+                            value="{{ $config->monitoring_email ?? '' }}"
                             placeholder="ejemplo@correo.com"
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                         <p class="mt-1 text-xs text-gray-500">
                             Email donde recibirás las notificaciones por correo electrónico.
+                        </p>
+                    </div>
+
+                    @php
+                        $monitoringEventOptions = [
+                            'new_contact' => ['label' => 'Cliente nuevo escribe por primera vez', 'icon' => '👋'],
+                            'new_order' => ['label' => 'Llega un pedido nuevo', 'icon' => '📦'],
+                            'payment_confirmed' => ['label' => 'El cliente paga / manda su comprobante', 'icon' => '💳'],
+                            'agent_request' => ['label' => 'Solicita hablar con un asesor o humano', 'icon' => '💬'],
+                        ];
+                        $selectedMonitoringEvents = $config->monitoring_events ?? array_keys($monitoringEventOptions);
+                    @endphp
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            ¿Cuándo quieres que te avise?
+                        </label>
+                        <div class="space-y-2">
+                            @foreach($monitoringEventOptions as $eventKey => $meta)
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="monitoring_event_{{ $eventKey }}" name="monitoring_events[]" value="{{ $eventKey }}"
+                                        {{ in_array($eventKey, $selectedMonitoringEvents, true) ? 'checked' : '' }}
+                                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                    <label for="monitoring_event_{{ $eventKey }}" class="ml-2 block text-sm text-gray-700">
+                                        {{ $meta['icon'] }} {{ $meta['label'] }}
+                                    </label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">
+                            Si no marcas ninguno, no llegará ninguna notificación aunque "Habilitar monitoreo" esté activado.
                         </p>
                     </div>
                 </div>

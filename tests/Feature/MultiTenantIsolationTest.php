@@ -8,7 +8,9 @@ use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappMessage;
 use App\Models\WhatsappPrice;
+use App\Services\AbandonedCartService;
 use App\Services\WhatsappCredentialService;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -40,7 +42,7 @@ class MultiTenantIsolationTest extends TestCase
             'company_id' => $company->id,
             'business_name' => $slug,
             'display_name' => $slug,
-            'phone_number' => '593' . random_int(100000000, 999999999),
+            'phone_number' => '593'.random_int(100000000, 999999999),
             'phone_number_id' => $phoneNumberId,
             'whatsapp_business_id' => "WABA-{$slug}",
             'access_token' => $token,
@@ -73,7 +75,7 @@ class MultiTenantIsolationTest extends TestCase
             'menu_item_id' => $category->id,
             'business_profile_id' => $profile->id,
             'category' => $category->title,
-            'sku' => strtoupper($slug) . '-1',
+            'sku' => strtoupper($slug).'-1',
             'name' => "Producto {$slug}",
             'price' => 10,
             'currency' => 'USD',
@@ -143,6 +145,23 @@ class MultiTenantIsolationTest extends TestCase
         $this->assertSame('TOKEN-B', $this->invoke($serviceB, 'apiToken'));
         $this->assertSame('Bot B', $this->invoke($serviceB, 'scopedChatbotConfig')->bot_name);
         $this->assertSame($b['menu']->id, $this->invoke($serviceB, 'menuByActionId', ['prices_menu'])->id);
+    }
+
+    public function test_company_without_chatbot_config_never_inherits_another_companys_settings(): void
+    {
+        $a = $this->makeCompanyWithCatalog('empresa-a', 'PHONE-A', 'TOKEN-A', 'Bot A');
+        $b = $this->makeCompanyWithCatalog('empresa-b', 'PHONE-B', 'TOKEN-B', 'Bot B');
+
+        $a['config']->forceFill([
+            'metadata' => ['bot_name' => 'Bot A', 'abandoned_cart_timeout_minutes' => 15],
+        ])->save();
+        $b['config']->delete();
+
+        $serviceB = app(WhatsappService::class);
+        $serviceB->setWebhookPhoneNumberId('PHONE-B');
+
+        $this->assertNull($this->invoke($serviceB, 'scopedChatbotConfig'));
+        $this->assertNull(app(AbandonedCartService::class)->timeoutMinutes($b['profile']->id));
     }
 
     public function test_unknown_phone_number_id_is_never_processed_with_another_companys_credentials(): void
@@ -232,7 +251,7 @@ class MultiTenantIsolationTest extends TestCase
         $this->assertNotNull($contactB, 'Debe crearse un contacto propio de la empresa B, no reusar el de A.');
         $this->assertNotEquals($contactA->id, $contactB->id);
 
-        $message = \App\Models\WhatsappMessage::where('message_id', 'wamid.list-reply-test')->first();
+        $message = WhatsappMessage::where('message_id', 'wamid.list-reply-test')->first();
         $this->assertSame($b['profile']->id, $message->business_profile_id);
         $this->assertSame($contactB->id, $message->contact_id);
     }

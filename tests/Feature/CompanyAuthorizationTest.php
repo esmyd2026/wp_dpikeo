@@ -262,6 +262,86 @@ class CompanyAuthorizationTest extends TestCase
         });
     }
 
+    public function test_chat_actions_cannot_read_or_mutate_a_contact_from_another_company(): void
+    {
+        Http::fake();
+        $a = $this->makeCompanyWithCatalogAndUser('piqueo', 'TOKEN-A');
+        $b = $this->makeCompanyWithCatalogAndUser('zapatos-demo', 'TOKEN-B');
+        $contactB = WhatsappContact::create([
+            'business_profile_id' => $b['profile']->id,
+            'phone_number' => '593987650001',
+            'name' => 'Cliente privado B',
+            'status' => 'active',
+            'metadata' => ['needs_agent' => true],
+        ]);
+        $imageB = WhatsappMessage::create([
+            'business_profile_id' => $b['profile']->id,
+            'contact_id' => $contactB->id,
+            'message_id' => 'wamid.private-image-b',
+            'sender_type' => 'client',
+            'receiver_type' => 'system',
+            'content' => '',
+            'type' => 'image',
+            'status' => 'received',
+            'metadata' => ['media_id' => 'PRIVATE-MEDIA-B'],
+        ]);
+
+        $this->actingAs($a['user'])->withSession(['active_company_id' => $a['company']->id]);
+
+        $this->get('/admin/contacts/'.$contactB->id)->assertNotFound();
+        $this->postJson(route('admin.contact.toggle-bot', $contactB), ['enabled' => false])->assertNotFound();
+        $this->postJson(route('admin.contact.dismiss-agent', $contactB))->assertNotFound();
+        $this->postJson(route('admin.contact.reset-conversation', $contactB))->assertNotFound();
+        $this->postJson(route('admin.chat.typing'), ['contact_id' => $contactB->id])->assertNotFound();
+        $this->postJson(route('admin.chat.send'), ['contact_id' => $contactB->id, 'message' => 'No autorizado'])->assertNotFound();
+        $this->get(route('admin.message.image', $imageB))->assertNotFound();
+
+        $this->assertTrue($contactB->fresh()->bot_enabled);
+        $this->assertTrue((bool) ($contactB->fresh()->metadata['needs_agent'] ?? false));
+        Http::assertNothingSent();
+    }
+
+    public function test_chat_global_stats_only_count_messages_from_the_active_company(): void
+    {
+        Http::fake();
+        $a = $this->makeCompanyWithCatalogAndUser('piqueo', 'TOKEN-A');
+        $b = $this->makeCompanyWithCatalogAndUser('zapatos-demo', 'TOKEN-B');
+        $contactA = WhatsappContact::create([
+            'business_profile_id' => $a['profile']->id,
+            'phone_number' => '593987650011',
+            'name' => 'Cliente A',
+            'status' => 'active',
+        ]);
+        $contactB = WhatsappContact::create([
+            'business_profile_id' => $b['profile']->id,
+            'phone_number' => '593987650012',
+            'name' => 'Cliente B',
+            'status' => 'active',
+        ]);
+        foreach ([[$contactA, $a['profile'], 'A'], [$contactB, $b['profile'], 'B']] as [$contact, $profile, $suffix]) {
+            WhatsappMessage::create([
+                'business_profile_id' => $profile->id,
+                'contact_id' => $contact->id,
+                'message_id' => 'wamid.stats.'.$suffix,
+                'sender_type' => 'client',
+                'receiver_type' => 'system',
+                'content' => 'Mensaje '.$suffix,
+                'type' => 'text',
+                'status' => 'received',
+            ]);
+        }
+
+        $response = $this->actingAs($a['user'])
+            ->withSession(['active_company_id' => $a['company']->id])
+            ->get(route('admin.chat', $contactA));
+
+        $response->assertOk()->assertViewHas(
+            'globalStats',
+            fn (array $stats): bool => $stats['totalMessages'] === 1
+                && $stats['receivedMessages'] === 1
+        );
+    }
+
     public function test_whatsapp_template_controller_fails_closed_without_falling_back_to_env(): void
     {
         config(['whatsapp.token' => 'ENV-FALLBACK-TOKEN', 'whatsapp.business_id' => 'ENV-FALLBACK-BUSINESS']);

@@ -370,10 +370,7 @@ class OrderLifecycleService
         $businessProfileId = $order->contact?->business_profile_id;
 
         if ($businessProfileId) {
-            $config = WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first();
-            if ($config) {
-                return $config;
-            }
+            return WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first();
         }
 
         return WhatsappChatbotConfig::first();

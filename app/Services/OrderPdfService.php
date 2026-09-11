@@ -138,14 +138,12 @@ class OrderPdfService
     {
         $lineCount = max(1, count($payload['lines'] ?? []));
         $hasDeliveryDetails = array_filter($payload['fulfillment'] ?? []) !== [];
-        $hasLogo = ! empty($payload['company']['logo_data_uri']);
         $hasNote = ! empty($payload['order']['note']);
         $height = max(
             540,
             365
                 + ($lineCount * 72)
                 + ($hasDeliveryDetails ? 45 : 0)
-                + ($hasLogo ? 55 : 0)
                 + ($hasNote ? 45 : 0)
         );
 

@@ -8,9 +8,7 @@
         * { box-sizing: border-box; }
         body { margin: 0; color: #172033; font-family: DejaVu Sans, sans-serif; font-size: 8.2px; line-height: 1.38; }
         .center { text-align: center; }
-        .brand-logo { display: block; width: auto; max-width: 112px; height: auto; max-height: 54px; margin: 5px auto 6px; }
         .brand { margin: 7px 0 4px; color: #a93800; font-size: 17px; font-weight: 800; letter-spacing: .035em; line-height: 1.05; }
-        .brand.has-logo { margin-top: 2px; color: #526071; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
         .brand-subtitle { color: #667085; font-size: 6.7px; letter-spacing: .15em; text-transform: uppercase; }
         .muted { color: #667085; }
         .rule { margin: 9px 0; border-top: 1px dashed #98a2b3; }
@@ -50,10 +48,7 @@
 </head>
 <body>
     <div class="center">
-        @if(!empty($company['logo_data_uri']))
-            <img class="brand-logo" src="{{ $company['logo_data_uri'] }}" alt="Logo">
-        @endif
-        <div class="brand{{ !empty($company['logo_data_uri']) ? ' has-logo' : '' }}">
+        <div class="brand">
             {{ $company['trade_name'] ?: $company['legal_name'] }}
         </div>
         <div class="brand-subtitle">Pedido digital</div>

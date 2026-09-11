@@ -40,8 +40,7 @@ class AbandonedCartService
     {
         $config = $businessProfileId
             ? WhatsappChatbotConfig::where('business_profile_id', $businessProfileId)->first()
-            : null;
-        $config ??= WhatsappChatbotConfig::first();
+            : WhatsappChatbotConfig::first();
 
         $minutes = (int) ($config?->metadata['abandoned_cart_timeout_minutes'] ?? 0);
 
@@ -68,7 +67,7 @@ class AbandonedCartService
         $count = 0;
         foreach ($staleCarts as $cart) {
             $minutes = $this->timeoutMinutes($cart->contact?->business_profile_id);
-            if (!$minutes) {
+            if (! $minutes) {
                 continue;
             }
 
@@ -103,7 +102,7 @@ class AbandonedCartService
      */
     public function close(WhatsappCart $cart, string $reason = WhatsappCart::CANCEL_REASON_OPERATOR_RESET): bool
     {
-        if (!in_array($cart->status, self::STALE_STATUSES, true)) {
+        if (! in_array($cart->status, self::STALE_STATUSES, true)) {
             return false;
         }
 
@@ -194,13 +193,13 @@ class AbandonedCartService
 
     private function notifyContact(WhatsappContact $contact, string $reason): void
     {
-        if (!$contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
+        if (! $contact->phone_number || str_starts_with($contact->phone_number, 'POS-')) {
             return;
         }
 
         $body = $reason === WhatsappCart::CANCEL_REASON_TIMEOUT
-            ? "🕐 Parece que no continuarás con esta orden, así que la cerramos por ahora. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí."
-            : "🔄 Reiniciamos tu conversación con nosotros. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí.";
+            ? '🕐 Parece que no continuarás con esta orden, así que la cerramos por ahora. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí.'
+            : '🔄 Reiniciamos tu conversación con nosotros. Cuando quieras puedes generar un pedido nuevo escribiéndonos por aquí.';
 
         $whatsapp = app(WhatsappService::class);
         $whatsapp->useBusinessProfile($contact->businessProfile);

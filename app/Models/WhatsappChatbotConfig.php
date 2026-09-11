@@ -149,6 +149,31 @@ class WhatsappChatbotConfig extends Model
     }
 
     /**
+     * Pedido explícito: "quiero evitar que me lleguen [notificaciones de
+     * monitoreo] cada vez que escribe alguien" -- antes monitoring_enabled
+     * mandaba WhatsApp/email en TODO mensaje entrante sin distinción. Ahora
+     * el admin elige cuáles de estos 4 eventos disparan la notificación. Sin
+     * configurar nada todavía, los 4 quedan activos (no se apaga en
+     * silencio el monitoreo de alguien que ya lo tenía prendido).
+     *
+     * @return array<int, string>
+     */
+    public function getMonitoringEventsAttribute(): array
+    {
+        $allowed = ['new_contact', 'new_order', 'payment_confirmed', 'agent_request'];
+        $metadata = $this->metadata ?? [];
+
+        // Ausente = nunca se guardó este formulario todavía -> los 4
+        // activos. Presente pero vacío = el admin guardó sin marcar
+        // ninguno a propósito -> de verdad ninguno (no se le reactivan solos).
+        if (! array_key_exists('monitoring_events', $metadata) || ! is_array($metadata['monitoring_events'])) {
+            return $allowed;
+        }
+
+        return array_values(array_intersect($allowed, $metadata['monitoring_events']));
+    }
+
+    /**
      * Texto libre (banco, número de cuenta, titular, Zelle, Pago Móvil, etc.)
      * que se le manda al cliente junto con el costo confirmado del pedido
      * cuando pagará por transferencia o depósito.
