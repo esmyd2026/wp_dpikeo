@@ -34,6 +34,10 @@
     .branch-tier-row input { width:100%; border:1px solid #cbd5e1; border-radius:7px; padding:6px 7px; font:inherit; font-size:.8rem; }
     .branch-tier-remove { border:0; background:#fee2e2; color:#b91c1c; border-radius:7px; width:28px; height:28px; font-weight:800; cursor:pointer; }
     .branch-tier-add { border:1px dashed #fdba74; background:#fffaf5; color:#a53e00; border-radius:7px; padding:6px 8px; font-size:.76rem; font-weight:700; cursor:pointer; width:fit-content; }
+    .branch-card-head { display:flex; align-items:start; justify-content:space-between; gap:10px; }
+    .branch-card-head-badges { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+    .branch-duplicate-btn { border:1px solid #fdba74; background:#fff7ed; color:#a53e00; border-radius:7px; padding:4px 8px; font-size:.7rem; font-weight:800; cursor:pointer; white-space:nowrap; font-family:inherit; }
+    .branch-duplicate-btn:hover { background:#ffedd5; }
 </style>
 
 <div class="branch-page">
@@ -48,10 +52,41 @@
 
     <div class="branch-grid">
         @foreach($branches as $branch)
+            @php
+                // Todo lo que necesita el JS para rellenar "Nueva sucursal"
+                // sin volver a pedirle al servidor -- así "Duplicar" funciona
+                // al instante con los datos ya cargados en esta pantalla.
+                $duplicatePayload = [
+                    'name' => $branch->name,
+                    'code' => $branch->code,
+                    'phone' => $branch->phone,
+                    'address' => $branch->address,
+                    'reservations_info' => $branch->reservations_info,
+                    'latitude' => $branch->latitude,
+                    'longitude' => $branch->longitude,
+                    'delivery_fee_minimum' => $branch->delivery_fee_minimum,
+                    'is_active' => $branch->is_active,
+                    'orders_enabled' => $branch->orders_enabled,
+                    'dine_in_enabled' => $branch->dine_in_enabled,
+                    'hours' => collect($branch->hoursByDay())->mapWithKeys(fn ($hour, $day) => [$day => [
+                        'is_closed' => $hour->is_closed,
+                        'opens_at' => $hour->opens_at ? \Illuminate\Support\Carbon::parse($hour->opens_at)->format('H:i') : null,
+                        'closes_at' => $hour->closes_at ? \Illuminate\Support\Carbon::parse($hour->closes_at)->format('H:i') : null,
+                    ]])->all(),
+                    'tiers' => $branch->deliveryFeeTiers->map(fn ($tier) => [
+                        'from_km' => $tier->from_km,
+                        'to_km' => $tier->to_km,
+                        'price' => $tier->price,
+                    ])->values()->all(),
+                ];
+            @endphp
             <article class="branch-card">
-                <div style="display:flex;align-items:start;justify-content:space-between;gap:10px">
+                <div class="branch-card-head">
                     <div><h3>{{ $branch->name }}</h3><span class="branch-pill">{{ $branch->code }}</span></div>
-                    @if($branch->is_default)<span class="branch-pill" style="background:#dcfce7;color:#166534">Predeterminada</span>@endif
+                    <div class="branch-card-head-badges">
+                        @if($branch->is_default)<span class="branch-pill" style="background:#dcfce7;color:#166534">Predeterminada</span>@endif
+                        <button type="button" class="branch-duplicate-btn js-branch-duplicate" data-branch='@json($duplicatePayload)' title="Rellena el formulario de Nueva sucursal con estos mismos datos">⧉ Duplicar</button>
+                    </div>
                 </div>
                 <p>{{ $branch->address ?: 'Sin dirección registrada' }}<br>{{ $branch->phone ?: 'Sin teléfono registrado' }}</p>
                 <form class="branch-form" method="POST" action="{{ route('admin.branches.update', $branch) }}">
@@ -189,6 +224,66 @@
         if (e.target.classList.contains('js-tier-remove')) {
             e.target.closest('.branch-tier-row').remove();
         }
+    });
+
+    // "Duplicar": copia los datos de una sucursal existente al formulario de
+    // "Nueva sucursal" para no volver a escribir horario/tarifas/etc. desde
+    // cero -- el admin solo ajusta lo que cambia (nombre, código, dirección).
+    const newBranchForm = document.querySelector('.branch-add form');
+
+    function fillNewBranchForm(data) {
+        if (!newBranchForm) return;
+
+        const setValue = (name, value) => {
+            const field = newBranchForm.querySelector(`[name="${name}"]`);
+            if (field) field.value = value ?? '';
+        };
+        const setChecked = (name, checked) => {
+            const field = newBranchForm.querySelector(`[name="${name}"]`);
+            if (field) field.checked = !!checked;
+        };
+
+        setValue('name', data.name);
+        setValue('code', data.code);
+        setValue('phone', data.phone);
+        setValue('address', data.address);
+        setValue('reservations_info', data.reservations_info);
+        setValue('latitude', data.latitude);
+        setValue('longitude', data.longitude);
+        setValue('delivery_fee_minimum', data.delivery_fee_minimum);
+        setChecked('is_active', data.is_active);
+        setChecked('orders_enabled', data.orders_enabled);
+        setChecked('dine_in_enabled', data.dine_in_enabled);
+        // Una copia nunca hereda ser la predeterminada -- eso se decide aparte.
+        setChecked('is_default', false);
+
+        Object.entries(data.hours || {}).forEach(([day, hour]) => {
+            const closedInput = newBranchForm.querySelector(`[name="hours[${day}][is_closed]"]`);
+            const opensInput = newBranchForm.querySelector(`[name="hours[${day}][opens_at]"]`);
+            const closesInput = newBranchForm.querySelector(`[name="hours[${day}][closes_at]"]`);
+            if (closedInput) closedInput.checked = !!hour.is_closed;
+            if (opensInput) { opensInput.value = hour.is_closed ? '' : (hour.opens_at || ''); opensInput.disabled = !!hour.is_closed; }
+            if (closesInput) { closesInput.value = hour.is_closed ? '' : (hour.closes_at || ''); closesInput.disabled = !!hour.is_closed; }
+        });
+
+        const tiersContainer = newBranchForm.querySelector('.js-tiers');
+        const addTierButton = tiersContainer.querySelector('.js-tier-add');
+        tiersContainer.querySelectorAll('.branch-tier-row').forEach((row) => row.remove());
+        (data.tiers || []).forEach((tier) => {
+            const row = branchTierRow();
+            row.querySelector('input[name*="[from_km]"]').value = tier.from_km ?? '';
+            row.querySelector('input[name*="[to_km]"]').value = tier.to_km ?? '';
+            row.querySelector('input[name*="[price]"]').value = tier.price ?? '';
+            tiersContainer.insertBefore(row, addTierButton);
+        });
+
+        newBranchForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const nameInput = newBranchForm.querySelector('[name="name"]');
+        if (nameInput) { nameInput.focus(); nameInput.select(); }
+    }
+
+    document.querySelectorAll('.js-branch-duplicate').forEach((button) => {
+        button.addEventListener('click', () => fillNewBranchForm(JSON.parse(button.dataset.branch)));
     });
 </script>
 @endsection
