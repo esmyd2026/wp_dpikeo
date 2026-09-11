@@ -5254,8 +5254,21 @@ class WhatsappService
      *
      * @return array{sent: bool, reason: ?string}
      */
-    public function notifyCustomerOrderOnTheWay(WhatsappCart $order, DeliveryDriver $driver): array
+    /**
+     * Pedido explícito en vivo: "que se le pueda avisar al cliente que va
+     * en camino, accionado por el repartidor o por el operador, pero solo
+     * una vez". metadata['on_the_way_notified_at'] es el guardián de
+     * una-sola-vez compartido entre ambos disparadores (ver
+     * DeliveryConfirmationController::notifyOnTheWay y
+     * DeliveryController::notifyCustomerOnTheWay) -- quien lo toque primero
+     * gana, el otro botón queda deshabilitado.
+     */
+    public function notifyCustomerOrderOnTheWay(WhatsappCart $order, DeliveryDriver $driver, int|string|null $notifiedBy = null): array
     {
+        if (! empty($order->metadata['on_the_way_notified_at'] ?? null)) {
+            return ['sent' => false, 'reason' => 'already_notified'];
+        }
+
         $contact = $order->contact;
 
         if (! $this->automaticMessageEnabled('order_on_the_way', $contact?->business_profile_id)) {
@@ -5284,6 +5297,12 @@ class WhatsappService
         ]);
 
         $cardSent = $this->sendDriverContactCard($contact, $driver);
+
+        $metadata = $order->metadata ?? [];
+        $metadata['on_the_way_notified_at'] = now()->toIso8601String();
+        $metadata['on_the_way_notified_by'] = $notifiedBy;
+        $order->metadata = $metadata;
+        $order->save();
 
         return ['sent' => true, 'reason' => $cardSent ? null : 'contact_card_failed'];
     }

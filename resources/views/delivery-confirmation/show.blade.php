@@ -23,6 +23,9 @@
         textarea { resize:vertical; }
         button { width:100%; margin-top:1.1rem; padding:.8rem; border-radius:10px; border:none; background:linear-gradient(135deg,#a21caf,#701a75); color:#fff; font-size:.95rem; font-weight:800; cursor:pointer; }
         button:disabled { opacity:.6; cursor:not-allowed; }
+        .on-the-way-btn { background:linear-gradient(135deg,#0891b2,#0e7490); margin-top:0; }
+        .on-the-way-btn.is-sent { background:#dcfce7; color:#166534; cursor:default; }
+        .on-the-way-note { color:#64748b; font-size:.74rem; margin:.5rem 0 0; text-align:center; }
         .error { color:#b91c1c; font-size:.82rem; margin-top:.6rem; display:none; }
         .status-box { text-align:center; padding:2rem 1rem; background:#fff; border:1px solid #e2e8f0; border-radius:14px; }
         .status-box.success i { color:#16a34a; }
@@ -63,6 +66,13 @@
                 <span class="val">{{ $paymentLabel }}</span>
             </div>
 
+            <button type="button" id="onTheWayBtn" class="on-the-way-btn{{ $onTheWayNotifiedAt ? ' is-sent' : '' }}" {{ $onTheWayNotifiedAt ? 'disabled' : '' }}>
+                {{ $onTheWayNotifiedAt ? '✅ Ya se le avisó al cliente' : '🛵 Avisar al cliente que va en camino' }}
+            </button>
+            <p class="on-the-way-note" id="onTheWayNote">
+                {{ $onTheWayNotifiedAt ? '' : 'Le manda un WhatsApp al cliente avisando que salió, con tu contacto. Solo se envía una vez.' }}
+            </p>
+
             <form id="confirmForm">
                 <label for="photo">Foto de la entrega (obligatoria)</label>
                 <input type="file" id="photo" name="photo" accept="image/*" capture="environment" required>
@@ -80,6 +90,33 @@
 
     @if($state === 'form')
     <script>
+    (function () {
+        const onTheWayUrl = @json($onTheWayUrl);
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const onTheWayBtn = document.getElementById('onTheWayBtn');
+        const onTheWayNote = document.getElementById('onTheWayNote');
+
+        onTheWayBtn?.addEventListener('click', async function () {
+            onTheWayBtn.disabled = true;
+            onTheWayBtn.textContent = 'Avisando…';
+            try {
+                const res = await fetch(onTheWayUrl, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.ok) throw new Error(data.message || 'No se pudo avisar al cliente.');
+
+                onTheWayBtn.classList.add('is-sent');
+                onTheWayBtn.textContent = '✅ Ya se le avisó al cliente';
+                if (onTheWayNote) onTheWayNote.textContent = '';
+            } catch (error) {
+                onTheWayBtn.disabled = false;
+                onTheWayBtn.textContent = '🛵 Avisar al cliente que va en camino';
+                if (onTheWayNote) { onTheWayNote.textContent = error.message; onTheWayNote.style.color = '#b91c1c'; }
+            }
+        });
+    })();
     (function () {
         const submitUrl = @json($submitUrl);
         const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';

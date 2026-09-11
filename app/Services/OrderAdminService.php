@@ -124,6 +124,10 @@ class OrderAdminService
             // pagó) puede confundirlo o llevarlo a pagar de más -- el
             // frontend usa esto para advertir al operador antes de reenviar.
             'delivery_fee_confirmed_at' => $order->metadata['delivery_fee_confirmed_at'] ?? null,
+            // Pedido explícito en vivo: avisar "va en camino" se puede
+            // accionar desde acá o desde el enlace del repartidor, pero
+            // solo una vez -- ver WhatsappService::notifyCustomerOrderOnTheWay().
+            'on_the_way_notified_at' => $order->metadata['on_the_way_notified_at'] ?? null,
         ];
     }
 

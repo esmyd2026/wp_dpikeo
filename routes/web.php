@@ -34,6 +34,7 @@ Route::prefix('pedido')->name('bulk-order.')->group(function () {
 Route::prefix('entrega')->name('delivery-confirmation.')->group(function () {
     Route::get('/{token}', [App\Http\Controllers\DeliveryConfirmationController::class, 'show'])->name('show');
     Route::post('/{token}', [App\Http\Controllers\DeliveryConfirmationController::class, 'confirm'])->name('confirm');
+    Route::post('/{token}/en-camino', [App\Http\Controllers\DeliveryConfirmationController::class, 'notifyOnTheWay'])->name('on-the-way');
 });
 
 Route::get('/orden/{order}/pdf', [App\Http\Controllers\OrderPdfController::class, 'downloadSigned'])
@@ -145,6 +146,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/delivery/{id}/despachar', [App\Http\Controllers\Admin\DeliveryController::class, 'dispatchToDriver'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('delivery.dispatch');
+    Route::post('/delivery/{id}/avisar-en-camino', [App\Http\Controllers\Admin\DeliveryController::class, 'notifyCustomerOnTheWay'])
+        ->middleware(['permission:orders.update', 'platform.feature:orders'])
+        ->name('delivery.notify-on-the-way');
     Route::get('/orders/export', [App\Http\Controllers\AdminController::class, 'exportOrders'])
         ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
         ->name('orders.export');

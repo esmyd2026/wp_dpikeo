@@ -1639,6 +1639,31 @@ function reopenOrderDispatch(orderId) {
     window.reopenDriverWhatsapp(driver.phone_number, deliveryDispatchText(order, f));
 }
 
+/**
+ * Pedido explícito en vivo: avisarle al cliente que su pedido va en camino
+ * se puede accionar desde acá o desde el enlace público del repartidor --
+ * el backend solo lo manda una vez entre los dos.
+ */
+async function notifyOrderOnTheWay(orderId) {
+    const btn = document.getElementById(`notify-on-the-way-${orderId}`);
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Avisando…'; }
+
+    try {
+        const res = await fetch(`/admin/delivery/${orderId}/avisar-en-camino`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo avisar al cliente.');
+
+        showToast(data.message);
+        showOrderDetails(orderId);
+    } catch (error) {
+        showToast(error.message, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-truck me-1"></i>Avisar que va en camino'; }
+    }
+}
+
 function renderFulfillmentSection(order) {
     const f = order.fulfillment;
     if (!f) return '';
@@ -1710,6 +1735,9 @@ function renderFulfillmentSection(order) {
                 ? `<p class="small text-muted mb-0"><i class="fas fa-lock me-1"></i>Este pedido está ${order.status === 'cancelled' ? 'cancelado' : 'entregado'}.</p>`
                 : `<button type="button" class="o-btn primary btn-sm" onclick="openOrderDispatchModal(${order.id})"><i class="fab fa-whatsapp me-1"></i>Enviar a repartidor</button>`}
             ${lastDriver ? `<button type="button" class="o-btn btn-sm ms-2" onclick="reopenOrderDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${esc(lastDriver.name)} para reenviarle los datos"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${esc(lastDriver.name)}</button>` : ''}
+            ${lastDriver ? (f.on_the_way_notified_at
+                ? `<button type="button" class="o-btn btn-sm ms-2" disabled title="Ya se le avisó el ${esc(f.on_the_way_notified_at)}"><i class="fas fa-check me-1"></i>Ya avisado</button>`
+                : `<button type="button" class="o-btn btn-sm ms-2" id="notify-on-the-way-${order.id}" onclick="notifyOrderOnTheWay(${order.id})"><i class="fas fa-truck me-1"></i>Avisar que va en camino</button>`) : ''}
         </div>`;
     }
 

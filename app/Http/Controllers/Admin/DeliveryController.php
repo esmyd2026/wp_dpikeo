@@ -10,6 +10,7 @@ use App\Services\DeliveryConfirmationService;
 use App\Services\GeoDistanceService;
 use App\Services\OrderLifecycleService;
 use App\Services\ProductImageService;
+use App\Services\WhatsappService;
 use App\Support\CompanyContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,6 +74,40 @@ class DeliveryController extends Controller
             'message' => 'Entrega confirmada.',
             'order' => $this->mapOrder($order->fresh(['contact', 'branch']), $geo),
         ]);
+    }
+
+    /**
+     * Pedido explícito en vivo: avisarle al cliente que su pedido va en
+     * camino se puede accionar desde acá (el operador) o desde el enlace
+     * público del repartidor (ver DeliveryConfirmationController::notifyOnTheWay)
+     * -- pero solo debe pasar una vez entre los dos. El guardián vive en
+     * WhatsappService::notifyCustomerOrderOnTheWay().
+     */
+    public function notifyCustomerOnTheWay(Request $request, int $id, DeliveryConfirmationService $confirmations, WhatsappService $whatsapp): JsonResponse
+    {
+        $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch'])->findOrFail($id);
+
+        if (($order->metadata['pickup_mode'] ?? null) !== 'delivery') {
+            return response()->json(['success' => false, 'message' => 'Este pedido no es de delivery.'], 422);
+        }
+
+        $result = $confirmations->notifyOnTheWay($order, (int) $request->user()->id, $whatsapp);
+
+        if ($result['reason'] === 'already_notified') {
+            return response()->json(['success' => true, 'already' => true, 'message' => 'Ya se le había avisado al cliente antes.']);
+        }
+
+        if (! $result['sent']) {
+            return response()->json(['success' => false, 'message' => match ($result['reason']) {
+                'notification_disabled' => 'Este aviso está desactivado en la configuración del negocio.',
+                'no_phone' => 'El cliente no tiene un número de WhatsApp válido registrado.',
+                'window_closed' => 'Pasaron más de 24 h desde el último mensaje del cliente; WhatsApp ya no permite enviarle un mensaje libre.',
+                'no_driver_assigned' => 'No hay un repartidor asignado a este pedido todavía -- despáchalo primero.',
+                default => 'No se pudo avisar al cliente.',
+            }], 422);
+        }
+
+        return response()->json(['success' => true, 'already' => false, 'message' => 'Se le avisó al cliente que su pedido va en camino.']);
     }
 
     /** Lista de repartidores activos, para el selector al despachar un pedido. */
@@ -274,6 +309,11 @@ class DeliveryController extends Controller
             // mismo desde su celular, sin usuario del panel -- se lo
             // mandamos por WhatsApp junto con los datos del pedido.
             'confirmation_url' => $confirmationUrl,
+            // Pedido explícito: se puede avisar desde acá o desde el enlace
+            // del repartidor, pero solo una vez -- el frontend usa esto para
+            // deshabilitar el botón cuando ya se avisó desde cualquiera de
+            // los dos lados.
+            'on_the_way_notified_at' => $metadata['on_the_way_notified_at'] ?? null,
             'distance_km' => $route['distance_km'],
             'maps_url' => $route['maps_url'],
             'proof' => $proof ? [

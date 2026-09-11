@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappPrice;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
 class OrderPdfService
@@ -31,11 +33,11 @@ class OrderPdfService
         $filename = $this->filename($payload['order']['number']);
         $dir = storage_path('app/temp/orders');
 
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        $path = $dir . DIRECTORY_SEPARATOR . $filename;
+        $path = $dir.DIRECTORY_SEPARATOR.$filename;
         file_put_contents(
             $path,
             $this->ticketPdf($payload)->output()
@@ -60,23 +62,21 @@ class OrderPdfService
      */
     public function buildPayload(WhatsappCart $order): array
     {
-        $order->load(['items.product', 'contact']);
+        $order->load(['items.product', 'contact.businessProfile.company', 'branch']);
         $billing = $this->orderAdmin->resolveBillingData($order, $order->contact);
-        $company = $this->companyProfile();
+        $company = $this->companyProfile($order);
         $lines = $this->buildLines($order);
-        $subtotal = round(array_sum(array_column($lines, 'subtotal')), 2);
+        $productsSubtotal = round(array_sum(array_column($lines, 'subtotal')), 2);
+        $deliveryFee = $this->appliedDeliveryFee($order);
         $ivaRate = $this->settings->ivaRate();
         $pricesIncludeIva = $this->settings->pricesIncludeIva();
-
-        if ($pricesIncludeIva && $ivaRate > 0) {
-            $subtotalNet = round($subtotal / (1 + $ivaRate), 2);
-            $ivaAmount = round($subtotal - $subtotalNet, 2);
-            $total = $subtotal;
-        } else {
-            $subtotalNet = $subtotal;
-            $ivaAmount = round($subtotalNet * $ivaRate, 2);
-            $total = round($subtotalNet + $ivaAmount, 2);
-        }
+        $recordedTotal = round((float) $order->total, 2);
+        $total = $recordedTotal > 0
+            ? $recordedTotal
+            : round($productsSubtotal + $deliveryFee, 2);
+        $ivaAmount = $pricesIncludeIva && $ivaRate > 0
+            ? round($productsSubtotal - ($productsSubtotal / (1 + $ivaRate)), 2)
+            : max(0, round($total - $productsSubtotal - $deliveryFee, 2));
 
         $tz = $this->settings->timezone();
         $createdAt = $order->created_at
@@ -92,9 +92,9 @@ class OrderPdfService
                 'number' => $order->getOrderNumber(),
                 'date' => $createdAt->format('d/m/Y'),
                 'time' => $createdAt->format('H:i'),
-                'status' => $this->statusLabel($order->status),
                 'payment_method' => $this->paymentLabel($order->payment_method),
-                'payment_status' => $order->payment_status,
+                'payment_status_label' => $this->paymentStatusLabel($order),
+                'payment_explanation' => $this->paymentExplanation($order),
                 'note' => $this->cleanNote($order->note),
                 'requires_invoice' => (bool) $order->requires_invoice,
             ],
@@ -107,10 +107,12 @@ class OrderPdfService
                 'email' => $order->contact?->metadata['email'] ?? '—',
             ],
             'lines' => $lines,
+            'fulfillment' => $this->fulfillment($order, $billing),
             'totals' => [
-                'subtotal' => $subtotalNet,
+                'subtotal' => $productsSubtotal,
                 'iva_rate_percent' => (int) round($ivaRate * 100),
                 'iva' => $ivaAmount,
+                'delivery_fee' => $deliveryFee,
                 'total' => $total,
                 'prices_include_iva' => $pricesIncludeIva,
             ],
@@ -135,15 +137,114 @@ class OrderPdfService
     private function ticketPdf(array $payload)
     {
         $lineCount = max(1, count($payload['lines'] ?? []));
-        $height = max(540, 420 + ($lineCount * 82));
+        $hasDeliveryDetails = array_filter($payload['fulfillment'] ?? []) !== [];
+        $hasLogo = ! empty($payload['company']['logo_data_uri']);
+        $hasNote = ! empty($payload['order']['note']);
+        $height = max(
+            540,
+            365
+                + ($lineCount * 72)
+                + ($hasDeliveryDetails ? 45 : 0)
+                + ($hasLogo ? 55 : 0)
+                + ($hasNote ? 45 : 0)
+        );
 
         return Pdf::loadView('pdf.order-ticket', $payload)
             ->setPaper([0, 0, 226.77, $height], 'portrait');
     }
 
-    private function companyProfile(): array
+    private function companyProfile(WhatsappCart $order): array
     {
-        return $this->settings->companyProfile();
+        $company = $this->settings->companyProfile();
+        $profile = $order->contact?->businessProfile;
+
+        if (! $profile) {
+            return array_merge($company, ['logo_data_uri' => null]);
+        }
+
+        $metadata = is_array($profile->metadata) ? $profile->metadata : [];
+        $company['legal_name'] = $metadata['legal_name']
+            ?? $profile->company?->name
+            ?? $profile->business_name
+            ?? $company['legal_name'];
+        $company['trade_name'] = $metadata['trade_name']
+            ?? $profile->display_name
+            ?? $profile->business_name
+            ?? $company['trade_name'];
+        $company['phone'] = $profile->phone_number ?: $company['phone'];
+
+        foreach (['ruc', 'address', 'city', 'email', 'website'] as $field) {
+            if (! empty($metadata[$field])) {
+                $company[$field] = $metadata[$field];
+            }
+        }
+
+        $config = WhatsappChatbotConfig::query()
+            ->where('business_profile_id', $profile->id)
+            ->first();
+        $logoPath = $config?->metadata['landing']['logo_path'] ?? null;
+        $company['logo_data_uri'] = $this->logoDataUri($logoPath);
+
+        return $company;
+    }
+
+    private function logoDataUri(?string $path): ?string
+    {
+        $path = ltrim(trim((string) $path), '/');
+        if ($path === '' || ! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        $mime = Storage::disk('public')->mimeType($path) ?: '';
+        if (! in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            return null;
+        }
+
+        return 'data:'.$mime.';base64,'.base64_encode(Storage::disk('public')->get($path));
+    }
+
+    private function appliedDeliveryFee(WhatsappCart $order): float
+    {
+        $metadata = $order->metadata ?? [];
+        if (($metadata['pickup_mode'] ?? null) !== 'delivery') {
+            return 0.0;
+        }
+
+        if (array_key_exists('delivery_fee_applied', $metadata)) {
+            return max(0, round((float) $metadata['delivery_fee_applied'], 2));
+        }
+
+        if (! ($metadata['delivery_fee_pending_review'] ?? false) && array_key_exists('delivery_fee', $metadata)) {
+            return max(0, round((float) $metadata['delivery_fee'], 2));
+        }
+
+        return 0.0;
+    }
+
+    /** @return array<string, string|null> */
+    private function fulfillment(WhatsappCart $order, array $billing): array
+    {
+        $metadata = $order->metadata ?? [];
+        $pickupMode = $metadata['pickup_mode'] ?? null;
+        $serviceType = $metadata['service_type'] ?? null;
+
+        return [
+            'branch' => $order->branch?->name,
+            'type' => match (true) {
+                $pickupMode === 'delivery' => 'Delivery',
+                $pickupMode === 'retiro' => 'Retiro en el local',
+                $serviceType === 'servir' => 'Para servir en el local',
+                $serviceType === 'llevar' => 'Para llevar',
+                default => null,
+            },
+            'recipient' => $pickupMode === 'delivery'
+                ? ($metadata['delivery_recipient_name'] ?? null)
+                : null,
+            'address' => $pickupMode === 'delivery'
+                ? ($metadata['delivery_location']['manual_address']
+                    ?? ($billing['address'] ?: ($order->contact?->address ?? null)))
+                : $order->branch?->address,
+        ];
     }
 
     /**
@@ -212,14 +313,43 @@ class OrderPdfService
         return trim($note);
     }
 
-    private function statusLabel(?string $status): string
+    private function paymentStatusLabel(WhatsappCart $order): string
     {
-        return config("order_pdf.status_labels.{$status}", ucfirst((string) $status));
+        if (in_array($order->status, [
+            WhatsappCart::STATUS_PAID,
+            WhatsappCart::STATUS_PREPARING,
+            WhatsappCart::STATUS_READY,
+            WhatsappCart::STATUS_COMPLETED,
+        ], true) && in_array($order->payment_method, ['transferencia', 'tarjeta'], true)) {
+            return 'Pago confirmado';
+        }
+
+        return match ($order->payment_status) {
+            'awaiting_proof' => 'Esperando comprobante',
+            'proof_submitted' => 'Comprobante recibido · en revisión',
+            'confirmed' => 'Pago confirmado',
+            'cash_on_delivery' => 'Pago al recibir el pedido',
+            default => 'Pago pendiente',
+        };
+    }
+
+    private function paymentExplanation(WhatsappCart $order): string
+    {
+        return match ($order->payment_method) {
+            'efectivo' => 'El cliente pagará en efectivo al recibir o retirar el pedido.',
+            'transferencia' => $this->paymentStatusLabel($order) === 'Pago confirmado'
+                ? 'La transferencia fue verificada. No se debe cobrar nuevamente.'
+                : 'Revisa el comprobante antes de considerar el pago confirmado.',
+            'tarjeta' => $this->paymentStatusLabel($order) === 'Pago confirmado'
+                ? 'El pago con tarjeta fue confirmado. No se debe cobrar nuevamente.'
+                : 'El pago con tarjeta todavía está pendiente de confirmación.',
+            default => 'La forma de pago todavía no ha sido definida.',
+        };
     }
 
     private function paymentLabel(?string $method): string
     {
-        if (!$method) {
+        if (! $method) {
             return 'Por definir';
         }
 

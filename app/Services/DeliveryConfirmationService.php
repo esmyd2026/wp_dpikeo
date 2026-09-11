@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DeliveryConfirmationToken;
+use App\Models\DeliveryDriver;
 use App\Models\WhatsappCart;
 use Illuminate\Http\UploadedFile;
 
@@ -60,5 +61,35 @@ class DeliveryConfirmationService
         $order->save();
 
         return $lifecycle->transition($order, WhatsappCart::STATUS_COMPLETED, is_int($confirmedBy) ? $confirmedBy : null);
+    }
+
+    /**
+     * Avisa al cliente que su pedido va en camino, con el contacto del
+     * repartidor. Pedido explícito en vivo: se puede accionar tanto desde
+     * el enlace público del repartidor como desde el panel (el operador),
+     * pero solo debe pasar una vez -- ver el guardián en
+     * WhatsappService::notifyCustomerOrderOnTheWay().
+     *
+     * @param int|string $notifiedBy id del usuario del panel, o 'driver'
+     *                                cuando lo acciona el repartidor desde
+     *                                el link público.
+     * @return array{sent: bool, reason: ?string}
+     */
+    public function notifyOnTheWay(WhatsappCart $order, int|string $notifiedBy, WhatsappService $whatsapp): array
+    {
+        $order->loadMissing('contact.businessProfile');
+        $contact = $order->contact;
+        if (! $contact?->businessProfile) {
+            return ['sent' => false, 'reason' => 'no_business_profile'];
+        }
+
+        $driver = DeliveryDriver::find($order->metadata['last_dispatch_driver_id'] ?? null);
+        if (! $driver) {
+            return ['sent' => false, 'reason' => 'no_driver_assigned'];
+        }
+
+        $whatsapp->useBusinessProfile($contact->businessProfile);
+
+        return $whatsapp->notifyCustomerOrderOnTheWay($order, $driver, $notifiedBy);
     }
 }
