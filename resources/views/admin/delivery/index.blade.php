@@ -220,7 +220,7 @@ function deliveryCard(order) {
     let notifyBtn = '';
     if (order.last_dispatch_driver) {
         notifyBtn = order.on_the_way_notified_at
-            ? `<button type="button" class="delivery-btn" disabled title="Ya se le avisó el ${deliveryFormatDate(order.on_the_way_notified_at)}"><i class="fas fa-check me-1"></i>Ya avisado</button>`
+            ? `<button type="button" class="delivery-btn" disabled title="Ya se le avisó el ${deliveryFormatDate(order.on_the_way_notified_at)}"><i class="fas fa-check me-1"></i>Ya se le aviso al cliente</button>`
             : `<button type="button" class="delivery-btn" id="notify-on-the-way-${order.id}" onclick="notifyCustomerOnTheWay(${order.id})"><i class="fas fa-truck me-1"></i>Avisar que va en camino</button>`;
     }
 

@@ -133,6 +133,34 @@
         .kitchen-flow i { transform: rotate(90deg); }
         .kitchen-flow { flex-direction: column; align-items: flex-start; }
     }
+
+    /* Atajos de teclado tipo "bump bar": la tecla siempre actúa sobre el
+       pedido más antiguo de su columna, igual que los botones físicos que
+       usan las cadenas de comida rápida en su pantalla de cocina. */
+    .kitchen-shortcuts-hint {
+        margin: -.35rem 0 1rem; padding: .55rem .85rem; border-radius: 10px;
+        background: #f0fdfa; border: 1px solid #ccfbf1; color: #0f766e;
+        font-size: .76rem; font-weight: 700; display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: center;
+    }
+    .kitchen-shortcuts-hint kbd {
+        display: inline-block; min-width: 1.3em; padding: .12rem .4rem; margin-right: .3rem;
+        border-radius: 5px; background: #0f766e; color: #fff; font-size: .72rem; font-weight: 800; text-align: center;
+    }
+    .kitchen-key {
+        display: inline-block; min-width: 1.2em; padding: .05rem .35rem; margin-right: .4rem;
+        border-radius: 4px; background: rgba(255,255,255,.28); font-size: .72rem; font-weight: 800; text-align: center; vertical-align: 1px;
+    }
+
+    /* Modo pantalla completa: solo el tablero, sin menú ni cabecera del panel. */
+    body.kitchen-fullscreen-active .sidebar,
+    body.kitchen-fullscreen-active .sidebar-overlay,
+    body.kitchen-fullscreen-active .top-navbar,
+    body.kitchen-fullscreen-active .mobile-menu-btn { display: none !important; }
+    body.kitchen-fullscreen-active .main-wrapper { margin-left: 0 !important; }
+    body.kitchen-fullscreen-active .main-content { padding: 1.1rem 1.4rem !important; }
+    body.kitchen-fullscreen-active .kitchen-page { max-width: none; }
+    body.kitchen-fullscreen-active .kitchen-order-number { font-size: 1.45rem; }
+    body.kitchen-fullscreen-active .kitchen-action { padding: .75rem .8rem; font-size: .86rem; }
 </style>
 
 <div class="kitchen-page">
@@ -143,10 +171,17 @@
             @if($canUpdateKitchen)
                 <button type="button" class="kitchen-reset" id="kitchenResetTurns"><i class="fas fa-rotate-left"></i> Reiniciar turnos</button>
             @endif
-            <a class="kitchen-link" href="{{ route('admin.kitchen.display') }}" target="_blank" rel="noopener"><i class="fas fa-tv"></i> Ver en pantalla completa</a>
+            <button type="button" class="kitchen-link" id="kitchenFullscreenBtn"><i class="fas fa-expand"></i> Ver en pantalla completa</button>
         </div>
     </div>
     <div class="kitchen-flow"><span><b>1</b>Caja confirma</span><i class="fas fa-arrow-right"></i><span><b>2</b>Cocina prepara</span><i class="fas fa-arrow-right"></i><span><b>3</b>Se entrega el pedido</span></div>
+    @if($canUpdateKitchen)
+        <div class="kitchen-shortcuts-hint"><i class="fas fa-keyboard"></i> Atajos de teclado (siempre al pedido más antiguo de cada columna):
+            <span><kbd>1</kbd>Iniciar preparación</span>
+            <span><kbd>2</kbd>Marcar listo</span>
+            <span><kbd>3</kbd>Confirmar entrega</span>
+        </div>
+    @endif
     <div class="kitchen-board">
         <section class="kitchen-column queue"><div class="kitchen-column-head"><div class="kitchen-column-head-main"><span class="kitchen-column-icon"><i class="fas fa-inbox"></i></span><div><strong>Por preparar</strong><small>Pedidos confirmados</small></div></div><span class="kitchen-count" id="queueCount">0</span></div><div class="kitchen-cards" id="queueOrders"></div></section>
         <section class="kitchen-column preparing"><div class="kitchen-column-head"><div class="kitchen-column-head-main"><span class="kitchen-column-icon"><i class="fas fa-fire"></i></span><div><strong>En preparación</strong><small>Trabajando ahora</small></div></div><span class="kitchen-count" id="preparingCount">0</span></div><div class="kitchen-cards" id="preparingOrders"></div></section>
@@ -173,14 +208,18 @@ function kitchenAction(order) {
     if (order.status === 'preparing') return { status:'ready', label:'Pedido listo', className:'ready', icon:'fa-check' };
     return { status:'completed', label:'Confirmar entrega', className:'deliver', icon:'fa-handshake' };
 }
-function kitchenCard(order) {
+const kitchenColumnKeys = { queue: '1', preparing: '2', ready: '3' };
+let kitchenNextByColumn = { queue: null, preparing: null, ready: null };
+
+function kitchenCard(order, keyHint) {
     const action = kitchenAction(order);
     const elapsed = Number(order.elapsed_minutes || 0);
     const elapsedLabel = order.elapsed_label || 'Recién ingresado';
     const timing = elapsed >= 20 ? 'urgent' : '';
     const printUrl = kitchenPrintTemplate.replace('__ORDER__', order.id);
+    const keyBadge = keyHint ? `<kbd class="kitchen-key">${keyHint}</kbd>` : '';
     const actionButton = kitchenCanUpdate
-        ? `<button class="kitchen-action ${action.className}" data-order="${order.id}" data-status="${action.status}"><i class="fas ${action.icon} me-1"></i>${action.label}</button>`
+        ? `<button class="kitchen-action ${action.className}" data-order="${order.id}" data-status="${action.status}">${keyBadge}<i class="fas ${action.icon} me-1"></i>${action.label}</button>`
         : '';
     return `<article class="kitchen-card">
         <div class="kitchen-card-top">
@@ -196,9 +235,20 @@ function renderKitchen(orders) {
     const groups = { queue: orders.filter(o => ['confirmed','paid'].includes(o.status)), preparing: orders.filter(o => o.status === 'preparing'), ready: orders.filter(o => o.status === 'ready') };
     Object.entries(groups).forEach(([key, items]) => {
         document.getElementById(key + 'Count').textContent = items.length;
-        document.getElementById(key + 'Orders').innerHTML = items.length ? items.map(kitchenCard).join('') : '<div class="kitchen-empty"><i class="fas fa-circle-check"></i>Sin pedidos en esta etapa</div>';
+        document.getElementById(key + 'Orders').innerHTML = items.length
+            ? items.map((order, index) => kitchenCard(order, index === 0 ? kitchenColumnKeys[key] : null)).join('')
+            : '<div class="kitchen-empty"><i class="fas fa-circle-check"></i>Sin pedidos en esta etapa</div>';
+        kitchenNextByColumn[key] = items[0] || null;
     });
     document.querySelectorAll('[data-order]').forEach(button => button.addEventListener('click', () => updateKitchenStatus(button.dataset.order, button.dataset.status, button)));
+}
+/** "Bump": la tecla siempre avanza el pedido más antiguo de esa columna -- igual que un botón físico de bump bar. */
+function kitchenBump(columnKey) {
+    const order = kitchenNextByColumn[columnKey];
+    if (!kitchenCanUpdate || !order) return;
+    const action = kitchenAction(order);
+    const button = document.querySelector(`[data-order="${order.id}"]`);
+    if (button) updateKitchenStatus(order.id, action.status, button);
 }
 async function updateKitchenStatus(id, status, button) {
     button.disabled = true;
@@ -235,6 +285,41 @@ async function resetKitchenTurns() {
     } catch (error) { kitchenToast(error.message, true); }
 }
 document.getElementById('kitchenResetTurns')?.addEventListener('click', resetKitchenTurns);
+
+// Atajos 1/2/3 = bump bar. Se ignoran si el foco está en un campo de texto
+// (por si el operador tiene abierto algún formulario en otra parte del panel).
+document.addEventListener('keydown', (event) => {
+    if (!kitchenCanUpdate) return;
+    const tag = (event.target?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) return;
+
+    if (event.key === '1') { event.preventDefault(); kitchenBump('queue'); }
+    else if (event.key === '2') { event.preventDefault(); kitchenBump('preparing'); }
+    else if (event.key === '3') { event.preventDefault(); kitchenBump('ready'); }
+});
+
+// Pantalla completa real (Fullscreen API): oculta el menú/cabecera del panel
+// y deja solo el tablero. Antes este botón solo abría la vista de TV en una
+// pestaña aparte, que no tiene botones de acción ni atajos.
+const kitchenFullscreenBtn = document.getElementById('kitchenFullscreenBtn');
+function syncKitchenFullscreenUi() {
+    const active = document.fullscreenElement != null;
+    document.body.classList.toggle('kitchen-fullscreen-active', active);
+    if (kitchenFullscreenBtn) {
+        kitchenFullscreenBtn.innerHTML = active
+            ? '<i class="fas fa-compress"></i> Salir de pantalla completa'
+            : '<i class="fas fa-expand"></i> Ver en pantalla completa';
+    }
+}
+kitchenFullscreenBtn?.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => kitchenToast('El navegador no permitió pantalla completa.', true));
+    } else {
+        document.exitFullscreen?.();
+    }
+});
+document.addEventListener('fullscreenchange', syncKitchenFullscreenUi);
+
 fetchKitchen(); setInterval(fetchKitchen, 10000);
 </script>
 @endsection
