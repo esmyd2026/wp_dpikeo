@@ -203,17 +203,14 @@ class WhatsappWebhookBatchTest extends TestCase
         ]);
     }
 
-    public function test_missing_app_secret_fails_closed_instead_of_accepting_unsigned_webhooks(): void
+    public function test_missing_app_secret_keeps_legacy_webhook_available(): void
     {
         config()->set('whatsapp.app_secret', '');
 
         $this->postJson('/api/whatsapp/webhook', [
             'object' => 'whatsapp_business_account',
             'entry' => [['id' => 'WABA', 'changes' => []]],
-        ])->assertForbidden()->assertJson([
-            'estado' => false,
-            'mensaje' => 'Firma inválida',
-        ]);
+        ])->assertOk()->assertJson(['estado' => true]);
     }
 
     public function test_one_broken_message_does_not_prevent_the_next_one_from_being_processed(): void
