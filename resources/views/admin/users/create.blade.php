@@ -98,8 +98,11 @@
             @if($branches->isNotEmpty())
                 <div class="uf-field">
                     <label>Sucursales autorizadas</label>
+                    <p class="text-sm text-muted mb-2" style="margin-top:-.25rem">
+                        Pedidos, comanda y delivery se limitan a las sucursales que elijas aquí para este usuario.
+                    </p>
                     <label class="uf-check" style="margin-bottom:.55rem">
-                        <input type="checkbox" id="allBranches" name="all_branches" value="1" @checked(old('all_branches', true))>
+                        <input type="checkbox" id="allBranches" name="all_branches" value="1" @checked(old('all_branches', false))>
                         <span>Acceso a todas las sucursales, incluidas las nuevas</span>
                     </label>
                     <div class="uf-branches" id="branchChoices">
