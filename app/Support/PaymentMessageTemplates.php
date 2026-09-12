@@ -31,7 +31,7 @@ final class PaymentMessageTemplates
                 'body' => "📋 *Resumen de tu pedido*\nPedido *#{{order_number}}*\n\n{{items}}{{fulfillment}}💳 *Pago*\n{{payment_method}}\n\n{{transfer_instructions}}{{cost_breakdown}}{{note}}¿Confirmas tu pedido?",
                 'variables' => self::variables([
                     'order_number', 'items', 'fulfillment', 'payment_method',
-                    'transfer_instructions', 'cost_breakdown', 'note',
+                    'transfer_instructions', 'cost_breakdown', 'total', 'note',
                 ]),
             ],
             'bank_transfer' => [
@@ -161,22 +161,29 @@ final class PaymentMessageTemplates
         return array_values(array_diff(array_unique($matches[1] ?? []), $allowed));
     }
 
-    /** @param string[] $names @return array<string, string> */
+    /**
+     * Todas estas se arman solas con los datos del pedido -- no son un
+     * campo de texto que se edite en otro lado, solo se insertan tal cual
+     * las genera el sistema. La excepción real es {{bank_instructions}},
+     * que sí viene de un campo de configuración (se aclara en su texto).
+     *
+     * @param string[] $names @return array<string, string>
+     */
     private static function variables(array $names): array
     {
         $descriptions = [
-            'order_number' => 'Número del pedido, ej. "ORD-010"',
-            'items' => 'Lista de productos: nombre, cantidad y precio unitario de cada línea, uno debajo del otro',
-            'fulfillment' => 'Bloque "🚚 Entrega" ya armado: sucursal, "Para llevar/servir", y si es delivery también la dirección y quién recibe',
-            'payment_method' => 'Texto de la forma de pago elegida, ej. "Transferencia o depósito bancario", "Efectivo" o "Tarjeta"',
-            'transfer_instructions' => 'Bloque completo de datos bancarios + la advertencia de "solo transferencias inmediatas" (vacío si no paga por transferencia)',
-            'cost_breakdown' => 'Subtotal/IVA si aplica, costo de envío (o "por confirmar" si aún no se calcula) y el total',
-            'note' => 'Nota que el cliente escribió al pedido, con el prefijo "📝 Nota:" (vacío si no dejó ninguna)',
-            'bank_instructions' => 'Los datos bancarios tal como están escritos en "Datos de transferencia" en la configuración (vacío si ese campo no está lleno)',
-            'currency' => 'Código de moneda, siempre "USD"',
-            'total' => 'Monto total del pedido con dos decimales, ej. "8.50" (sin el símbolo $)',
-            'customer' => 'Nombre del contacto si lo tiene guardado, o su número de teléfono',
-            'payment_url' => 'Enlace de pago con tarjeta generado para ese pedido específico',
+            'order_number' => 'Número del pedido, ej. "ORD-010". Se arma solo con el pedido.',
+            'items' => 'Lista de productos: nombre, cantidad y precio unitario de cada línea, uno debajo del otro. Se arma sola con los productos del pedido.',
+            'fulfillment' => 'Bloque "🚚 Entrega" ya armado: sucursal, "Para llevar/servir", y si es delivery también la dirección y quién recibe. Se arma solo con los datos de entrega del pedido -- no se edita aparte.',
+            'payment_method' => 'Texto de la forma de pago elegida, ej. "Transferencia o depósito bancario", "Efectivo" o "Tarjeta". Se arma solo según lo que eligió el cliente.',
+            'transfer_instructions' => 'Bloque completo de datos bancarios + la advertencia de "solo transferencias inmediatas" (vacío si no paga por transferencia). Es el resultado ya renderizado de la plantilla "Datos y advertencia de transferencia" (más abajo en este mismo grupo), que a su vez usa el campo "Datos para transferencias o depósitos" de arriba en esta pantalla.',
+            'cost_breakdown' => 'Subtotal/IVA si aplica y costo de envío (o "por confirmar" si aún no se calcula). Se arma solo con el pedido -- no incluye el total, para eso usa {{total}} aparte.',
+            'total' => 'Monto total del pedido con dos decimales, ej. "8.50" (sin el símbolo $). Si el envío todavía está pendiente de confirmar, se arma como "8.50 + envío (por confirmar)" en vez de un número que después cambiaría.',
+            'note' => 'Nota que el cliente escribió al pedido, con el prefijo "📝 Nota:" (vacío si no dejó ninguna). Se arma sola con el pedido.',
+            'bank_instructions' => 'Los datos bancarios tal como están escritos en el campo "Datos para transferencias o depósitos", más arriba en esta misma pantalla (vacío si ese campo no está lleno). Para editarlos, cambia ese campo, no esta plantilla.',
+            'currency' => 'Código de moneda, siempre "USD".',
+            'customer' => 'Nombre del contacto si lo tiene guardado, o su número de teléfono. Se arma solo con el contacto.',
+            'payment_url' => 'Enlace de pago con tarjeta generado para ese pedido específico. Se arma solo, no se edita aparte.',
         ];
 
         return array_intersect_key($descriptions, array_flip($names));

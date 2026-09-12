@@ -4767,6 +4767,15 @@ class WhatsappService
             ? "📝 *Nota:* {$cart->note}\n\n"
             : '';
 
+        // {{total}} queda disponible para quien lo quiera usar, pero el
+        // texto por defecto NO lo incluye a propósito: mientras el envío
+        // esté pendiente de confirmar, $cart->total todavía no es el monto
+        // final (ver buildCostBreakdownText) -- mostrarlo acá adelantaría un
+        // número que después cambia.
+        $totalForDisplay = $cart->hasPendingFulfillmentCosts()
+            ? number_format((float) $cart->total, 2).' + envío (por confirmar)'
+            : number_format((float) $cart->total, 2);
+
         return $this->renderPaymentTemplate('order_review', [
             'order_number' => $cart->getOrderNumber(),
             'items' => $this->buildOrderItemsText($cart),
@@ -4776,6 +4785,7 @@ class WhatsappService
                 ? $this->buildTransferenciaNotice()
                 : '',
             'cost_breakdown' => $this->buildCostBreakdownText($cart, false),
+            'total' => $totalForDisplay,
             'note' => $note,
         ]);
     }
@@ -7882,9 +7892,19 @@ class WhatsappService
             $cart->metadata = $metadata;
             $cart->save();
 
+            // Si todavía falta confirmar el costo de envío, $cart->total no
+            // es el monto final -- se lo marca explícito en vez de mostrar
+            // un total que va a cambiar (justo lo que ya evita
+            // buildCostBreakdownText() con su "Total productos"/"por
+            // confirmar"; acá se necesitaba lo mismo pero para un {{total}}
+            // suelto, no el bloque completo de desglose).
+            $totalForDisplay = $cart->hasPendingFulfillmentCosts()
+                ? number_format((float) $cart->total, 2).' + envío (por confirmar)'
+                : number_format((float) $cart->total, 2);
+
             $confirmationBody = $this->renderPaymentTemplate('order_confirmed', [
                 'order_number' => $orderNumber,
-                'total' => number_format((float) $cart->total, 2),
+                'total' => $totalForDisplay,
                 'cost_breakdown' => $this->buildCostBreakdownText($cart, false),
                 'payment_method' => $this->getPaymentMethodText($cart->payment_method),
                 'fulfillment' => $this->buildFulfillmentSummaryText($cart),

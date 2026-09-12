@@ -145,4 +145,34 @@ class OrderMessageTemplatesUpdateTest extends TestCase
         $this->assertContains('shipping_line', $template->placeholders);
         $this->assertContains('fulfillment', $template->placeholders);
     }
+
+    /**
+     * Pedido explícito en vivo: si el envío todavía no se confirma, el total
+     * no puede aparecer como un número fijo -- se marcaría un monto que
+     * después cambia, justo lo que buildCostBreakdownText() ya evitaba para
+     * el desglose completo. Debe pasar lo mismo con el {{total}} suelto.
+     */
+    public function test_the_total_is_marked_as_pending_when_shipping_is_still_unconfirmed(): void
+    {
+        [, $branch, $contact, $product] = $this->fixture();
+        // order_review no muestra {{total}} en su texto por defecto a
+        // propósito (ver PaymentMessageTemplates::order_review) -- se
+        // comprueba el cálculo directo en vez de esperar que aparezca ahí.
+        $cart = WhatsappCart::create([
+            'contact_id' => $contact->id, 'branch_id' => $branch->id, 'status' => 'active', 'total' => 15,
+            'payment_method' => 'transferencia',
+            'metadata' => ['pickup_mode' => 'delivery', 'delivery_fee_pending_review' => true],
+        ]);
+        $cart->items()->create(['whatsapp_price_id' => $product->id, 'name' => 'Combo', 'price' => 15, 'quantity' => 1]);
+        $this->assertTrue($cart->hasPendingFulfillmentCosts());
+
+        // El mismo cálculo se usa en order_confirmed (confirmarPedido()) --
+        // ahí sí es visible en el texto final que llega al cliente.
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('PHONE-TEST');
+        $response = $this->invoke($service, 'confirmarPedido', [$contact, $cart->id]);
+        $body = $response['interactive']['body']['text'] ?? $response['text']['body'];
+
+        $this->assertStringContainsString('15.00 + envío (por confirmar)', $body);
+    }
 }

@@ -524,21 +524,34 @@
                                 <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform group-open:rotate-180"></i>
                             </summary>
                             <div class="border-t border-gray-100 px-4 pb-4 pt-3">
+                                @if(!empty($config->metadata['payment_templates'][$templateKey] ?? null))
+                                    <p class="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                                        ✏️ Este mensaje tiene un texto propio guardado. Aunque el sistema mejore el texto de fábrica más adelante, este seguirá mostrando lo de aquí abajo hasta que lo vacíes y guardes.
+                                    </p>
+                                @endif
                                 <textarea id="payment_template_{{ $templateKey }}" name="payment_templates[{{ $templateKey }}]" rows="7" maxlength="3000"
                                     class="block w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-emerald-500">{{ old('payment_templates.'.$templateKey, $config->metadata['payment_templates'][$templateKey] ?? $definition['body']) }}</textarea>
 
                                 @if($definition['variables'] !== [])
                                     <div class="mt-3">
-                                        <p class="text-xs font-medium text-gray-600">Variables disponibles — toca una para insertarla:</p>
-                                        <div class="mt-2 flex flex-wrap gap-2">
+                                        <p class="text-xs font-medium text-gray-600">Variables disponibles — toca una para insertarla, o el "?" para saber qué es:</p>
+                                        <div class="mt-2 flex flex-wrap gap-1.5">
                                             @foreach($definition['variables'] as $variable => $description)
-                                                <button type="button" data-template-target="payment_template_{{ $templateKey }}" data-template-variable="&#123;&#123;{{ $variable }}&#125;&#125;"
-                                                    title="{{ $description }}"
-                                                    class="rounded-md bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 ring-1 ring-gray-200 hover:bg-emerald-50 hover:text-emerald-800 hover:ring-emerald-200">
-                                                    &#123;&#123;{{ $variable }}&#125;&#125;
-                                                </button>
+                                                <span class="inline-flex overflow-hidden rounded-md ring-1 ring-gray-200">
+                                                    <button type="button" data-template-target="payment_template_{{ $templateKey }}" data-template-variable="&#123;&#123;{{ $variable }}&#125;&#125;"
+                                                        title="{{ $description }}"
+                                                        class="bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800">
+                                                        &#123;&#123;{{ $variable }}&#125;&#125;
+                                                    </button>
+                                                    <button type="button" data-template-info-for="payment_template_info_{{ $templateKey }}" data-template-info-text="{{ $description }}"
+                                                        aria-label="Qué es {{ $variable }}"
+                                                        class="border-l border-gray-200 bg-gray-50 px-1.5 text-xs font-bold text-gray-500 hover:bg-emerald-50 hover:text-emerald-800">
+                                                        ?
+                                                    </button>
+                                                </span>
                                             @endforeach
                                         </div>
+                                        <p id="payment_template_info_{{ $templateKey }}" class="mt-2 hidden rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100"></p>
                                     </div>
                                 @endif
 
@@ -578,6 +591,26 @@
                 Textos que el sistema le envía al cliente por WhatsApp cuando pasan cosas en la plataforma (cambio de estado del pedido, costo de envío confirmado, etc.). No es el flujo conversacional del bot — eso se edita desde <a href="{{ route('admin.marketing-flow.edit') }}" class="text-blue-600 underline">Flujo de marketing</a>.
             </p>
 
+            @php
+                // Este sistema (App\Models\MessageTemplate) no guarda una
+                // descripción por variable como sí hace PaymentMessageTemplates
+                // -- se documenta acá, a mano, una sola vez para las 4 plantillas
+                // que existen hoy.
+                $messageTemplatePlaceholderInfo = [
+                    'order_number' => 'Número del pedido, ej. "ORD-010". Se arma solo con el pedido.',
+                    'status_label' => 'Nombre del nuevo estado del pedido (ej. "En preparación", "Listo"). Se arma solo según a qué estado cambió.',
+                    'address_line' => 'Línea con la dirección de entrega, si el pedido es delivery (vacía si no aplica). Se arma sola con el pedido.',
+                    'recipient_line' => 'Línea con el nombre de quién recibe, si el pedido es delivery (vacía si no aplica). Se arma sola con el pedido.',
+                    'fee' => 'Costo de envío confirmado, con dos decimales (sin el símbolo $).',
+                    'total' => 'Monto total del pedido, con dos decimales (sin el símbolo $).',
+                    'pdf_url' => 'Enlace para ver/descargar el PDF de este pedido. Se genera solo, no se edita aparte.',
+                    'items_list' => 'Lista de productos del pedido ("*Resumen:*" + una línea "• Nombre xCantidad" por producto). Se arma sola con el pedido.',
+                    'shipping_line' => 'Línea "🚚 Envío: $X" (o "Por confirmar" si aún no se calcula) -- vacía si el pedido no es delivery. Se arma sola con el pedido.',
+                    'fulfillment' => 'Bloque "🚚 Entrega": sucursal, tipo, y si aplica dirección y quién recibe. Se arma solo con el pedido -- no se edita aparte.',
+                    'note_line' => 'La nota que el cliente escribió al pedido, si dejó alguna (vacía si no).',
+                    'agent_note_line' => 'Mensaje que un asesor haya agregado al reenviar este ticket manualmente (vacío si nadie escribió nada).',
+                ];
+            @endphp
             <div class="space-y-4">
                 @foreach($messageTemplates as $template)
                     <form action="{{ route('admin.chatbot.message-templates.update', $template) }}" method="POST" class="bg-white border border-gray-200 rounded-lg p-4">
@@ -595,12 +628,26 @@
                         <textarea id="template_body_{{ $template->id }}" name="body" rows="4" required
                             class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">{{ old('body', $template->body) }}</textarea>
                         @if(!empty($template->placeholders))
-                            <p class="mt-1 text-xs text-gray-500">
-                                Variables disponibles:
-                                @foreach($template->placeholders as $placeholder)
-                                    <code class="bg-gray-100 px-1 rounded">&#123;&#123;{{ $placeholder }}&#125;&#125;</code>@if(!$loop->last), @endif
-                                @endforeach
-                            </p>
+                            <div class="mt-2">
+                                <p class="text-xs font-medium text-gray-600">Variables disponibles — toca una para insertarla, o el "?" para saber qué es:</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                    @foreach($template->placeholders as $placeholder)
+                                        <span class="inline-flex overflow-hidden rounded-md ring-1 ring-gray-200">
+                                            <button type="button" data-template-target="template_body_{{ $template->id }}" data-template-variable="&#123;&#123;{{ $placeholder }}&#125;&#125;"
+                                                title="{{ $messageTemplatePlaceholderInfo[$placeholder] ?? '' }}"
+                                                class="bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 hover:bg-emerald-50 hover:text-emerald-800">
+                                                &#123;&#123;{{ $placeholder }}&#125;&#125;
+                                            </button>
+                                            <button type="button" data-template-info-for="message_template_info_{{ $template->id }}" data-template-info-text="{{ $messageTemplatePlaceholderInfo[$placeholder] ?? 'Sin descripción todavía.' }}"
+                                                aria-label="Qué es {{ $placeholder }}"
+                                                class="border-l border-gray-200 bg-gray-50 px-1.5 text-xs font-bold text-gray-500 hover:bg-emerald-50 hover:text-emerald-800">
+                                                ?
+                                            </button>
+                                        </span>
+                                    @endforeach
+                                </div>
+                                <p id="message_template_info_{{ $template->id }}" class="mt-2 hidden rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800 ring-1 ring-emerald-100"></p>
+                            </div>
                         @endif
                         @if($template->key === 'order_confirmation_ticket')
                             <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -664,6 +711,15 @@ $(document).ready(function() {
             const end = textarea.selectionEnd ?? start;
             textarea.setRangeText(button.dataset.templateVariable, start, end, 'end');
             textarea.focus();
+        });
+    });
+
+    document.querySelectorAll('[data-template-info-for]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const box = document.getElementById(button.dataset.templateInfoFor);
+            if (!box) return;
+            box.textContent = button.dataset.templateInfoText;
+            box.classList.remove('hidden');
         });
     });
 
