@@ -38,7 +38,7 @@ final class PaymentMessageTemplates
                 'group' => 'Antes de confirmar',
                 'label' => 'Datos y advertencia de transferencia',
                 'description' => 'Se inserta dentro del resumen (variable {{transfer_instructions}}) solo cuando el cliente paga por transferencia. Los datos bancarios salen del campo configurado arriba.',
-                'body' => "{{bank_instructions}}⚠️ Solo aceptamos *transferencias inmediatas*. Verifica bien los datos antes de transferir: si el pago no se acredita de inmediato, no podremos despachar tu pedido.\n\n",
+                'body' => "{{bank_instructions}}⚠️ *Importante*\nSolo aceptamos transferencias inmediatas. Verifica los datos antes de realizar el pago. Si el pago no se acredita de inmediato, no podremos despachar tu pedido.\n\n",
                 'variables' => self::variables(['bank_instructions']),
             ],
             'card_payment' => [
@@ -67,9 +67,9 @@ final class PaymentMessageTemplates
             'order_confirmed' => [
                 'group' => 'Al confirmar el pedido',
                 'label' => 'Pedido confirmado',
-                'description' => 'Encabezado y datos que se envían apenas el cliente toca "Confirmar". A este cuerpo se le agrega justo después payment_total_pending o proof_pending, según el caso.',
-                'body' => "✅ *¡Pedido confirmado!*\n\n📦 *Número de pedido:* {{order_number}}\n{{cost_breakdown}}💳 *Método de pago:* {{payment_method}}\n\n{{fulfillment}}",
-                'variables' => self::variables(['order_number', 'cost_breakdown', 'payment_method', 'fulfillment']),
+                'description' => 'Encabezado, total y (si paga por transferencia) los datos bancarios que se envían apenas el cliente toca "Confirmar". A este cuerpo se le agrega justo después payment_total_pending o proof_pending, según el caso.',
+                'body' => "✅ *¡Pedido confirmado!*\n\n📦 Pedido: *{{order_number}}*\n\n💳 *Total a pagar: USD {{total}}*\n\n{{transfer_instructions}}",
+                'variables' => self::variables(['order_number', 'total', 'cost_breakdown', 'payment_method', 'fulfillment', 'transfer_instructions']),
             ],
             'payment_total_pending' => [
                 'group' => 'Al confirmar el pedido',
@@ -89,7 +89,7 @@ final class PaymentMessageTemplates
                 'group' => 'Al confirmar el pedido',
                 'label' => 'Aviso de comprobante pendiente',
                 'description' => 'Se agrega al final de "Pedido confirmado" cuando el total YA se conoce (caso contrario a payment_total_pending) -- avisa que falta el comprobante.',
-                'body' => "🕐 Tu pedido queda *pendiente de verificación* hasta que recibamos tu comprobante. En cuanto lo enviemos a revisión, te confirmamos por este mismo chat.\n\n",
+                'body' => "📎 Cuando realices la transferencia, envía aquí la captura o comprobante para verificar el pago.\n\nTu pedido permanecerá *pendiente de verificación* hasta que confirmemos el pago. Te notificaremos por este mismo chat.\n\n",
                 'variables' => self::variables(['order_number']),
             ],
             'pay_at_register' => [

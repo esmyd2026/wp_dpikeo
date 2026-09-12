@@ -3788,9 +3788,14 @@ class WhatsappService
             : '';
         $agentNoteLine = $agentNote ? "💬 *Mensaje del asesor:*\n{$agentNote}\n\n" : '';
 
+        $fulfillment = $this->buildFulfillmentSummaryText($cart);
+        $shippingLine = $this->buildShippingLineText($cart);
+
         $fallback = "📋 *Confirma tu pedido*\n\n"
             ."📦 *Número:* {$orderNumber}\n"
-            ."💰 *Total:* \${$cart->total}\n"
+            .$shippingLine
+            ."💰 *Total:* \${$cart->total}\n\n"
+            .$fulfillment
             ."📄 *PDF:* {$pdfUrl}\n\n"
             .$itemsList.$noteLine.$agentNoteLine
             .'Revisa el PDF y elige una opción:';
@@ -3800,6 +3805,8 @@ class WhatsappService
             'total' => number_format((float) $cart->total, 2),
             'pdf_url' => $pdfUrl,
             'items_list' => $itemsList,
+            'shipping_line' => $shippingLine,
+            'fulfillment' => $fulfillment,
             'note_line' => $noteLine,
             'agent_note_line' => $agentNoteLine,
         ], $fallback);
@@ -4786,6 +4793,28 @@ class WhatsappService
             : $this->scopedChatbotConfig();
 
         return MessageTemplate::isEnabledFor($config, $key);
+    }
+
+    /**
+     * Línea aislada de "🚚 Envío: $X" para plantillas que quieren mostrarla
+     * suelta (ej. order_confirmation_ticket), sin el resto del desglose de
+     * buildCostBreakdownText(). Mismas reglas de "pendiente de revisión" que
+     * ese método, para que ambos textos nunca se contradigan entre sí.
+     */
+    private function buildShippingLineText(WhatsappCart $cart): string
+    {
+        $metadata = $cart->metadata ?? [];
+        if (($metadata['pickup_mode'] ?? null) !== 'delivery') {
+            return '';
+        }
+
+        if (! empty($metadata['delivery_fee_pending_review'] ?? false) || ! array_key_exists('delivery_fee', $metadata)) {
+            return "🚚 Envío: Por confirmar\n\n";
+        }
+
+        $fee = (float) ($metadata['delivery_fee'] ?? 0);
+
+        return '🚚 Envío: $'.number_format($fee, 2)."\n\n";
     }
 
     /**
@@ -7855,9 +7884,13 @@ class WhatsappService
 
             $confirmationBody = $this->renderPaymentTemplate('order_confirmed', [
                 'order_number' => $orderNumber,
+                'total' => number_format((float) $cart->total, 2),
                 'cost_breakdown' => $this->buildCostBreakdownText($cart, false),
                 'payment_method' => $this->getPaymentMethodText($cart->payment_method),
                 'fulfillment' => $this->buildFulfillmentSummaryText($cart),
+                'transfer_instructions' => $cart->payment_method === 'transferencia'
+                    ? $this->buildTransferenciaNotice()
+                    : '',
             ]);
 
             if ($this->requiresPaymentProofForCart($cart)) {

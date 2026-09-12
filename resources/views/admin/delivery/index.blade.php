@@ -125,6 +125,7 @@ function deliveryFormatDate(dateStr) {
 function deliveryShareText(order, dispatchResult) {
     const branchName = dispatchResult?.branch_name ?? order.branch;
     const routeUrl = dispatchResult?.maps_url ?? order.maps_url;
+    const distanceKm = dispatchResult?.distance_km ?? order.distance_km;
     const lines = [
         '🛵 *Datos para el delivery*',
         '',
@@ -135,7 +136,8 @@ function deliveryShareText(order, dispatchResult) {
         `Pago: ${order.payment_dispatch_label || 'No especificado'}`,
     ].filter(line => line !== null);
     if (routeUrl) {
-        lines.push('', 'Ruta (retiro → entrega):', routeUrl);
+        const routeLabel = distanceKm != null ? `Ruta (retiro → entrega, ~${distanceKm} km):` : 'Ruta (retiro → entrega):';
+        lines.push('', routeLabel, routeUrl);
     }
     if (order.confirmation_url) {
         lines.push('', 'Cuando entregues el pedido, confirma aquí (con una foto):', order.confirmation_url);
