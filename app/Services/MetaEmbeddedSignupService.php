@@ -68,11 +68,24 @@ class MetaEmbeddedSignupService
 
             // Se deja un registro en estado "error" para que el panel lo
             // muestre, sin credenciales (no llegamos a tener token válido).
+            // phone_number y access_token son NOT NULL sin default en la
+            // tabla (la migración original de 2024 las creó así, antes de
+            // que la migración "create_whatsapp_business_profiles_table"
+            // -- que sí las declara nullable -- se topara con la tabla ya
+            // existente y por eso nunca corrigiera la columna): si el fallo
+            // pasó antes de conseguir el número real (p.ej.
+            // exchangeCodeForToken o getPhoneNumber fallaron), no hay
+            // display_phone_number que guardar -- se usa el phone_number_id
+            // como marcador temporal (también único) y una cadena vacía
+            // para el token, para no romper el insert con una excepción SQL
+            // cruda que tapa el error real de Meta.
             WhatsappBusinessProfile::updateOrCreate(
                 ['company_id' => $company->id, 'phone_number_id' => $phoneNumberId],
                 [
                     'business_name' => $company->name,
                     'display_name' => $company->name,
+                    'phone_number' => $phoneInfo['display_phone_number'] ?? $phoneNumberId,
+                    'access_token' => $token ?? '',
                     'whatsapp_business_id' => $wabaId,
                     'status' => WhatsappBusinessProfile::STATUS_ERROR,
                     'connection_type' => $connectionType,
