@@ -22,10 +22,13 @@ class MetaEmbeddedSignupService
     public function __construct(private readonly MetaGraphService $graph) {}
 
     /**
-     * $connectionMode distingue únicamente cómo quedó registrada la conexión
-     * ('embedded_signup' vs 'whatsapp_business_app_coexistence'); no cambia
-     * ningún paso del intercambio con Graph API -- el handshake server-to-server
-     * es idéntico para los dos modos hasta que Meta indique lo contrario.
+     * $connectionMode SÍ cambia un paso real del intercambio: en 'coexistence'
+     * (número que sigue usándose desde la app de WhatsApp Business/SMB) Meta
+     * rechaza el paso /register con "Register endpoint is not available for
+     * SMB businesses" (error real de producción, code 100) -- ese número ya
+     * queda operativo solo con Embedded Signup + subscribed_apps, sin PIN de
+     * verificación en dos pasos aparte. El PIN de dos pasos solo aplica al
+     * modo estándar (número que se migra por completo a Cloud API).
      */
     public function connect(Company $company, string $code, string $wabaId, string $phoneNumberId, string $connectionMode = 'standard'): WhatsappBusinessProfile
     {
@@ -47,16 +50,21 @@ class MetaEmbeddedSignupService
             $wabaInfo = $this->graph->getWaba($wabaId, $token);
             $this->graph->subscribeApp($wabaId, $token);
 
-            // Paso final: sin esto Meta deja el número en "Pendiente" y no
-            // habilita envío/recepción real, aunque los pasos de arriba hayan
-            // funcionado. Si este número YA tiene un PIN de dos pasos
-            // establecido (un registro anterior, exitoso, ya se lo puso a
-            // Meta), hay que reenviar ESE MISMO PIN -- Meta rechaza con
-            // "Two step verification PIN Mismatch" (133005) si en un
-            // reintento se manda uno nuevo al azar. Solo se genera uno nuevo
-            // la primera vez que este phone_number_id pasa por acá.
-            $twoFactorPin = $existing?->two_factor_pin ?: sprintf('%06d', random_int(0, 999999));
-            $this->graph->registerPhoneNumber($phoneNumberId, $token, $twoFactorPin);
+            // Paso final SOLO para modo estándar: sin esto Meta deja el
+            // número en "Pendiente" y no habilita envío/recepción real,
+            // aunque los pasos de arriba hayan funcionado. Si este número YA
+            // tiene un PIN de dos pasos establecido (un registro anterior,
+            // exitoso, ya se lo puso a Meta), hay que reenviar ESE MISMO PIN
+            // -- Meta rechaza con "Two step verification PIN Mismatch"
+            // (133005) si en un reintento se manda uno nuevo al azar. Solo
+            // se genera uno nuevo la primera vez que este phone_number_id
+            // pasa por acá. En coexistencia, Meta rechaza este endpoint por
+            // completo (ver el docblock de connect()), así que se omite.
+            $twoFactorPin = $existing?->two_factor_pin;
+            if ($connectionMode !== 'coexistence') {
+                $twoFactorPin = $twoFactorPin ?: sprintf('%06d', random_int(0, 999999));
+                $this->graph->registerPhoneNumber($phoneNumberId, $token, $twoFactorPin);
+            }
         } catch (Throwable $e) {
             Log::error('[MetaEmbeddedSignupService] Falló la conexión de WhatsApp', [
                 'company_id' => $company->id,
