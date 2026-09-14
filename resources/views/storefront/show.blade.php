@@ -19,7 +19,7 @@
         .storefront-branch-list{display:grid;gap:2px;margin:8px 0 12px}.storefront-branch-option{display:grid;padding:13px 8px;border:0;border-bottom:1px solid #e5e7eb;background:#fff;text-align:left;font:inherit;cursor:pointer}.storefront-branch-option strong{font-size:.86rem}.storefront-branch-option small{color:#555}.storefront-branch-option.is-active{border-left:4px solid var(--accent);background:#fffaf0}.storefront-location-copy{margin:-8px 0 18px;color:#666;font-size:.82rem}.storefront-pickup-fields{margin-top:18px}
         .storefront-nav-overlay{display:none;position:fixed;z-index:1450;inset:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.48)}.storefront-nav-overlay.is-open{display:flex}.storefront-nav-card{width:min(620px,100%);max-height:90dvh;padding:28px;border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-nav-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.storefront-nav-head h2{margin:0}.storefront-nav-head button{border:0;background:none;font-size:2rem;cursor:pointer}.storefront-account-form{display:grid;gap:14px}.storefront-account-form label{display:grid;gap:6px;font-size:.78rem;font-weight:800}.storefront-account-form input{width:100%;padding:13px;border:1px solid #d7d7d7;border-radius:9px;font:inherit}.storefront-account-save{padding:14px;border:0;border-radius:8px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-account-note{color:#666;font-size:.8rem;line-height:1.45;margin-top:14px}
         .storefront-account-tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid #eee}.storefront-account-tab{flex:1;padding:12px 4px;border:0;border-bottom:3px solid transparent;background:none;font:inherit;font-weight:800;color:#888;cursor:pointer}.storefront-account-tab.is-active{color:var(--brand-dark);border-bottom-color:var(--accent)}.storefront-account-link{border:0;background:transparent;color:var(--brand-dark);font:inherit;font-size:.8rem;font-weight:800;text-decoration:underline;cursor:pointer}.storefront-account-forgot{justify-self:end;margin-top:-3px}.storefront-account-recovery{display:grid;gap:14px}.storefront-account-recovery-head{display:flex;align-items:center;gap:10px}.storefront-account-recovery-head button{border:0;background:#f5f5f5;width:35px;height:35px;border-radius:50%;font-size:1.15rem;cursor:pointer}.storefront-account-recovery-head h3{margin:0}.storefront-account-recovery-copy{margin:0;color:#666;font-size:.82rem;line-height:1.45}.storefront-account-save:disabled{cursor:wait;opacity:.65}
-        .storefront-account-error{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#fdecea;color:#b42318;font-size:.82rem;font-weight:700}.storefront-account-error.is-success{background:#eaf8ef;color:#16743b}
+        .storefront-account-error{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#fdecea;color:#b42318;font-size:.82rem;font-weight:700}.storefront-account-error.is-success{background:#eaf8ef;color:#16743b}.storefront-google-separator{display:flex;align-items:center;gap:12px;margin:2px 0;color:#858585;font-size:.72rem}.storefront-google-separator:before,.storefront-google-separator:after{content:'';height:1px;flex:1;background:#e5e5e5}.storefront-google-button{display:flex;min-height:48px;width:100%;align-items:center;justify-content:center;gap:11px;border:1px solid #d6d9dc;border-radius:8px;background:#fff;color:#202124;text-decoration:none;font:inherit;font-weight:750;box-shadow:0 1px 2px rgba(0,0,0,.06);cursor:pointer}.storefront-google-button:hover{background:#f8f9fa;border-color:#c9cccf}.storefront-google-mark{display:grid;width:22px;height:22px;place-items:center;border-radius:50%;font-family:Arial,sans-serif;font-size:1.15rem;font-weight:800;color:#4285f4}.storefront-google-summary{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e1e1e1;border-radius:10px;background:#fafafa}.storefront-google-summary span{display:grid;gap:2px;font-size:.8rem}.storefront-google-summary small{color:#666}
         .storefront-account-welcome{margin:0 0 20px;font-size:1.02rem;line-height:1.5}.storefront-account-welcome span{color:#777;font-size:.85rem;font-weight:600}
         .storefront-account-subtitle{margin:0 0 12px;font-size:.92rem}
         .storefront-orders-list{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
@@ -143,6 +143,10 @@
             <label>Contraseña<input type="password" id="loginPassword" required autocomplete="current-password"></label>
             <button type="button" class="storefront-account-link storefront-account-forgot" id="storefrontForgotPassword">¿Olvidaste tu contraseña?</button>
             <button type="submit" class="storefront-account-save">Iniciar sesión</button>
+            @if($settings->googleLoginEnabled())
+                <div class="storefront-google-separator"><span>o</span></div>
+                <a class="storefront-google-button" href="{{ route('storefront.account.google.redirect', $company) }}"><span class="storefront-google-mark" aria-hidden="true">G</span>Iniciar sesión con Google</a>
+            @endif
         </form>
         <form class="storefront-account-form" id="storefrontRegisterForm" data-account-panel="register" style="display:none">
             <label>Nombre completo<input type="text" id="registerName" required maxlength="120" autocomplete="name"></label>
@@ -150,6 +154,18 @@
             <label>Contraseña<input type="password" id="registerPassword" required minlength="6" autocomplete="new-password"></label>
             <label>Confirmar contraseña<input type="password" id="registerPasswordConfirm" required minlength="6" autocomplete="new-password"></label>
             <button type="submit" class="storefront-account-save">Crear cuenta</button>
+            @if($settings->googleLoginEnabled())
+                <div class="storefront-google-separator"><span>o</span></div>
+                <a class="storefront-google-button" href="{{ route('storefront.account.google.redirect', $company) }}"><span class="storefront-google-mark" aria-hidden="true">G</span>Crear cuenta con Google</a>
+            @endif
+        </form>
+        @php($pendingGoogle = session('storefront_google_pending.'.$company->id))
+        <form class="storefront-account-form" id="storefrontGoogleCompleteForm" style="display:none">
+            <div><h3 style="margin:0 0 6px">Completa tu cuenta</h3><p class="storefront-account-note" style="margin:0">Google ya confirmó tu identidad. Solo necesitamos tu número para relacionar tus pedidos de WhatsApp.</p></div>
+            <div class="storefront-google-summary"><span class="storefront-google-mark" aria-hidden="true">G</span><span><strong>{{ data_get($pendingGoogle, 'name') }}</strong><small>{{ data_get($pendingGoogle, 'email') }}</small></span></div>
+            <label>Teléfono de WhatsApp<input type="tel" id="googleRegisterPhone" required maxlength="30" autocomplete="tel"></label>
+            <button type="submit" class="storefront-account-save">Finalizar y entrar</button>
+            <button type="button" class="storefront-account-link" id="storefrontGoogleCancel">Usar otro método</button>
         </form>
         <div class="storefront-account-recovery" id="storefrontRecoveryPanel" style="display:none">
             <div class="storefront-account-recovery-head"><button type="button" id="storefrontRecoveryBack" aria-label="Volver">←</button><h3>Recuperar contraseña</h3></div>
@@ -293,19 +309,21 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      const guestBox=document.getElementById('storefrontAccountGuest'),authedBox=document.getElementById('storefrontAccountAuthed');
      const drawerLogout=document.getElementById('storefrontDrawerLogout');
      const errorBox=document.getElementById('storefrontAccountError');
-     const loginForm=document.getElementById('storefrontLoginForm'),registerForm=document.getElementById('storefrontRegisterForm');
+     const loginForm=document.getElementById('storefrontLoginForm'),registerForm=document.getElementById('storefrontRegisterForm'),googleCompleteForm=document.getElementById('storefrontGoogleCompleteForm');
      const accountTabs=document.querySelector('.storefront-account-tabs'),recoveryPanel=document.getElementById('storefrontRecoveryPanel');
      const recoveryRequestForm=document.getElementById('storefrontRecoveryRequestForm'),recoveryResetForm=document.getElementById('storefrontRecoveryResetForm');
      const showStatus=(message,success=false)=>{errorBox.textContent=message;errorBox.classList.toggle('is-success',success);errorBox.style.display='block';};
      const showError=message=>showStatus(message,false);
      const clearError=()=>{errorBox.style.display='none';errorBox.classList.remove('is-success');};
      const setFormBusy=(form,busy,label)=>{const button=form.querySelector('button[type="submit"]');if(!button)return;button.disabled=busy;if(busy){button.dataset.originalLabel=button.textContent;button.textContent=label;}else if(button.dataset.originalLabel){button.textContent=button.dataset.originalLabel;delete button.dataset.originalLabel;}};
-     const showRecovery=requestCode=>{accountTabs.style.display='none';loginForm.style.display='none';registerForm.style.display='none';recoveryPanel.style.display='grid';recoveryRequestForm.style.display=requestCode?'grid':'none';recoveryResetForm.style.display=requestCode?'none':'grid';clearError();};
-     const showLogin=()=>{accountTabs.style.display='flex';recoveryPanel.style.display='none';loginForm.style.display='grid';registerForm.style.display='none';document.querySelectorAll('[data-account-tab]').forEach(tab=>tab.classList.toggle('is-active',tab.dataset.accountTab==='login'));clearError();};
+     const showRecovery=requestCode=>{accountTabs.style.display='none';loginForm.style.display='none';registerForm.style.display='none';googleCompleteForm.style.display='none';recoveryPanel.style.display='grid';recoveryRequestForm.style.display=requestCode?'grid':'none';recoveryResetForm.style.display=requestCode?'none':'grid';clearError();};
+     const showLogin=()=>{accountTabs.style.display='flex';recoveryPanel.style.display='none';googleCompleteForm.style.display='none';loginForm.style.display='grid';registerForm.style.display='none';document.querySelectorAll('[data-account-tab]').forEach(tab=>tab.classList.toggle('is-active',tab.dataset.accountTab==='login'));clearError();};
+     const showGoogleComplete=()=>{accountTabs.style.display='none';loginForm.style.display='none';registerForm.style.display='none';recoveryPanel.style.display='none';googleCompleteForm.style.display='grid';clearError();};
      document.querySelectorAll('[data-account-tab]').forEach(tab=>tab.addEventListener('click',()=>{
          document.querySelectorAll('[data-account-tab]').forEach(t=>t.classList.toggle('is-active',t===tab));
          const target=tab.dataset.accountTab;
          recoveryPanel.style.display='none';
+         googleCompleteForm.style.display='none';
          loginForm.style.display=target==='login'?'grid':'none';
          registerForm.style.display=target==='register'?'grid':'none';
          clearError();
@@ -425,6 +443,14 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
              .catch(()=>showError('No pudimos comunicarnos con el servidor. Inténtalo nuevamente.'))
              .finally(()=>setFormBusy(registerForm,false));
      });
+     googleCompleteForm.addEventListener('submit',event=>{
+         event.preventDefault();clearError();setFormBusy(googleCompleteForm,true,'Creando cuenta…');
+         fetch(accountUrl('/cuenta/google/completar'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify({phone:document.getElementById('googleRegisterPhone').value.trim()})})
+             .then(async response=>{const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.message||'No pudimos completar tu cuenta.');showAuthed(data.customer);})
+             .catch(error=>showError(error.message||'No pudimos completar tu cuenta.'))
+             .finally(()=>setFormBusy(googleCompleteForm,false));
+     });
+     document.getElementById('storefrontGoogleCancel').addEventListener('click',showLogin);
      recoveryRequestForm.addEventListener('submit',event=>{
          event.preventDefault();clearError();
          const phone=document.getElementById('recoveryPhone').value.trim();
@@ -458,11 +484,14 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      };
      document.getElementById('storefrontLogoutBtn').addEventListener('click',logout);
      drawerLogout?.addEventListener('click',()=>{setDrawer(false);logout();});
+     const googleParams=new URLSearchParams(location.search),googleStatus=googleParams.get('google');
+     if(googleStatus==='complete')showGoogleComplete();
+     if(googleStatus==='error')showError(googleParams.get('google_message')||'No pudimos ingresar con Google.');
  })();
  // El bot manda este link con ?cuenta=pedidos cuando "modo ecommerce" está
  // activo (ver WhatsappService::sendStorefrontRedirectLink) para que el
  // cliente llegue directo a ver el estado de su pedido, no a la portada.
- if(new URLSearchParams(location.search).get('cuenta')==='pedidos'){toggleNavOverlay(account,true);window.loadStorefrontOrders?.();}
+ if(['pedidos','google'].includes(new URLSearchParams(location.search).get('cuenta'))){toggleNavOverlay(account,true);window.loadStorefrontOrders?.();}
  document.querySelectorAll('[data-preview-category]').forEach(button=>button.addEventListener('click',()=>{pendingCategory=button.dataset.previewCategory;openCategory(pendingCategory);}));
  document.getElementById('storefrontLocationClose').addEventListener('click',()=>locationBox.classList.remove('is-open'));
  let storefrontGeolocationRequested=false;
@@ -529,20 +558,31 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
          const latitude=position.coords.latitude,longitude=position.coords.longitude;
          window.storefrontOrder.latitude=latitude;
          window.storefrontOrder.longitude=longitude;
-         const address=await resolveDetectedAddress(latitude,longitude);
-         if(address){
-             if(window.setStorefrontAddressValue){
-                 window.setStorefrontAddressValue(address,latitude,longitude);
-             }else{
-                 const addressInput=document.getElementById('storefrontAddress');
-                 addressInput.value=address;
-                 addressInput.dataset.preserveCoordinates='1';
-                 addressInput.dispatchEvent(new Event('input',{bubbles:true}));
-             }
+         let address=await resolveDetectedAddress(latitude,longitude);
+         // Si Google no logra convertir las coordenadas en una calle legible,
+         // igual se deja algo útil y editable en el campo (un link al punto
+         // exacto) en vez de dejarlo vacío con un mensaje de error -- el
+         // cliente ve que su ubicación sí se registró y puede reemplazarlo
+         // por su dirección si prefiere.
+         const isFallbackAddress=!address;
+         if(!address)address=`Ubicación compartida: https://maps.google.com/?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+         let addressField=null;
+         if(window.setStorefrontAddressValue){
+             window.setStorefrontAddressValue(address,latitude,longitude);
+             addressField=window.storefrontPlaceAutocomplete;
+         }else{
+             addressField=document.getElementById('storefrontAddress');
+             addressField.value=address;
+             addressField.dataset.preserveCoordinates='1';
+             addressField.dispatchEvent(new Event('input',{bubbles:true}));
          }
+         // Que escribir encima reemplace el texto en vez de pegarse a
+         // continuación (mismo criterio que un buscador: el texto de
+         // respaldo queda seleccionado, listo para sobrescribirse).
+         addressField?.select?.();
          const quoted=await requestDeliveryQuote(latitude,longitude);
-         if(quoted&&address){error.textContent='Ubicación detectada y envío calculado.';error.classList.add('is-success');error.style.display='block';}
-         else if(quoted){error.classList.remove('is-success');error.textContent='Calculamos la sucursal y el envío, pero no pudimos obtener el nombre de la calle. Escribe tu dirección exacta.';error.style.display='block';}
+         if(quoted&&!isFallbackAddress){error.textContent='Ubicación detectada y envío calculado.';error.classList.add('is-success');error.style.display='block';}
+         else if(quoted){error.textContent='Ubicación detectada. Puedes escribir tu dirección exacta si prefieres.';error.classList.add('is-success');error.style.display='block';}
          setGeolocateBusy(false,quoted?'Ubicación lista':'Reintentar');
      },geolocationError=>{
          storefrontGeolocationRequested=false;

@@ -46,10 +46,14 @@ class StorefrontQaFixesTest extends TestCase
         // editable -- eso era lo que se concatenaba con lo que el cliente
         // tecleaba encima, sin separador.
         $response->assertDontSee('address=`Ubicación detectada:', false);
-        // Las coordenadas se traducen a una dirección legible. Si Google no
-        // puede resolverla, el flujo pide escribirla y nunca expone lat/lon.
+        // Las coordenadas se traducen a una dirección legible con Google.
         $response->assertSee('reverseGeocodeStorefrontAddress', false);
-        $response->assertDontSee('Ubicación compartida: https://maps.google.com', false);
+        // Si Google no logra resolver la calle, se deja un link editable a la
+        // ubicación exacta (nunca un mensaje de error con el campo vacío) y
+        // el texto queda seleccionado para que escribir encima lo reemplace.
+        $response->assertSee('Ubicación compartida: https://maps.google.com', false);
+        $response->assertSee('addressField?.select?.()', false);
+        $response->assertDontSee('no pudimos obtener el nombre de la calle', false);
     }
 
     public function test_google_maps_script_is_not_loaded_upfront_only_lazily_when_delivery_is_selected(): void

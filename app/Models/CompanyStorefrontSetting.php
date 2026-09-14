@@ -10,15 +10,23 @@ class CompanyStorefrontSetting extends Model
     protected $fillable = [
         'company_id', 'logo_path', 'hero_image_path', 'primary_color',
         'secondary_color', 'accent_color', 'custom_domain',
-        'google_maps_api_key', 'google_maps_map_id', 'storefront_enabled',
+        'google_maps_api_key', 'google_maps_map_id', 'google_oauth_client_id',
+        'google_oauth_client_secret', 'storefront_enabled',
     ];
 
     protected $casts = [
         'google_maps_api_key' => 'encrypted',
+        'google_oauth_client_id' => 'encrypted',
+        'google_oauth_client_secret' => 'encrypted',
         'storefront_enabled' => 'boolean',
     ];
 
-    protected $hidden = ['google_maps_api_key'];
+    protected $hidden = ['google_maps_api_key', 'google_oauth_client_id', 'google_oauth_client_secret'];
+
+    public function googleLoginEnabled(): bool
+    {
+        return filled($this->google_oauth_client_id) && filled($this->google_oauth_client_secret);
+    }
 
     public function company(): BelongsTo
     {

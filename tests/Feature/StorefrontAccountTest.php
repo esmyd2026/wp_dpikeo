@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Mail\StorefrontPasswordResetCode;
 use App\Models\Company;
 use App\Models\OrderAlertEvent;
 use App\Models\WhatsappBusinessProfile;
@@ -10,7 +11,6 @@ use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
-use App\Mail\StorefrontPasswordResetCode;
 use App\Models\WhatsappPrice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -405,5 +405,74 @@ class StorefrontAccountTest extends TestCase
         $response = $this->getJson("/tienda/{$companyB->slug}/cuenta/yo");
 
         $response->assertOk()->assertJsonPath('customer', null);
+    }
+
+    public function test_google_login_creates_a_pending_registration_and_requests_only_the_phone(): void
+    {
+        [$company] = $this->makeProfile('100020');
+        $company->storefrontSetting()->updateOrCreate([], [
+            'google_oauth_client_id' => 'google-client-id',
+            'google_oauth_client_secret' => 'google-client-secret',
+        ]);
+        Http::fake([
+            'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token']),
+            'openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'sub' => 'google-user-20', 'email' => 'ana@example.com',
+                'email_verified' => true, 'name' => 'Ana Google',
+            ]),
+        ]);
+
+        $this->get("/tienda/{$company->slug}")
+            ->assertOk()
+            ->assertSee('Iniciar sesión con Google')
+            ->assertSee('Crear cuenta con Google')
+            ->assertDontSee('google-client-secret');
+
+        $redirect = $this->get("/tienda/{$company->slug}/cuenta/google");
+        $redirect->assertRedirect();
+        parse_str((string) parse_url($redirect->headers->get('Location'), PHP_URL_QUERY), $query);
+
+        $callback = $this->get("/tienda/{$company->slug}/cuenta/google/callback?code=authorization-code&state=".urlencode($query['state']));
+        $callback->assertRedirectContains('google=complete');
+
+        $completed = $this->postJson("/tienda/{$company->slug}/cuenta/google/completar", ['phone' => '0991112299']);
+        $completed->assertOk()->assertJsonPath('ok', true)->assertJsonPath('customer.email', 'ana@example.com');
+        $this->assertDatabaseHas('whatsapp_contacts', [
+            'phone_number' => '0991112299', 'google_id' => 'google-user-20', 'google_email' => 'ana@example.com',
+        ]);
+        $this->getJson("/tienda/{$company->slug}/cuenta/yo")
+            ->assertOk()->assertJsonPath('customer.name', 'Ana Google');
+    }
+
+    public function test_google_login_links_an_existing_contact_by_verified_email(): void
+    {
+        [$company, $profile] = $this->makeProfile('100021');
+        $company->storefrontSetting()->updateOrCreate([], [
+            'google_oauth_client_id' => 'google-client-id',
+            'google_oauth_client_secret' => 'google-client-secret',
+        ]);
+        $contact = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112288',
+            'name' => 'Cliente existente',
+            'billing_email' => 'cliente@example.com',
+            'password' => Hash::make('secreto1'),
+        ]);
+        Http::fake([
+            'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token']),
+            'openidconnect.googleapis.com/v1/userinfo' => Http::response([
+                'sub' => 'google-user-21', 'email' => 'cliente@example.com',
+                'email_verified' => true, 'name' => 'Nombre de Google',
+            ]),
+        ]);
+
+        $redirect = $this->get("/tienda/{$company->slug}/cuenta/google");
+        parse_str((string) parse_url($redirect->headers->get('Location'), PHP_URL_QUERY), $query);
+        $this->get("/tienda/{$company->slug}/cuenta/google/callback?code=authorization-code&state=".urlencode($query['state']))
+            ->assertRedirectContains('google=success');
+
+        $this->assertSame('google-user-21', $contact->fresh()->google_id);
+        $this->getJson("/tienda/{$company->slug}/cuenta/yo")
+            ->assertOk()->assertJsonPath('customer.phone', '0991112288');
     }
 }

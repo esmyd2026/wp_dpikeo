@@ -50,6 +50,9 @@ Route::post('/tienda/{company:slug}/pedido', [StorefrontController::class, 'subm
 Route::post('/tienda/{company:slug}/pedido/{cart}/comprobante', [StorefrontController::class, 'uploadPaymentProof'])->name('storefront.order.payment-proof');
 Route::post('/tienda/{company:slug}/cuenta/registro', [StorefrontAccountController::class, 'register'])->name('storefront.account.register');
 Route::post('/tienda/{company:slug}/cuenta/entrar', [StorefrontAccountController::class, 'login'])->name('storefront.account.login');
+Route::get('/tienda/{company:slug}/cuenta/google', [StorefrontAccountController::class, 'redirectToGoogle'])->middleware('throttle:20,1')->name('storefront.account.google.redirect');
+Route::get('/tienda/{company:slug}/cuenta/google/callback', [StorefrontAccountController::class, 'handleGoogleCallback'])->middleware('throttle:20,1')->name('storefront.account.google.callback');
+Route::post('/tienda/{company:slug}/cuenta/google/completar', [StorefrontAccountController::class, 'completeGoogleRegistration'])->middleware('throttle:10,1')->name('storefront.account.google.complete');
 Route::post('/tienda/{company:slug}/cuenta/recuperar', [StorefrontAccountController::class, 'requestPasswordReset'])->name('storefront.account.password.request');
 Route::post('/tienda/{company:slug}/cuenta/restablecer', [StorefrontAccountController::class, 'resetPassword'])->name('storefront.account.password.reset');
 Route::post('/tienda/{company:slug}/cuenta/salir', [StorefrontAccountController::class, 'logout'])->name('storefront.account.logout');

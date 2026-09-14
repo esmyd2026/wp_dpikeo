@@ -10,13 +10,16 @@ use App\Models\WhatsappContact;
 use App\Services\StorefrontOrderSelfService;
 use App\Services\WhatsappService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -108,6 +111,154 @@ class StorefrontAccountController extends Controller
         $request->session()->regenerate();
 
         return response()->json(['ok' => true, 'customer' => $this->customerPayload(Auth::guard('storefront_customer')->user())]);
+    }
+
+    /**
+     * Inicia OAuth sin exponer las credenciales de la empresa. El estado se
+     * guarda en sesión para impedir que un tercero fuerce un callback ajeno.
+     */
+    public function redirectToGoogle(Request $request, Company $company): RedirectResponse
+    {
+        $this->profile($company);
+        $settings = $company->storefrontSetting;
+        if (! $settings?->googleLoginEnabled()) {
+            return $this->googleReturn($company, 'error', 'El acceso con Google todavía no está configurado para esta tienda.');
+        }
+
+        $state = Str::random(64);
+        $request->session()->put($this->googleOAuthKey($company), [
+            'state_hash' => hash('sha256', $state),
+            'started_at' => now()->timestamp,
+        ]);
+
+        $query = http_build_query([
+            'client_id' => $settings->google_oauth_client_id,
+            'redirect_uri' => route('storefront.account.google.callback', $company),
+            'response_type' => 'code',
+            'scope' => 'openid email profile',
+            'state' => $state,
+            'prompt' => 'select_account',
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        return redirect()->away('https://accounts.google.com/o/oauth2/v2/auth?'.$query);
+    }
+
+    /** Intercambia el código únicamente en backend y vincula la identidad. */
+    public function handleGoogleCallback(Request $request, Company $company): RedirectResponse
+    {
+        $profile = $this->profile($company);
+        $oauth = $request->session()->pull($this->googleOAuthKey($company));
+        $state = (string) $request->query('state', '');
+
+        if ($request->filled('error')) {
+            return $this->googleReturn($company, 'error', 'Cancelaste el acceso con Google. Puedes intentarlo nuevamente.');
+        }
+        if (! is_array($oauth) || now()->timestamp - (int) ($oauth['started_at'] ?? 0) > 600
+            || ! hash_equals((string) ($oauth['state_hash'] ?? ''), hash('sha256', $state))) {
+            return $this->googleReturn($company, 'error', 'La solicitud de Google venció o no es válida. Inténtalo nuevamente.');
+        }
+
+        $settings = $company->storefrontSetting;
+        if (! $settings?->googleLoginEnabled() || ! $request->filled('code')) {
+            return $this->googleReturn($company, 'error', 'No pudimos completar el acceso con Google.');
+        }
+
+        try {
+            $tokenResponse = Http::asForm()->timeout(12)->post('https://oauth2.googleapis.com/token', [
+                'code' => $request->string('code')->toString(),
+                'client_id' => $settings->google_oauth_client_id,
+                'client_secret' => $settings->google_oauth_client_secret,
+                'redirect_uri' => route('storefront.account.google.callback', $company),
+                'grant_type' => 'authorization_code',
+            ])->throw();
+
+            $accessToken = $tokenResponse->json('access_token');
+            abort_unless(is_string($accessToken) && $accessToken !== '', 502);
+            $googleUser = Http::withToken($accessToken)->timeout(12)
+                ->get('https://openidconnect.googleapis.com/v1/userinfo')->throw()->json();
+        } catch (\Throwable $e) {
+            Log::warning('storefront.google_oauth.failed', [
+                'company_id' => $company->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->googleReturn($company, 'error', 'Google no pudo validar tu cuenta. Inténtalo nuevamente.');
+        }
+
+        $googleId = trim((string) ($googleUser['sub'] ?? ''));
+        $email = Str::lower(trim((string) ($googleUser['email'] ?? '')));
+        if ($googleId === '' || $email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false
+            || filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN) !== true) {
+            return $this->googleReturn($company, 'error', 'Google no entregó un correo verificado para esta cuenta.');
+        }
+
+        $contact = WhatsappContact::query()
+            ->where('business_profile_id', $profile->id)
+            ->where(function ($query) use ($googleId, $email) {
+                $query->where('google_id', $googleId)
+                    ->orWhere('google_email', $email)
+                    ->orWhere('billing_email', $email)
+                    ->orWhere('metadata->email', $email);
+            })->first();
+
+        if ($contact) {
+            $this->attachGoogleIdentity($contact, $googleId, $email, (string) ($googleUser['name'] ?? ''));
+            Auth::guard('storefront_customer')->login($contact, true);
+            $request->session()->regenerate();
+
+            return $this->googleReturn($company, 'success');
+        }
+
+        $request->session()->put($this->googlePendingKey($company), [
+            'google_id' => $googleId,
+            'email' => $email,
+            'name' => trim((string) ($googleUser['name'] ?? 'Cliente')) ?: 'Cliente',
+            'created_at' => now()->timestamp,
+        ]);
+
+        return $this->googleReturn($company, 'complete');
+    }
+
+    /** Google no comparte teléfonos: se solicita una sola vez al crear cuenta. */
+    public function completeGoogleRegistration(Request $request, Company $company): JsonResponse
+    {
+        $profile = $this->profile($company);
+        $pending = $request->session()->get($this->googlePendingKey($company));
+        if (! is_array($pending) || now()->timestamp - (int) ($pending['created_at'] ?? 0) > 600) {
+            return response()->json(['ok' => false, 'message' => 'La validación con Google venció. Inicia nuevamente.'], 422);
+        }
+
+        $validated = $request->validate(['phone' => ['required', 'string', 'max:30']]);
+        $phone = $this->normalizePhone($validated['phone']);
+        if (! $phone) {
+            return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.'], 422);
+        }
+
+        $contact = WhatsappContact::query()->firstOrNew([
+            'business_profile_id' => $profile->id,
+            'phone_number' => $phone,
+        ]);
+        $existingEmail = Str::lower((string) ($contact->google_email ?: $contact->billing_email ?: data_get($contact->metadata, 'email')));
+        if ($contact->exists && $contact->hasAccountPassword() && $existingEmail !== $pending['email']) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Ese teléfono ya tiene una cuenta. Inicia sesión con teléfono; no vincularemos Google sin verificarla.',
+            ], 422);
+        }
+        if ($contact->exists && filled($contact->google_id) && $contact->google_id !== $pending['google_id']) {
+            return response()->json(['ok' => false, 'message' => 'Ese teléfono ya está vinculado con otra cuenta de Google.'], 422);
+        }
+
+        if (! $contact->exists) {
+            $contact->status = 'active';
+            $contact->bot_enabled = true;
+        }
+        $this->attachGoogleIdentity($contact, $pending['google_id'], $pending['email'], $pending['name']);
+        $request->session()->forget($this->googlePendingKey($company));
+        Auth::guard('storefront_customer')->login($contact, true);
+        $request->session()->regenerate();
+
+        return response()->json(['ok' => true, 'customer' => $this->customerPayload($contact)]);
     }
 
     /**
@@ -533,6 +684,39 @@ class StorefrontAccountController extends Controller
     private function passwordResetKey(int $profileId, string $phone): string
     {
         return "storefront:{$profileId}:{$phone}";
+    }
+
+    private function attachGoogleIdentity(WhatsappContact $contact, string $googleId, string $email, string $name): void
+    {
+        $metadata = $contact->metadata ?? [];
+        $metadata['email'] = $email;
+        $contact->google_id = $googleId;
+        $contact->google_email = $email;
+        $contact->metadata = $metadata;
+        if (blank($contact->name)) {
+            $contact->name = trim($name) ?: 'Cliente';
+        }
+        $contact->save();
+    }
+
+    private function googleOAuthKey(Company $company): string
+    {
+        return 'storefront_google_oauth.'.$company->id;
+    }
+
+    private function googlePendingKey(Company $company): string
+    {
+        return 'storefront_google_pending.'.$company->id;
+    }
+
+    private function googleReturn(Company $company, string $status, ?string $message = null): RedirectResponse
+    {
+        return redirect()->route('storefront.show', array_filter([
+            'company' => $company,
+            'cuenta' => 'google',
+            'google' => $status,
+            'google_message' => $message,
+        ]));
     }
 
     private function profile(Company $company)

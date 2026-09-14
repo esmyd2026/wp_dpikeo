@@ -31,6 +31,8 @@ class CompanyStorefrontController extends Controller
             'custom_domain' => ['nullable', 'string', 'max:190', Rule::unique('company_storefront_settings')->ignore($settings->id)],
             'google_maps_api_key' => ['nullable', 'string', 'max:500'],
             'google_maps_map_id' => ['nullable', 'string', 'max:120'],
+            'google_oauth_client_id' => ['nullable', 'string', 'max:500'],
+            'google_oauth_client_secret' => ['nullable', 'string', 'max:500'],
             'logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp,svg', 'max:4096'],
             'hero_image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
             'storefront_enabled' => ['nullable', 'boolean'],
@@ -47,8 +49,10 @@ class CompanyStorefrontController extends Controller
         $validated['custom_domain'] = filled($validated['custom_domain'] ?? null)
             ? strtolower(preg_replace('#^https?://#', '', trim($validated['custom_domain'], ' /'))) : null;
         $validated['storefront_enabled'] = $request->boolean('storefront_enabled');
-        if (! filled($validated['google_maps_api_key'] ?? null)) {
-            unset($validated['google_maps_api_key']);
+        foreach (['google_maps_api_key', 'google_oauth_client_id', 'google_oauth_client_secret'] as $secretField) {
+            if (! filled($validated[$secretField] ?? null)) {
+                unset($validated[$secretField]);
+            }
         }
         $settings->update($validated);
 

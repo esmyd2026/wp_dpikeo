@@ -35,6 +35,8 @@ class WhatsappContact extends Model implements AuthenticatableContract
         'last_inbound_at',
         'metadata',
         'password',
+        'google_id',
+        'google_email',
     ];
 
     protected $hidden = [
