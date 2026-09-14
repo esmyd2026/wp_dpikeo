@@ -1234,6 +1234,8 @@
     .bulk-order-storefront-customer label span { color:#8a8a8a; font-weight:500; }
     .bulk-order-storefront-customer input,.bulk-order-storefront-customer select { width:100%; border:1px solid #d6d6d6; border-radius:8px; padding:10px 11px; background:#fff; font:inherit; }
     .storefront-checkout-block{display:grid;gap:10px;margin-top:6px;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fafafa}.storefront-checkout-block h4{margin:0;font-size:.9rem}.storefront-checkout-block p{margin:0;color:#666;font-size:.78rem;line-height:1.45}.storefront-bank-instructions{padding:12px;border-left:3px solid var(--brand);background:#fff8e7;white-space:normal}.storefront-invoice-fields{display:none;gap:10px}.storefront-invoice-fields.is-open{display:grid}.storefront-payment-fields,.storefront-card-fields{display:none}.storefront-payment-fields.is-open,.storefront-card-fields.is-open{display:grid;gap:10px}.storefront-card-fields{border-color:#f4c95d;background:#fff9e9}.storefront-card-link{display:flex;min-height:48px;align-items:center;justify-content:center;border-radius:8px;background:var(--brand);color:#fff;text-decoration:none;font-weight:850}.storefront-card-link:hover{filter:brightness(.94)}.storefront-proof-status{font-weight:750;color:#087f5b}.bulk-order-success .storefront-proof-status{margin:12px auto;max-width:520px}
+    .storefront-invoice-required-note{margin:0 0 4px;padding:8px 10px;border-radius:8px;background:#fff4e6;color:#a34e00;font-size:.72rem;font-weight:700;line-height:1.4}
+    .storefront-invoice-fields label span{color:#b42318!important;font-weight:800!important}
     /* Punto de venta: mismo lenguaje visual del micrositio (tarjetas de
        producto, categorías como chips con ícono grande, pie de página claro)
        -- sin tocar la mecánica del POS (nombre del cliente, para
@@ -1624,7 +1626,7 @@
                         <h3>Datos para confirmar</h3>
                         <label>Nombre completo<input type="text" id="storefrontCustomerName" maxlength="120" autocomplete="name" placeholder="¿Quién recibe el pedido?"></label>
                         <label>Teléfono<input type="tel" id="storefrontCustomerPhone" maxlength="30" autocomplete="tel" placeholder="Ej.: 099 123 4567"></label>
-                        <label>Correo <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"></label>
+                        <label>Correo de contacto <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"></label>
                         <label>Forma de pago<select id="storefrontPaymentMethod"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option></select></label>
                         <section class="storefront-checkout-block storefront-payment-fields" id="storefrontTransferFields">
                             <h4>Datos para realizar la transferencia</h4>
@@ -1648,11 +1650,12 @@
                             <h4>Datos para el comprobante de venta</h4>
                             <label>¿Cómo deseas tu comprobante?<select id="storefrontInvoicePreference"><option value="consumer">Consumidor final</option><option value="invoice">Factura con datos</option></select></label>
                             <div class="storefront-invoice-fields" id="storefrontInvoiceFields">
+                                <p class="storefront-invoice-required-note">Si eliges "Factura con datos", estos campos son <strong>obligatorios</strong> -- son distintos del correo de contacto de arriba.</p>
                                 <label>Tipo de identificación<select id="storefrontBillingType"><option value="cedula">Cédula</option><option value="ruc">RUC</option><option value="pasaporte">Pasaporte</option></select></label>
-                                <label>Cédula, RUC o pasaporte<input id="storefrontBillingId" maxlength="20" autocomplete="off"></label>
-                                <label>Nombre o razón social<input id="storefrontBillingLegalName" maxlength="255" autocomplete="name"></label>
-                                <label>Dirección de facturación<input id="storefrontBillingAddress" maxlength="500" autocomplete="street-address"></label>
-                                <label>Correo de facturación<input id="storefrontBillingEmail" type="email" maxlength="255" autocomplete="email"></label>
+                                <label>Cédula, RUC o pasaporte <span>(obligatorio)</span><input id="storefrontBillingId" maxlength="20" autocomplete="off"></label>
+                                <label>Nombre o razón social <span>(obligatorio)</span><input id="storefrontBillingLegalName" maxlength="255" autocomplete="name"></label>
+                                <label>Dirección de facturación <span>(obligatorio)</span><input id="storefrontBillingAddress" maxlength="500" autocomplete="street-address"></label>
+                                <label>Correo de facturación <span>(obligatorio)</span><input id="storefrontBillingEmail" type="email" maxlength="255" autocomplete="email"></label>
                             </div>
                         </section>
                     </div>
@@ -2765,10 +2768,18 @@
             el('bulkCartFabCount').textContent = count > 99 ? '99+' : count;
             if (el('bulkCartFabTotal')) el('bulkCartFabTotal').textContent = fmt(total);
         }
+        const homeFab = el('storefrontHomeCartFab');
+        if (homeFab) {
+            const browsing = document.getElementById('storefrontGateway')?.classList.contains('is-browsing');
+            homeFab.classList.toggle('is-visible', count > 0 && !browsing);
+            el('storefrontHomeCartFabCount').textContent = count > 99 ? '99+' : count;
+            el('storefrontHomeCartFabTotal').textContent = fmt(total);
+        }
         if (el('storefrontCartTotal')) el('storefrontCartTotal').textContent = fmt(total);
         persistCart();
         updateFormEnabled();
     }
+    if (isStorefront) window.renderStorefrontCartFab = renderCart;
 
     el('bulkCartFab')?.addEventListener('click', () => {
         if (isStorefront) {

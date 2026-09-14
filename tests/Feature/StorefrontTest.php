@@ -18,6 +18,9 @@ class StorefrontTest extends TestCase
     public function test_root_shows_the_default_company_storefront(): void
     {
         $company = Company::where('slug', 'dpikeo')->firstOrFail();
+        $company->storefrontSetting()->updateOrCreate([], [
+            'google_maps_api_key' => 'AIzaSyTestMapsKey',
+        ]);
         $profile = WhatsappBusinessProfile::create([
             'company_id' => $company->id,
             'business_name' => 'DPIKEOS',
@@ -71,6 +74,10 @@ class StorefrontTest extends TestCase
             ->assertSee('Historial del pedido', false)
             ->assertSee('overflow:visible!important;', false)
             ->assertSee("window.addEventListener('storefront:start-order',window.openStorefrontOrderMode)", false);
+        $response->assertSee('PlaceAutocompleteElement', false)
+            ->assertSee("autocomplete.addEventListener('gmp-select'", false)
+            ->assertSee("place.fetchFields({fields:['formattedAddress','location']})", false)
+            ->assertDontSee('new google.maps.places.Autocomplete(', false);
         $this->assertSame($company->id, $profile->company_id);
     }
 

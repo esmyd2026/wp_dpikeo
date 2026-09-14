@@ -13,6 +13,7 @@
         .storefront-gateway.is-browsing{min-height:0;padding:0}.storefront-gateway.is-browsing>.storefront-hero,.storefront-gateway.is-browsing>.storefront-preview,.storefront-gateway.is-browsing>.storefront-home-bottom{display:none}
         .storefront-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-brand{display:flex;align-items:center;gap:20px}.storefront-menu-toggle{width:36px;height:36px;padding:3px;border:0;background:transparent;color:#2d2d2d;cursor:pointer}.storefront-menu-toggle span{display:block;height:3px;margin:6px 0;border-radius:4px;background:currentColor}.storefront-logo{width:120px;height:100px;object-fit:contain}.storefront-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end;gap:44px}.storefront-tab{position:relative;padding:0 0 17px;font-size:1rem}.storefront-tab:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:4px;background:var(--accent)}
         .storefront-mode-row{display:flex;gap:12px}.storefront-mode{flex:1;border:1px solid #ddd;border-radius:10px;padding:15px;background:#fff;color:#222;font:inherit;font-weight:800;cursor:pointer}.storefront-mode.is-active{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}
+        .storefront-place-autocomplete{display:block;width:100%;border:1px solid #d7d7d7;border-radius:9px;background:#fff;color:#242424;color-scheme:light;font:inherit}
         .storefront-location{display:none;position:fixed;z-index:130;inset:0;width:auto;margin:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.storefront-location.is-open{display:flex}.storefront-location-card{width:min(800px,100%);min-height:70dvh;max-height:92dvh;padding:42px 56px;border-radius:8px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-location-head{display:flex;align-items:center;justify-content:space-between}.storefront-location-head h2{margin:0 0 18px;font-size:1.55rem}.storefront-location-close{border:0;background:transparent;font-size:2rem;cursor:pointer}.storefront-field{display:grid;gap:6px;margin:14px 0}.storefront-field span{font-size:.78rem;font-weight:800;color:#555}.storefront-field input,.storefront-field select{width:100%;border:1px solid #d7d7d7;border-radius:9px;padding:13px;font:inherit}.storefront-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.storefront-button{border:0;border-radius:8px;padding:14px 22px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-geolocate{background:#f3f3f3}.storefront-preview{width:min(1260px,100%);margin:auto;padding:70px 40px 120px}.storefront-category-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:76px 64px}.storefront-category{min-height:120px;border:0;background:#fff;text-align:center;font:inherit;font-size:1.3rem;cursor:pointer}.storefront-category img,.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;object-fit:contain;font-size:3rem}.storefront-category:hover{transform:translateY(-3px)}.storefront-error{display:none;color:#b42318;font-size:.82rem;margin-top:7px}
         .storefront-drawer{position:fixed;z-index:140;inset:0 auto 0 0;width:min(470px,88vw);padding:26px 32px;background:#fff;color:#222;box-shadow:20px 0 60px rgba(0,0,0,.3);transform:translateX(-105%);transition:transform .22s}.storefront-drawer.is-open{transform:none}.storefront-drawer-close{float:right;border:0;background:none;font-size:2rem;cursor:pointer}.storefront-drawer-nav{display:grid;gap:5px;clear:both;padding-top:22px}.storefront-drawer-link{display:flex;width:100%;align-items:center;gap:14px;padding:15px 4px;border:0;border-bottom:1px solid #f0f0f0;background:#fff;color:#222;text-align:left;text-decoration:none;font:inherit;font-weight:700;cursor:pointer}.storefront-drawer-link:hover{color:var(--brand-dark);background:#fffaf2}.storefront-drawer-link-icon{display:grid;width:30px;height:30px;place-items:center;color:var(--brand-dark)}.storefront-drawer-link-icon svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.storefront-drawer-logout{margin-top:18px;color:#b42318}.storefront-home-bottom{display:none}
         .storefront-branch-list{display:grid;gap:2px;margin:8px 0 12px}.storefront-branch-option{display:grid;padding:13px 8px;border:0;border-bottom:1px solid #e5e7eb;background:#fff;text-align:left;font:inherit;cursor:pointer}.storefront-branch-option strong{font-size:.86rem}.storefront-branch-option small{color:#555}.storefront-branch-option.is-active{border-left:4px solid var(--accent);background:#fffaf0}.storefront-location-copy{margin:-8px 0 18px;color:#666;font-size:.82rem}.storefront-pickup-fields{margin-top:18px}
@@ -29,6 +30,12 @@
         .storefront-order-self-service{display:grid;gap:10px;padding:15px 16px}.storefront-order-self-service p{margin:0;color:#5f6b76;font-size:.78rem;line-height:1.45}.storefront-order-bank{padding:12px;border-left:3px solid var(--brand);background:#fff8e7;color:#3c3322!important}.storefront-order-self-service label{display:grid;gap:5px;color:#364152;font-size:.72rem;font-weight:800}.storefront-order-self-service input,.storefront-order-self-service select{width:100%;padding:10px 11px;border:1px solid #ccd5dd;border-radius:8px;background:#fff;font:inherit}.storefront-order-self-service button{min-height:44px;border:0;border-radius:8px;background:var(--brand);color:#fff;font:inherit;font-weight:850;cursor:pointer}.storefront-order-invoice-fields{display:none;grid-template-columns:1fr 1fr;gap:10px}.storefront-order-invoice-fields.is-open{display:grid}.storefront-order-form-status{font-weight:800!important;color:#087f5b!important}
         .storefront-branch-accordion{display:flex;flex-direction:column;gap:10px}.storefront-branch-item{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.storefront-branch-item summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;cursor:pointer;list-style:none;font-weight:800}.storefront-branch-item summary::-webkit-details-marker{display:none}.storefront-branch-item summary:after{content:'▾';color:#999;transition:transform .15s}.storefront-branch-item[open] summary:after{transform:rotate(180deg)}.storefront-branch-item-badge{font-size:.7rem;font-weight:800;color:var(--brand-dark);background:color-mix(in srgb,var(--accent) 22%,white);border-radius:999px;padding:3px 10px;margin-right:auto;margin-left:10px}.storefront-branch-item-body{padding:0 16px 16px;border-top:1px solid #f0f0f0}.storefront-branch-item-row{margin:12px 0 0;font-size:.88rem;color:#333}.storefront-branch-item-row a{color:inherit}.storefront-branch-hours{margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px}.storefront-branch-hours-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.82rem;color:#555}.storefront-branch-item-map{display:inline-block;margin-top:14px;font-size:.85rem;font-weight:800;color:var(--brand-dark);text-decoration:underline}
         #storefrontApp{display:none}.storefront-back{display:none}
+        .storefront-home-cart-fab{position:fixed;right:18px;bottom:88px;z-index:85;display:none;align-items:center;gap:10px;min-height:54px;padding:8px 15px 8px 10px;border:0;border-radius:999px;background:#252525;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.28);cursor:pointer;font:inherit;font-weight:800;transition:transform .18s ease,box-shadow .18s ease}
+        .storefront-home-cart-fab.is-visible{display:inline-flex}
+        .storefront-home-cart-fab:hover{transform:translateY(-2px)}
+        .storefront-home-cart-fab-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:#252525;font-size:1.15rem}
+        .storefront-home-cart-fab-count{display:grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:999px;background:#e4002b;color:#fff;font-size:.72rem}
+        @media(min-width:960px){.storefront-home-cart-fab{bottom:26px}}
         @media(max-width:640px){.storefront-gateway{padding-bottom:88px}.storefront-hero{box-shadow:none}.storefront-nav{min-height:82px;padding:12px 20px}.storefront-brand{gap:14px}.storefront-menu-toggle{width:34px;height:34px}.storefront-logo{width:100px;height:100px}.storefront-tabs{display:none}.storefront-preview{padding:34px 24px 48px}.storefront-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px 24px}.storefront-category{min-height:120px;font-size:1.08rem}.storefront-category img,.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}.storefront-location{padding:0;background:#fff}.storefront-location-card{width:100%;height:100dvh;max-height:none;padding:18px 16px 22px;border-radius:0;box-shadow:none}.storefront-location-copy{display:none}.storefront-location-head{margin-bottom:20px}.storefront-location-head h2{font-size:1.4rem}.storefront-actions{position:sticky;bottom:0;padding-top:18px;background:#fff}.storefront-actions .storefront-button{width:100%;min-height:52px}.storefront-home-bottom{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;align-items:center;justify-content:space-around;border-top:1px solid #eee;border-radius:10px 10px 0 0;background:#fff;box-shadow:0 -8px 25px rgba(0,0,0,.09)}.storefront-home-bottom button{border:0;background:none;color:#777;font:inherit;font-size:.68rem}.storefront-home-bottom span{display:flex;justify-content:center;margin-bottom:3px}.storefront-home-bottom span svg{display:block}.storefront-home-bottom button:first-child{color:var(--brand);font-weight:800}.storefront-order-detail{padding:0;background:#fff}.storefront-order-detail-card{width:100%;height:100dvh;max-height:none;border-radius:0}.storefront-order-detail-head{padding:16px}.storefront-order-detail-body{padding:14px 12px 28px}.storefront-order-progress{padding:16px 4px}.storefront-order-progress-step{font-size:.62rem}.storefront-order-snapshot{grid-template-columns:repeat(2,1fr)}.storefront-order-snapshot div:nth-child(2){border-right:0}.storefront-order-snapshot div:nth-child(-n+2){border-bottom:1px solid #e5e7eb}}
         /* El selector de entrega debe mostrarse sobre el detalle del producto. */
         .storefront-location{z-index:1600}
@@ -65,6 +72,11 @@
         <button type="button" data-storefront-nav="account"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.5-6.2 7.5-6.2s7.5 2.2 7.5 6.2"/></svg></span>Mi cuenta</button>
     </nav>
 </main>
+<button type="button" class="storefront-home-cart-fab" id="storefrontHomeCartFab" aria-label="Ver mi pedido">
+    <span class="storefront-home-cart-fab-icon">🛒</span>
+    <span class="storefront-home-cart-fab-count" id="storefrontHomeCartFabCount">0</span>
+    <strong id="storefrontHomeCartFabTotal">$0.00</strong>
+</button>
 <aside class="storefront-drawer" id="storefrontDrawer" aria-hidden="true">
     <button type="button" class="storefront-drawer-close" id="storefrontDrawerClose" aria-label="Cerrar">×</button>
     <nav class="storefront-drawer-nav" aria-label="Menú principal">
@@ -183,11 +195,12 @@ try {
  const persistOrder=()=>{try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){/* El pedido sigue funcionando aunque el navegador bloquee el almacenamiento. */}};
  window.clearStorefrontOrderState=()=>{localStorage.removeItem(storefrontOrderStorageKey);window.storefrontOrder={...storefrontOrderDefaults};};
  let pendingCategory='';
- const openCategory=(categoryId,attempt=0)=>{const categorySelect=document.getElementById('bulkCategory'),option=categorySelect?.querySelector(`option[value="${categoryId}"]`);if(!option&&attempt<12){setTimeout(()=>openCategory(categoryId,attempt+1),80);return;}if(categorySelect){categorySelect.value=categoryId;categorySelect.dispatchEvent(new Event('change'));}gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});};
+ const openCategory=(categoryId,attempt=0)=>{const categorySelect=document.getElementById('bulkCategory'),option=categorySelect?.querySelector(`option[value="${categoryId}"]`);if(!option&&attempt<12){setTimeout(()=>openCategory(categoryId,attempt+1),80);return;}if(categorySelect){categorySelect.value=categoryId;categorySelect.dispatchEvent(new Event('change'));}gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});window.renderStorefrontCartFab?.();};
  const drawer=document.getElementById('storefrontDrawer'),setDrawer=open=>{drawer.classList.toggle('is-open',open);drawer.setAttribute('aria-hidden',open?'false':'true')};document.getElementById('storefrontMenuToggle').addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontCatalogMenu')?.addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontDrawerClose').addEventListener('click',()=>setDrawer(false));document.querySelectorAll('[data-close-drawer]').forEach(link=>link.addEventListener('click',()=>setDrawer(false)));
  const branchesOverlay=document.getElementById('storefrontBranches'),account=document.getElementById('storefrontAccount');
  const toggleNavOverlay=(target,open)=>{target.classList.toggle('is-open',open);target.setAttribute('aria-hidden',open?'false':'true');document.body.style.overflow=open?'hidden':'';};
- const goHome=()=>{document.getElementById('bulkCustomizer')?.classList.remove('is-open');document.getElementById('bulkCartPanel')?.classList.remove('is-storefront-open','is-checkout-step');document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';document.body.style.overflow='';window.scrollTo({top:0,behavior:'smooth'});};window.goHome=goHome;
+ const goHome=()=>{document.getElementById('bulkCustomizer')?.classList.remove('is-open');document.getElementById('bulkCartPanel')?.classList.remove('is-storefront-open','is-checkout-step');document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';document.body.style.overflow='';window.scrollTo({top:0,behavior:'smooth'});window.renderStorefrontCartFab?.();};window.goHome=goHome;
+ document.getElementById('storefrontHomeCartFab')?.addEventListener('click',()=>{gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});document.getElementById('bulkCartFab')?.click();});
  document.querySelectorAll('[data-drawer-nav]').forEach(item=>item.addEventListener('click',event=>{
      event.preventDefault();
      const action=item.dataset.drawerNav;
@@ -331,9 +344,9 @@ try {
  document.getElementById('storefrontReference').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.reference=event.target.value;persistOrder();});
  window.openStorefrontOrderMode=()=>{selectMode(window.storefrontOrder.service_type||'pickup');if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);locationBox.classList.add('is-open');};
  window.addEventListener('storefront:start-order',window.openStorefrontOrderMode);
- document.getElementById('storefrontContinue').addEventListener('click',()=>{const branch=document.getElementById('storefrontBranch').value,address=document.getElementById('storefrontAddress').value.trim();if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}error.style.display='none';window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
- document.getElementById('storefrontBack').addEventListener('click',()=>{document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';});
- document.getElementById('storefrontGeolocate').addEventListener('click',()=>{if(!navigator.geolocation){error.textContent='Tu navegador no permite obtener la ubicación.';error.style.display='block';return;}navigator.geolocation.getCurrentPosition(pos=>{window.storefrontOrder.latitude=pos.coords.latitude;window.storefrontOrder.longitude=pos.coords.longitude;window.storefrontOrder.address='Ubicación actual confirmada';document.getElementById('storefrontAddress').value=window.storefrontOrder.address;persistOrder();error.style.display='none';if(window.google?.maps){new google.maps.Geocoder().geocode({location:{lat:pos.coords.latitude,lng:pos.coords.longitude}},(results,status)=>{if(status==='OK'&&results[0]){window.storefrontOrder.address=results[0].formatted_address;document.getElementById('storefrontAddress').value=window.storefrontOrder.address;persistOrder();}});}},()=>{error.textContent='No pudimos obtener tu ubicación. Escribe la dirección.';error.style.display='block';},{enableHighAccuracy:true,timeout:10000});});
+ document.getElementById('storefrontContinue').addEventListener('click',()=>{const branch=document.getElementById('storefrontBranch').value,address=(window.storefrontPlaceAutocomplete?.value||document.getElementById('storefrontAddress').value).trim();if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}error.style.display='none';if(address!==window.storefrontOrder.address){window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;}window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
+ document.getElementById('storefrontBack').addEventListener('click',()=>{document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';window.renderStorefrontCartFab?.();});
+ document.getElementById('storefrontGeolocate').addEventListener('click',()=>{if(!navigator.geolocation){error.textContent='Tu navegador no permite obtener la ubicación.';error.style.display='block';return;}navigator.geolocation.getCurrentPosition(pos=>{window.storefrontOrder.latitude=pos.coords.latitude;window.storefrontOrder.longitude=pos.coords.longitude;window.storefrontOrder.address='Ubicación actual confirmada';if(window.setStorefrontAddressValue){window.setStorefrontAddressValue(window.storefrontOrder.address,pos.coords.latitude,pos.coords.longitude);}else{document.getElementById('storefrontAddress').value=window.storefrontOrder.address;persistOrder();}error.style.display='none';if(window.google?.maps){new google.maps.Geocoder().geocode({location:{lat:pos.coords.latitude,lng:pos.coords.longitude}},(results,status)=>{if(status==='OK'&&results[0]){window.storefrontOrder.address=results[0].formatted_address;if(window.setStorefrontAddressValue){window.setStorefrontAddressValue(window.storefrontOrder.address,pos.coords.latitude,pos.coords.longitude);}else{document.getElementById('storefrontAddress').value=window.storefrontOrder.address;persistOrder();}}});}},()=>{error.textContent='No pudimos obtener tu ubicación. Escribe la dirección.';error.style.display='block';},{enableHighAccuracy:true,timeout:10000});});
  const restoredBranch=String(window.storefrontOrder.branch_id||'');
  if(restoredBranch&&document.querySelector(`#storefrontBranch option[value="${restoredBranch}"]`)){
      document.getElementById('storefrontBranch').value=restoredBranch;
@@ -356,7 +369,74 @@ try {
 })();
 </script>
 @if(filled($settings->google_maps_api_key))
-<script>window.initStorefrontMaps=function(){const input=document.getElementById('storefrontAddress');if(window.google?.maps?.places&&input){const autocomplete=new google.maps.places.Autocomplete(input,{fields:['formatted_address','geometry']});autocomplete.addListener('place_changed',()=>{const p=autocomplete.getPlace();if(p.formatted_address)input.value=p.formatted_address;if(p.geometry?.location){window.storefrontOrder.latitude=p.geometry.location.lat();window.storefrontOrder.longitude=p.geometry.location.lng();}});}};</script>
+<script>
+window.initStorefrontMaps=async function(){
+    const input=document.getElementById('storefrontAddress');
+    if(!input)return;
+
+    const showManualInput=(message='')=>{
+        const autocomplete=window.storefrontPlaceAutocomplete;
+        if(autocomplete?.value)input.value=autocomplete.value;
+        autocomplete?.remove();
+        window.storefrontPlaceAutocomplete=null;
+        input.hidden=false;
+        if(message){
+            const error=document.getElementById('storefrontLocationError');
+            error.textContent=message;
+            error.style.display='block';
+        }
+    };
+
+    try{
+        const {PlaceAutocompleteElement}=await google.maps.importLibrary('places');
+        if(!PlaceAutocompleteElement){showManualInput();return;}
+
+        const autocomplete=new PlaceAutocompleteElement({includedRegionCodes:['ec']});
+        autocomplete.id='storefrontPlaceAutocomplete';
+        autocomplete.className='storefront-place-autocomplete';
+        autocomplete.placeholder='Busca una dirección';
+        autocomplete.value=input.value||'';
+        input.insertAdjacentElement('afterend',autocomplete);
+        input.hidden=true;
+        window.storefrontPlaceAutocomplete=autocomplete;
+
+        const syncAddress=(value,latitude=null,longitude=null)=>{
+            input.value=value||'';
+            window.storefrontOrder.latitude=latitude;
+            window.storefrontOrder.longitude=longitude;
+            input.dispatchEvent(new Event('input',{bubbles:true}));
+        };
+
+        window.setStorefrontAddressValue=(value,latitude=null,longitude=null)=>{
+            autocomplete.value=value||'';
+            syncAddress(value,latitude,longitude);
+        };
+
+        autocomplete.addEventListener('input',()=>{
+            syncAddress(autocomplete.value||'');
+        });
+        autocomplete.addEventListener('gmp-select',async event=>{
+            try{
+                const place=event.placePrediction.toPlace();
+                await place.fetchFields({fields:['formattedAddress','location']});
+                const latitude=place.location?.lat?.()??null;
+                const longitude=place.location?.lng?.()??null;
+                window.setStorefrontAddressValue(place.formattedAddress||autocomplete.value||'',latitude,longitude);
+                const error=document.getElementById('storefrontLocationError');
+                error.textContent='';
+                error.style.display='none';
+            }catch(e){
+                showManualInput('No pudimos completar esa dirección. Puedes escribirla manualmente.');
+            }
+        });
+        autocomplete.addEventListener('gmp-error',()=>{
+            showManualInput('Google no pudo cargar las sugerencias. Puedes escribir la dirección manualmente.');
+        });
+    }catch(e){
+        showManualInput('Google no pudo cargar las sugerencias. Puedes escribir la dirección manualmente.');
+    }
+};
+</script>
 <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&callback=initStorefrontMaps"></script>
 @endif
 </body>
