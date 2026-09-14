@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\StorefrontPasswordResetCode;
 use App\Models\Company;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 
@@ -107,11 +109,21 @@ class StorefrontAccountController extends Controller
         return response()->json(['ok' => true, 'customer' => $this->customerPayload(Auth::guard('storefront_customer')->user())]);
     }
 
-    /** Envía al WhatsApp del cliente un código breve para recuperar su cuenta. */
+    /**
+     * Envía un código breve para recuperar la cuenta, por WhatsApp (default) o
+     * por correo cuando el cliente indica que el mensaje de WhatsApp no le
+     * llegó. Si pide el código por correo y todavía no tiene uno guardado, el
+     * correo que escribe en ese momento se guarda en su perfil.
+     */
     public function requestPasswordReset(Request $request, Company $company, WhatsappService $whatsapp): JsonResponse
     {
         $profile = $this->profile($company);
-        $validated = $request->validate(['phone' => ['required', 'string', 'max:30']]);
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email'],
+            'email' => ['nullable', 'email:rfc', 'max:255'],
+        ]);
+        $channel = $validated['channel'] ?? 'whatsapp';
         $phone = $this->normalizePhone($validated['phone']);
 
         if (! $phone) {
@@ -122,7 +134,6 @@ class StorefrontAccountController extends Controller
         if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
             return response()->json(['ok' => false, 'message' => 'Espera unos minutos antes de solicitar otro código.'], 429);
         }
-        RateLimiter::hit($throttleKey, 600);
 
         $contact = WhatsappContact::query()
             ->where('business_profile_id', $profile->id)
@@ -132,10 +143,32 @@ class StorefrontAccountController extends Controller
         // La respuesta no revela si el teléfono está registrado. Así nadie
         // puede usar este formulario para enumerar clientes de una empresa.
         if (! $contact?->hasAccountPassword()) {
+            RateLimiter::hit($throttleKey, 600);
+
             return response()->json([
                 'ok' => true,
-                'message' => 'Si ese número tiene una cuenta, recibirá un código por WhatsApp.',
+                'message' => $channel === 'email'
+                    ? 'Si ese número tiene una cuenta, recibirá un código por correo.'
+                    : 'Si ese número tiene una cuenta, recibirá un código por WhatsApp.',
             ]);
+        }
+
+        $email = trim($validated['email'] ?? '') ?: ($contact->metadata['email'] ?? null);
+        if ($channel === 'email' && ! $email) {
+            return response()->json([
+                'ok' => false,
+                'needs_email' => true,
+                'message' => 'Escribe tu correo para poder enviarte el código.',
+            ]);
+        }
+
+        RateLimiter::hit($throttleKey, 600);
+
+        if ($channel === 'email' && blank($contact->metadata['email'] ?? null)) {
+            $metadata = $contact->metadata ?? [];
+            $metadata['email'] = $email;
+            $contact->metadata = $metadata;
+            $contact->save();
         }
 
         $code = (string) random_int(100000, 999999);
@@ -144,6 +177,24 @@ class StorefrontAccountController extends Controller
             ['email' => $resetKey],
             ['token' => Hash::make($code), 'created_at' => now()],
         );
+
+        if ($channel === 'email') {
+            try {
+                Mail::to($email)->send(new StorefrontPasswordResetCode($code, $profile->business_name ?: $company->name));
+            } catch (\Throwable) {
+                DB::table('password_reset_tokens')->where('email', $resetKey)->delete();
+
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'No pudimos enviar el código por correo. Inténtalo nuevamente o escríbenos para ayudarte.',
+                ], 503);
+            }
+
+            return response()->json([
+                'ok' => true,
+                'message' => "Te enviamos un código a {$email}. Escríbelo para crear tu nueva contraseña.",
+            ]);
+        }
 
         $whatsapp->useBusinessProfile($profile);
         $sent = $whatsapp->sendTextMessage(

@@ -10,12 +10,14 @@ use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
+use App\Mail\StorefrontPasswordResetCode;
 use App\Models\WhatsappPrice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -150,6 +152,73 @@ class StorefrontAccountTest extends TestCase
         $this->getJson("/tienda/{$company->slug}/cuenta/yo")
             ->assertOk()
             ->assertJsonPath('customer.phone', '0991112231');
+    }
+
+    public function test_customer_can_request_the_recovery_code_by_email_and_it_is_saved(): void
+    {
+        Mail::fake();
+        [$company, $profile] = $this->makeProfile('100011');
+        $contact = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112233',
+            'name' => 'Cliente Correo',
+            'password' => Hash::make('clave-anterior'),
+            'status' => 'active',
+        ]);
+
+        $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
+            'phone' => '0991112233',
+            'channel' => 'email',
+            'email' => 'cliente@example.com',
+        ]);
+
+        $requested->assertOk()->assertJsonPath('ok', true);
+        Mail::assertSent(StorefrontPasswordResetCode::class, fn ($mail) => $mail->hasTo('cliente@example.com'));
+        $this->assertSame('cliente@example.com', $contact->fresh()->metadata['email'] ?? null);
+    }
+
+    public function test_requesting_the_code_by_email_without_one_on_file_asks_for_it_without_sending_mail(): void
+    {
+        Mail::fake();
+        [$company, $profile] = $this->makeProfile('100012');
+        WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112234',
+            'name' => 'Cliente Sin Correo',
+            'password' => Hash::make('clave-anterior'),
+            'status' => 'active',
+        ]);
+
+        $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
+            'phone' => '0991112234',
+            'channel' => 'email',
+        ]);
+
+        $requested->assertOk()->assertJsonPath('ok', false)->assertJsonPath('needs_email', true);
+        Mail::assertNothingSent();
+    }
+
+    public function test_requesting_by_email_reuses_an_already_saved_email_without_needing_it_again(): void
+    {
+        Mail::fake();
+        [$company, $profile] = $this->makeProfile('100013');
+        $contact = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112235',
+            'name' => 'Cliente Con Correo',
+            'password' => Hash::make('clave-anterior'),
+            'status' => 'active',
+            'metadata' => ['email' => 'ya-guardado@example.com'],
+        ]);
+
+        $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
+            'phone' => '0991112235',
+            'channel' => 'email',
+        ]);
+
+        $requested->assertOk()->assertJsonPath('ok', true);
+        Mail::assertSent(StorefrontPasswordResetCode::class, fn ($mail) => $mail->hasTo('ya-guardado@example.com'));
+        $this->assertSame('ya-guardado@example.com', $contact->fresh()->metadata['email'] ?? null);
     }
 
     public function test_an_incorrect_recovery_code_does_not_change_the_password(): void
