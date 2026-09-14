@@ -29,6 +29,9 @@
         .storefront-order-detail{display:none;position:fixed;z-index:1580;inset:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.52)}.storefront-order-detail.is-open{display:flex}.storefront-order-detail-card{width:min(820px,100%);max-height:92dvh;border-radius:22px;background:#f7f9fb;box-shadow:0 28px 80px rgba(0,0,0,.35);overflow:auto}.storefront-order-detail-head{position:sticky;z-index:2;top:0;display:flex;align-items:flex-start;justify-content:space-between;gap:15px;padding:22px 24px;border-bottom:1px solid #e5e7eb;background:#fff}.storefront-order-detail-head h2{margin:0;font-size:1.15rem}.storefront-order-detail-head p{margin:5px 0 0;color:#718096;font-size:.78rem}.storefront-order-detail-close{width:38px;height:38px;border:0;border-radius:50%;background:#edf1f5;font-size:1.5rem;cursor:pointer}.storefront-order-detail-body{display:grid;gap:14px;padding:18px 22px 26px}.storefront-order-progress{display:flex;padding:18px 12px;border:1px solid #dce3e9;border-radius:14px;background:#fff}.storefront-order-progress-step{position:relative;display:grid;flex:1;justify-items:center;gap:7px;color:#9aa6b2;font-size:.7rem;text-align:center}.storefront-order-progress-step:not(:last-child):after{content:'';position:absolute;z-index:0;left:62%;right:-38%;top:15px;height:2px;background:#dce3e9}.storefront-order-progress-dot{position:relative;z-index:1;display:grid;width:31px;height:31px;place-items:center;border:2px solid #dce3e9;border-radius:50%;background:#fff;font-weight:900}.storefront-order-progress-step.is-done,.storefront-order-progress-step.is-current{color:#147d73}.storefront-order-progress-step.is-done:not(:last-child):after{background:#168c82}.storefront-order-progress-step.is-done .storefront-order-progress-dot{border-color:#168c82;background:#168c82;color:#fff}.storefront-order-progress-step.is-current .storefront-order-progress-dot{border-color:#168c82;box-shadow:0 0 0 4px #e4f7f3}.storefront-order-next{padding:16px;border:1px solid #a8ead3;border-radius:14px;background:#ecfbf4}.storefront-order-next small{display:block;color:#16745d;font-size:.68rem;font-weight:900;text-transform:uppercase}.storefront-order-next strong{display:block;margin-top:4px}.storefront-order-next span{display:block;margin-top:3px;color:#396b5c;font-size:.82rem}.storefront-order-snapshot{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #dce3e9;border-radius:14px;background:#fff;overflow:hidden}.storefront-order-snapshot div{padding:13px;border-right:1px solid #e5e7eb}.storefront-order-snapshot div:last-child{border:0}.storefront-order-snapshot small{display:block;color:#718096;font-size:.62rem;font-weight:900;text-transform:uppercase}.storefront-order-snapshot strong{display:block;margin-top:5px;font-size:.8rem}.storefront-order-section{border:1px solid #dce3e9;border-radius:14px;background:#fff;overflow:hidden}.storefront-order-section h3{margin:0;padding:14px 16px;border-bottom:1px solid #edf0f2;font-size:.88rem}.storefront-order-line{display:flex;justify-content:space-between;gap:15px;padding:13px 16px;border-bottom:1px solid #edf0f2}.storefront-order-line:last-child{border:0}.storefront-order-line strong{font-size:.84rem}.storefront-order-line span{display:block;margin-top:3px;color:#718096;font-size:.75rem}.storefront-order-line-price{flex:0 0 auto;font-weight:850;font-size:.85rem}.storefront-order-total{display:flex;justify-content:space-between;padding:14px 16px;background:#ecfbf4;color:#086b57;font-weight:900}.storefront-order-history{display:grid;gap:0;padding:8px 16px 14px}.storefront-order-history-event{position:relative;padding:10px 0 10px 25px;border-left:2px solid #dce3e9}.storefront-order-history-event:before{content:'';position:absolute;left:-6px;top:15px;width:10px;height:10px;border-radius:50%;background:#168c82}.storefront-order-history-event:last-child{border-left-color:transparent}.storefront-order-history-event strong{display:block;font-size:.8rem}.storefront-order-history-event time{color:#718096;font-size:.72rem}
         .storefront-order-self-service{display:grid;gap:10px;padding:15px 16px}.storefront-order-self-service p{margin:0;color:#5f6b76;font-size:.78rem;line-height:1.45}.storefront-order-bank{padding:12px;border-left:3px solid var(--brand);background:#fff8e7;color:#3c3322!important}.storefront-order-self-service label{display:grid;gap:5px;color:#364152;font-size:.72rem;font-weight:800}.storefront-order-self-service input,.storefront-order-self-service select{width:100%;padding:10px 11px;border:1px solid #ccd5dd;border-radius:8px;background:#fff;font:inherit}.storefront-order-self-service button{min-height:44px;border:0;border-radius:8px;background:var(--brand);color:#fff;font:inherit;font-weight:850;cursor:pointer}.storefront-order-invoice-fields{display:none;grid-template-columns:1fr 1fr;gap:10px}.storefront-order-invoice-fields.is-open{display:grid}.storefront-order-form-status{font-weight:800!important;color:#087f5b!important}
         .storefront-branch-accordion{display:flex;flex-direction:column;gap:10px}.storefront-branch-item{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden}.storefront-branch-item summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;cursor:pointer;list-style:none;font-weight:800}.storefront-branch-item summary::-webkit-details-marker{display:none}.storefront-branch-item summary:after{content:'▾';color:#999;transition:transform .15s}.storefront-branch-item[open] summary:after{transform:rotate(180deg)}.storefront-branch-item-badge{font-size:.7rem;font-weight:800;color:var(--brand-dark);background:color-mix(in srgb,var(--accent) 22%,white);border-radius:999px;padding:3px 10px;margin-right:auto;margin-left:10px}.storefront-branch-item-body{padding:0 16px 16px;border-top:1px solid #f0f0f0}.storefront-branch-item-row{margin:12px 0 0;font-size:.88rem;color:#333}.storefront-branch-item-row a{color:inherit}.storefront-branch-hours{margin-top:12px;border-top:1px dashed #e5e7eb;padding-top:10px}.storefront-branch-hours-row{display:flex;justify-content:space-between;padding:3px 0;font-size:.82rem;color:#555}.storefront-branch-item-map{display:inline-block;margin-top:14px;font-size:.85rem;font-weight:800;color:var(--brand-dark);text-decoration:underline}
+        /* Resumen mínimo de delivery: la dirección ya está en el campo superior. */
+        .storefront-delivery-quote{grid-template-columns:1fr 1fr;border-color:#e2e2e2;border-left-width:4px;border-radius:12px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.055)}
+        .storefront-delivery-quote-item{align-content:start;min-height:86px;padding:14px 16px;border-color:#e8e8e8}
         #storefrontApp{display:none}.storefront-back{display:none}
         .storefront-home-cart-fab{position:fixed;right:18px;bottom:88px;z-index:85;display:none;align-items:center;gap:10px;min-height:54px;padding:8px 15px 8px 10px;border:0;border-radius:999px;background:#252525;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.28);cursor:pointer;font:inherit;font-weight:800;transition:transform .18s ease,box-shadow .18s ease}
         .storefront-home-cart-fab.is-visible{display:inline-flex}
@@ -37,6 +40,7 @@
         .storefront-home-cart-fab-count{display:grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:999px;background:#e4002b;color:#fff;font-size:.72rem}
         @media(min-width:960px){.storefront-home-cart-fab{bottom:26px}}
         @media(max-width:640px){.storefront-gateway{padding-bottom:88px}.storefront-hero{box-shadow:none}.storefront-nav{min-height:82px;padding:12px 20px}.storefront-brand{gap:14px}.storefront-menu-toggle{width:34px;height:34px}.storefront-logo{width:100px;height:100px}.storefront-tabs{display:none}.storefront-preview{padding:34px 24px 48px}.storefront-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px 24px}.storefront-category{min-height:120px;font-size:1.08rem}.storefront-category img,.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}.storefront-location{padding:0;background:#fff}.storefront-location-card{width:100%;height:100dvh;max-height:none;padding:18px 16px 22px;border-radius:0;box-shadow:none}.storefront-location-copy{display:none}.storefront-location-head{margin-bottom:20px}.storefront-location-head h2{font-size:1.4rem}.storefront-address-row>.storefront-geolocate{min-width:50px;width:50px;padding:0}.storefront-geolocate-label{display:none}.storefront-delivery-quote{grid-template-columns:1fr 1fr}.storefront-delivery-quote-item:first-child{grid-column:1/-1;border-right:0;border-bottom:1px solid #eadfca}.storefront-actions{position:sticky;bottom:0;padding-top:18px;background:#fff}.storefront-actions .storefront-button{width:100%;min-height:52px}.storefront-home-bottom{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;align-items:center;justify-content:space-around;border-top:1px solid #eee;border-radius:10px 10px 0 0;background:#fff;box-shadow:0 -8px 25px rgba(0,0,0,.09)}.storefront-home-bottom button{border:0;background:none;color:#777;font:inherit;font-size:.68rem}.storefront-home-bottom span{display:flex;justify-content:center;margin-bottom:3px}.storefront-home-bottom span svg{display:block}.storefront-home-bottom button:first-child{color:var(--brand);font-weight:800}.storefront-order-detail{padding:0;background:#fff}.storefront-order-detail-card{width:100%;height:100dvh;max-height:none;border-radius:0}.storefront-order-detail-head{padding:16px}.storefront-order-detail-body{padding:14px 12px 28px}.storefront-order-progress{padding:16px 4px}.storefront-order-progress-step{font-size:.62rem}.storefront-order-snapshot{grid-template-columns:repeat(2,1fr)}.storefront-order-snapshot div:nth-child(2){border-right:0}.storefront-order-snapshot div:nth-child(-n+2){border-bottom:1px solid #e5e7eb}}
+        @media(max-width:640px){.storefront-delivery-quote-item:first-child{grid-column:auto;border-right:1px solid #e8e8e8;border-bottom:0}.storefront-delivery-quote-item{min-width:0;padding:12px}}
         /* El selector de entrega debe mostrarse sobre el detalle del producto. */
         .storefront-location{z-index:1600}
     </style>
@@ -60,17 +64,15 @@
                 <div class="storefront-field"><span>Dirección de entrega</span><div class="storefront-address-row"><input id="storefrontAddress" placeholder="Busca una dirección" autocomplete="street-address"><button type="button" class="storefront-button storefront-geolocate" id="storefrontGeolocate" title="Detectar mi ubicación" aria-label="Detectar mi ubicación"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg><span class="storefront-geolocate-label">Mi ubicación</span></button></div></div>
                 <label class="storefront-field"><span>Referencia para el repartidor</span><input id="storefrontReference" placeholder="Ej.: casa de dos pisos, junto al mercado"></label>
                 <section class="storefront-delivery-quote" id="storefrontDeliveryQuote" aria-live="polite" hidden>
-                    <div class="storefront-delivery-quote-item" id="storefrontDeliveryQuoteLocationItem"><span class="storefront-delivery-quote-label">Tu ubicación</span><strong id="storefrontDetectedLocation">Calculando…</strong><a class="storefront-delivery-map" id="storefrontDetectedMap" href="#" target="_blank" rel="noopener">Ver en el mapa</a></div>
                     <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Sucursal más cercana</span><strong id="storefrontNearestBranch">Calculando…</strong><small id="storefrontNearestBranchAddress"></small></div>
                     <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Distancia y envío</span><strong id="storefrontDeliveryDistance">Calculando…</strong><small id="storefrontDeliveryFee"></small></div>
-                    <p class="storefront-delivery-quote-note" id="storefrontDeliveryQuoteNote"></p>
                 </section>
             </div>
             <p class="storefront-error" id="storefrontError"></p>
             <div class="storefront-actions"><button class="storefront-button" id="storefrontContinue">Comenzar</button></div>
         </div>
     </section>
-    <section class="storefront-preview"><div class="storefront-category-grid" id="storefrontCategoryPreview" aria-label="Categorías">@foreach($categories as $category)<button class="storefront-category" type="button" data-preview-category="{{ $category['id'] }}">@if(filled($category['image'] ?? null))<img src="{{ $category['image'] }}" alt="{{ $category['title'] }}">@else<span class="storefront-category-icon">{{ $category['icon'] ?? '🍔' }}</span>@endif<span>{{ $category['title'] }}</span></button>@endforeach</div></section>
+    <section class="storefront-preview"><div class="storefront-category-grid" id="storefrontCategoryPreview" aria-label="Categorías">@foreach($categories as $category)<button class="storefront-category" type="button" data-preview-category="{{ $category['id'] }}">@if(filled($category['image'] ?? null))<span class="storefront-category-icon catalog-image-shell"><img class="catalog-loading-image" data-catalog-image src="{{ $category['image'] }}" alt="{{ $category['title'] }}"></span>@else<span class="storefront-category-icon">{{ $category['icon'] ?? '🍔' }}</span>@endif<span>{{ $category['title'] }}</span></button>@endforeach</div></section>
     <nav class="storefront-home-bottom" aria-label="Navegación principal">
         <button type="button" data-storefront-nav="home"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1v-9"/></svg></span>Inicio</button>
         <button type="button" data-storefront-nav="branches"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.2a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.6"/></svg></span>Sucursales</button>
@@ -215,7 +217,7 @@ window.loadStorefrontMapsScript=function(){
     window.storefrontMapsScriptRequested=true;
     const script=document.createElement('script');
     script.async=true;
-    script.src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&callback=initStorefrontMaps";
+    script.src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&language=es&region=EC&callback=initStorefrontMaps";
     document.head.appendChild(script);
 };
 </script>
@@ -232,10 +234,38 @@ try {
     localStorage.removeItem(storefrontOrderStorageKey);
     window.storefrontOrder = {...storefrontOrderDefaults};
 }
+// Versiones anteriores guardaban las coordenadas como si fueran la dirección.
+// Se conservan latitud/longitud para cotizar, pero nunca se vuelven a mostrar.
+if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.test(window.storefrontOrder.address||'')){
+    window.storefrontOrder.address='';
+    window.storefrontOrder.confirmed=false;
+    try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){}
+}
 (function(){
  const gateway=document.getElementById('storefrontGateway'),locationBox=document.getElementById('storefrontLocation'),delivery=document.getElementById('deliveryFields'),error=document.getElementById('storefrontError');
  const persistOrder=()=>{try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){/* El pedido sigue funcionando aunque el navegador bloquee el almacenamiento. */}};
- window.clearStorefrontOrderState=()=>{localStorage.removeItem(storefrontOrderStorageKey);window.storefrontOrder={...storefrontOrderDefaults};};
+ const nativeStorefrontFetch=window.fetch.bind(window);
+ const storefrontCsrfUrl=@json(route('storefront.csrf',$company));
+ const updateStorefrontCsrf=token=>{if(!token)return;const meta=document.querySelector('meta[name="csrf-token"]');if(meta)meta.content=token;};
+ const refreshStorefrontCsrf=async()=>{const response=await nativeStorefrontFetch(storefrontCsrfUrl,{headers:{'Accept':'application/json'},credentials:'same-origin',cache:'no-store'});const data=await response.json();if(!response.ok||!data.csrf_token)throw new Error('No pudimos renovar la sesión. Recarga la página.');updateStorefrontCsrf(data.csrf_token);return data.csrf_token;};
+ window.fetch=async(input,options={})=>{
+     const target=new URL(typeof input==='string'?input:input.url,window.location.href);
+     const method=String(options.method||(typeof input!=='string'&&input.method)||'GET').toUpperCase();
+     const isMutation=target.origin===window.location.origin&&!['GET','HEAD','OPTIONS'].includes(method);
+     const requestOptions={...options,credentials:options.credentials||'same-origin'};
+     if(isMutation){const headers=new Headers(options.headers||{});headers.set('X-CSRF-TOKEN',document.querySelector('meta[name="csrf-token"]')?.content||'');requestOptions.headers=headers;}
+     let response=await nativeStorefrontFetch(input,requestOptions);
+     const rotatedToken=response.headers.get('X-CSRF-TOKEN');
+     if(rotatedToken)updateStorefrontCsrf(rotatedToken);
+     if(isMutation&&response.status===419){
+         const freshToken=await refreshStorefrontCsrf();
+         const headers=new Headers(requestOptions.headers||{});headers.set('X-CSRF-TOKEN',freshToken);
+         response=await nativeStorefrontFetch(input,{...requestOptions,headers});
+     }
+     return response;
+ };
+ window.refreshStorefrontCsrf=refreshStorefrontCsrf;
+ window.clearStorefrontOrderState=()=>{try{localStorage.removeItem(storefrontOrderStorageKey);}catch(_){}window.storefrontOrder={...storefrontOrderDefaults};};
  let pendingCategory='';
  const openCategory=(categoryId,attempt=0)=>{const categorySelect=document.getElementById('bulkCategory'),option=categorySelect?.querySelector(`option[value="${categoryId}"]`);if(!option&&attempt<12){setTimeout(()=>openCategory(categoryId,attempt+1),80);return;}if(categorySelect){categorySelect.value=categoryId;categorySelect.dispatchEvent(new Event('change'));}gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});window.renderStorefrontCartFab?.();};
  const drawer=document.getElementById('storefrontDrawer'),drawerTrigger=document.getElementById('storefrontMenuToggle'),drawerClose=document.getElementById('storefrontDrawerClose'),setDrawer=open=>{if(!open&&drawer.contains(document.activeElement))drawerTrigger.focus();drawer.inert=!open;drawer.classList.toggle('is-open',open);drawer.setAttribute('aria-hidden',open?'false':'true');if(open)requestAnimationFrame(()=>drawerClose.focus());};drawerTrigger.addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontCatalogMenu')?.addEventListener('click',()=>setDrawer(true));drawerClose.addEventListener('click',()=>setDrawer(false));document.querySelectorAll('[data-close-drawer]').forEach(link=>link.addEventListener('click',()=>setDrawer(false)));
@@ -448,29 +478,24 @@ try {
  const renderDeliveryQuote=quote=>{
      if(!quote||quote.distance_km===null)return;
      deliveryQuoteBox.hidden=false;
-     document.getElementById('storefrontDetectedLocation').textContent=quote.location_label||window.storefrontOrder.address||'Ubicación detectada';
-     const map=document.getElementById('storefrontDetectedMap');map.href=quote.maps_url||`https://maps.google.com/?q=${window.storefrontOrder.latitude},${window.storefrontOrder.longitude}`;
      document.getElementById('storefrontNearestBranch').textContent=quote.branch_name||'Sucursal disponible';
      document.getElementById('storefrontNearestBranchAddress').textContent=quote.branch_address||'';
      document.getElementById('storefrontDeliveryDistance').textContent=`≈ ${Number(quote.distance_km).toFixed(1)} km`;
      document.getElementById('storefrontDeliveryFee').textContent=quote.pending_review?`Envío referencial: $${Number(quote.fee).toFixed(2)}`:`Envío estimado: $${Number(quote.fee).toFixed(2)}`;
-     document.getElementById('storefrontDeliveryQuoteNote').textContent=quote.message||'';
  };
- const requestDeliveryQuote=async(latitude,longitude,knownAddress='')=>{
+ const requestDeliveryQuote=async(latitude,longitude)=>{
      const requestId=++deliveryQuoteRequest;
      deliveryQuoteBox.hidden=false;
-     document.getElementById('storefrontDetectedLocation').textContent=knownAddress||`Ubicación detectada: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`;
      document.getElementById('storefrontNearestBranch').textContent='Buscando…';
      document.getElementById('storefrontNearestBranchAddress').textContent='';
      document.getElementById('storefrontDeliveryDistance').textContent='Calculando…';
      document.getElementById('storefrontDeliveryFee').textContent='';
-     document.getElementById('storefrontDeliveryQuoteNote').textContent='Consultando las tarifas configuradas por la empresa.';
      try{
          const response=await fetch(deliveryQuoteUrl,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content||''},body:JSON.stringify({latitude,longitude})});
          const data=await response.json();
          if(requestId!==deliveryQuoteRequest)return false;
          if(!response.ok||!data.ok)throw new Error(data.message||'No pudimos calcular el envío.');
-         const quote={location_label:knownAddress||data.location.label,maps_url:data.location.maps_url,branch_name:data.branch.name,branch_address:data.branch.address,distance_km:data.distance_km,fee:data.delivery_fee,pending_review:data.pending_review,message:data.message};
+         const quote={branch_name:data.branch.name,branch_address:data.branch.address,distance_km:data.distance_km,fee:data.delivery_fee,pending_review:data.pending_review};
          selectNearestBranch(data.branch.id);
          window.storefrontOrder.delivery_distance_km=quote.distance_km;
          window.storefrontOrder.delivery_fee=quote.fee;
@@ -485,6 +510,16 @@ try {
      }
  };
  window.updateStorefrontDeliveryQuote=requestDeliveryQuote;
+ const resolveDetectedAddress=async(latitude,longitude)=>{
+     window.loadStorefrontMapsScript?.();
+     // Maps se carga bajo demanda. Esperamos brevemente a que esté listo para
+     // convertir las coordenadas a una dirección antes de mostrarlas.
+     for(let attempt=0;attempt<50&&!window.reverseGeocodeStorefrontAddress;attempt++){
+         await new Promise(resolve=>setTimeout(resolve,100));
+     }
+     if(!window.reverseGeocodeStorefrontAddress)return '';
+     try{return await window.reverseGeocodeStorefrontAddress(latitude,longitude);}catch(_){return '';}
+ };
  const requestStorefrontLocation=(force=false)=>{
      if(!navigator.geolocation){error.textContent='Tu navegador no permite obtener la ubicación. Escribe la dirección manualmente.';error.style.display='block';return;}
      if(storefrontGeolocationRequested&&!force)return;
@@ -494,15 +529,20 @@ try {
          const latitude=position.coords.latitude,longitude=position.coords.longitude;
          window.storefrontOrder.latitude=latitude;
          window.storefrontOrder.longitude=longitude;
-         // No se escribe la ubicación detectada dentro del campo de texto: si
-         // el cliente empieza a escribir su dirección justo cuando esto
-         // termina, el texto tecleado se pegaba sin separador al de las
-         // coordenadas (ej. "Ubicación detectada: -2.13...Malecon 2000"). La
-         // ubicación solo se usa para calcular sucursal/envío; si el cliente
-         // no escribe nada, se arma una dirección de respaldo recién al
-         // confirmar (mismo criterio que el bot cuando comparte ubicación).
+         const address=await resolveDetectedAddress(latitude,longitude);
+         if(address){
+             if(window.setStorefrontAddressValue){
+                 window.setStorefrontAddressValue(address,latitude,longitude);
+             }else{
+                 const addressInput=document.getElementById('storefrontAddress');
+                 addressInput.value=address;
+                 addressInput.dataset.preserveCoordinates='1';
+                 addressInput.dispatchEvent(new Event('input',{bubbles:true}));
+             }
+         }
          const quoted=await requestDeliveryQuote(latitude,longitude);
-         if(quoted){error.textContent='Ubicación lista. Seleccionamos automáticamente la sucursal más cercana -- escribe tu dirección exacta para la entrega.';error.classList.add('is-success');error.style.display='block';}
+         if(quoted&&address){error.textContent='Ubicación detectada y envío calculado.';error.classList.add('is-success');error.style.display='block';}
+         else if(quoted){error.classList.remove('is-success');error.textContent='Calculamos la sucursal y el envío, pero no pudimos obtener el nombre de la calle. Escribe tu dirección exacta.';error.style.display='block';}
          setGeolocateBusy(false,quoted?'Ubicación lista':'Reintentar');
      },geolocationError=>{
          storefrontGeolocationRequested=false;
@@ -513,7 +553,34 @@ try {
          setGeolocateBusy(false);
      },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
  };
- const selectMode=(mode,save=true)=>{document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));window.storefrontOrder.service_type=mode;delivery.style.display=mode==='delivery'?'block':'none';document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';if(save){window.storefrontOrder.confirmed=false;persistOrder();}if(mode==='delivery'){window.loadStorefrontMapsScript?.();if(window.storefrontOrder.latitude===null&&window.storefrontOrder.longitude===null)requestStorefrontLocation();}};document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
+ const selectMode=(mode,save=true)=>{
+     document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));
+     window.storefrontOrder.service_type=mode;
+     delivery.style.display=mode==='delivery'?'block':'none';
+     document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';
+     if(save){window.storefrontOrder.confirmed=false;persistOrder();}
+     if(mode==='delivery'){
+         window.loadStorefrontMapsScript?.();
+         if(window.storefrontOrder.latitude===null&&window.storefrontOrder.longitude===null){
+             requestStorefrontLocation();
+         }else if(!window.storefrontOrder.address){
+             // Migra automáticamente ubicaciones antiguas que habían quedado
+             // guardadas como coordenadas, sin volver a pedir permiso al GPS.
+             resolveDetectedAddress(window.storefrontOrder.latitude,window.storefrontOrder.longitude).then(address=>{
+                 if(!address)return;
+                 if(window.setStorefrontAddressValue){
+                     window.setStorefrontAddressValue(address,window.storefrontOrder.latitude,window.storefrontOrder.longitude);
+                 }else{
+                     const addressInput=document.getElementById('storefrontAddress');
+                     addressInput.value=address;
+                     addressInput.dataset.preserveCoordinates='1';
+                     addressInput.dispatchEvent(new Event('input',{bubbles:true}));
+                 }
+             });
+         }
+     }
+ };
+ document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
  document.querySelectorAll('[data-branch-option]').forEach(button=>button.addEventListener('click',()=>{const branchId=button.dataset.branchOption;document.getElementById('storefrontBranch').value=branchId;document.getElementById('bulkBranch').value=branchId;window.storefrontOrder.confirmed=false;window.storefrontOrder.branch_id=Number(branchId)||null;persistOrder();document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item===button));}));document.getElementById('storefrontBranchSearch').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-branch-option]').forEach(item=>item.style.display=item.dataset.branchSearch.includes(query)?'grid':'none');});
  document.getElementById('storefrontAddress').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.address=event.target.value;if(event.target.dataset.preserveCoordinates==='1'){delete event.target.dataset.preserveCoordinates;}else{window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;clearDeliveryQuote();}persistOrder();});
  document.getElementById('storefrontReference').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.reference=event.target.value;persistOrder();});
@@ -523,14 +590,7 @@ try {
      const branch=document.getElementById('storefrontBranch').value;
      const typedAddress=(window.storefrontPlaceAutocomplete?.value||document.getElementById('storefrontAddress').value).trim();
      if(typedAddress!==window.storefrontOrder.address){window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;}
-     let address=typedAddress;
-     // Si compartió ubicación pero no escribió/eligió una dirección, se arma
-     // un respaldo con el link del mapa (mismo criterio que usa el bot
-     // cuando el cliente solo comparte ubicación por WhatsApp) en vez de
-     // bloquear el pedido.
-     if(!address&&window.storefrontOrder.service_type==='delivery'&&window.storefrontOrder.latitude!==null&&window.storefrontOrder.longitude!==null){
-         address=`Ubicación compartida: https://maps.google.com/?q=${window.storefrontOrder.latitude},${window.storefrontOrder.longitude}`;
-     }
+     const address=typedAddress;
      if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.classList.remove('is-success');error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}
      error.style.display='none';
      window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
@@ -544,7 +604,7 @@ try {
  }
  document.getElementById('storefrontAddress').value=window.storefrontOrder.address||'';
  document.getElementById('storefrontReference').value=window.storefrontOrder.reference||'';
- if(window.storefrontOrder.delivery_distance_km!==null)renderDeliveryQuote({location_label:window.storefrontOrder.address,branch_name:window.storefrontOrder.nearest_branch_name,distance_km:window.storefrontOrder.delivery_distance_km,fee:window.storefrontOrder.delivery_fee,pending_review:window.storefrontOrder.delivery_fee_pending_review,message:window.storefrontOrder.delivery_fee_pending_review?'Costo referencial pendiente de confirmación.':'Costo calculado con el rango configurado para esta sucursal.'});
+ if(window.storefrontOrder.delivery_distance_km!==null)renderDeliveryQuote({branch_name:window.storefrontOrder.nearest_branch_name,distance_km:window.storefrontOrder.delivery_distance_km,fee:window.storefrontOrder.delivery_fee,pending_review:window.storefrontOrder.delivery_fee_pending_review});
  if(window.storefrontOrder.confirmed&&window.storefrontOrder.service_type){
      selectMode(window.storefrontOrder.service_type,false);
      const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'';
@@ -563,6 +623,14 @@ try {
 window.initStorefrontMaps=async function(){
     const input=document.getElementById('storefrontAddress');
     if(!input)return;
+
+    // El autocompletado moderno resuelve búsquedas escritas. Geocoder se usa
+    // únicamente en sentido inverso: GPS -> dirección legible.
+    window.reverseGeocodeStorefrontAddress=async(latitude,longitude)=>{
+        const geocoder=new google.maps.Geocoder();
+        const response=await geocoder.geocode({location:{lat:Number(latitude),lng:Number(longitude)}});
+        return response.results?.[0]?.formatted_address||'';
+    };
 
     const showManualInput=(message='')=>{
         const autocomplete=window.storefrontPlaceAutocomplete;

@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [StorefrontController::class, 'show'])->name('home');
 Route::get('/tienda/{company:slug}', [StorefrontController::class, 'show'])->name('storefront.show');
 Route::get('/tienda/{company:slug}/catalogo', [StorefrontController::class, 'catalog'])->name('storefront.catalog');
+Route::get('/tienda/{company:slug}/csrf', [StorefrontController::class, 'csrfToken'])->name('storefront.csrf');
 Route::post('/tienda/{company:slug}/delivery/cotizar', [StorefrontController::class, 'deliveryQuote'])
     ->middleware('throttle:30,1')
     ->name('storefront.delivery.quote');

@@ -136,6 +136,24 @@
     .bulk-order-product-media img { width:100%;height:100%;object-fit:cover;display:block;transition:transform .25s ease; }
     .bulk-order-product-row:hover .bulk-order-product-media img { transform:scale(1.04); }
     .bulk-order-product-media .fallback { height:100%;display:grid;place-items:center;font-size:2.8rem;background:#f8fafc; }
+    .catalog-image-shell { position:relative; overflow:hidden; background:#eef0f2; }
+    .catalog-image-shell::before {
+        content:'';
+        position:absolute;
+        z-index:0;
+        inset:0;
+        background:linear-gradient(105deg,#eceff1 20%,#f7f8f9 38%,#eceff1 56%);
+        background-size:220% 100%;
+        animation:catalog-image-shimmer 1.25s ease-in-out infinite;
+        transition:opacity .18s ease;
+    }
+    .catalog-image-shell > img.catalog-loading-image { position:relative; z-index:1; opacity:0; transition:opacity .2s ease,transform .25s ease; }
+    .catalog-image-shell.is-image-loaded::before { opacity:0; pointer-events:none; }
+    .catalog-image-shell.is-image-loaded > img.catalog-loading-image { opacity:1; }
+    .catalog-image-shell.is-image-error::before { animation:none; background:#eef0f2; }
+    .catalog-image-shell.is-image-error > img.catalog-loading-image { visibility:hidden; }
+    @keyframes catalog-image-shimmer { to { background-position-x:-220%; } }
+    @media(prefers-reduced-motion:reduce){.catalog-image-shell::before{animation:none}.catalog-image-shell > img.catalog-loading-image{transition:none}}
     .bulk-order-product-content { padding:0 12px 12px; }
     .bulk-order-product-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; }
     .bulk-order-product-price {
@@ -298,7 +316,9 @@
     .bulk-order-toast {
         position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
         background: #111; color: #fff; padding: 10px 16px; border-radius: 8px;
-        font-size: .85rem; z-index: 20; display: none;
+        width: min(420px, calc(100vw - 28px)); text-align: center;
+        font-size: .85rem; font-weight: 750; z-index: 2200; display: none;
+        box-shadow: 0 12px 34px rgba(0,0,0,.28);
     }
     .bulk-order-menu-layout { display:block; margin-top:12px; }
     .bulk-order-category-chips { display:flex; gap:8px; overflow:auto; padding:2px 0 4px; scrollbar-width:none; }
@@ -512,6 +532,13 @@
         gap: 8px;
         min-width: 148px;
     }
+    #storefrontCartNext.is-loading {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        cursor: wait;
+    }
     .bulk-order-btn-spinner,
     .bulk-order-submit-spinner {
         width: 18px;
@@ -536,7 +563,9 @@
     .bulk-order-submit-overlay {
         position: fixed;
         inset: 0;
-        z-index: 30;
+        /* Debe quedar por encima del carrito (120), adicionales (1400) y
+           selector de entrega (1600), no escondido detrás de ellos. */
+        z-index: 2100;
         display: none;
         align-items: center;
         justify-content: center;
@@ -1828,6 +1857,8 @@
     let products = [];
     let cart = restorePersistedCart();
     let editingCartIndex = null;
+    let cartTransitioning = false;
+    let storefrontNextPreviousLabel = '';
     let selectedContact = initialContact ? { ...initialContact } : null;
     let isSubmitting = false;
     let kioskServiceType = null;
@@ -1928,6 +1959,7 @@
     function setSubmitting(submitting) {
         isSubmitting = submitting;
         const btn = el('bulkSubmitBtn');
+        const storefrontNext = isStorefront ? el('storefrontCartNext') : null;
         const overlay = el('bulkSubmitOverlay');
         const overlayTitle = el('bulkSubmitOverlayTitle');
         const overlayText = el('bulkSubmitOverlayText');
@@ -1951,10 +1983,23 @@
             btn.disabled = true;
             btn.classList.add('is-loading');
             btn.innerHTML = '<span class="bulk-order-btn-spinner" aria-hidden="true"></span> Enviando…';
+            if (storefrontNext) {
+                storefrontNextPreviousLabel = storefrontNext.textContent.trim() || 'Confirmar pedido';
+                storefrontNext.disabled = true;
+                storefrontNext.classList.add('is-loading');
+                storefrontNext.setAttribute('aria-busy', 'true');
+                storefrontNext.innerHTML = '<span class="bulk-order-btn-spinner" aria-hidden="true"></span> Procesando pedido…';
+            }
             document.body.style.overflow = 'hidden';
         } else {
             btn.classList.remove('is-loading');
             btn.textContent = submitBtnDefaultLabel;
+            if (storefrontNext) {
+                storefrontNext.disabled = false;
+                storefrontNext.classList.remove('is-loading');
+                storefrontNext.removeAttribute('aria-busy');
+                storefrontNext.textContent = storefrontNextPreviousLabel || (el('bulkCartPanel')?.classList.contains('is-checkout-step') ? 'Confirmar pedido' : 'Siguiente');
+            }
             document.body.style.overflow = '';
             updateFormEnabled();
         }
@@ -1963,8 +2008,9 @@
     function toast(msg) {
         const t = el('bulkToast');
         t.textContent = msg;
+        t.setAttribute('role', 'alert');
         t.style.display = 'block';
-        setTimeout(() => { t.style.display = 'none'; }, 2800);
+        setTimeout(() => { t.style.display = 'none'; }, 5000);
     }
 
     function escapeHtml(str) {
@@ -1972,6 +2018,25 @@
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[c]));
     }
+
+    function catalogImage(src, alt = '', lazy = false) {
+        return `<img class="catalog-loading-image" data-catalog-image src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${lazy ? ' loading="lazy"' : ''}>`;
+    }
+
+    function settleCatalogImage(image, loaded) {
+        if (!(image instanceof HTMLImageElement) || !image.matches('[data-catalog-image]')) return;
+        const shell = image.closest('.catalog-image-shell');
+        if (!shell) return;
+        shell.classList.toggle('is-image-loaded', loaded);
+        shell.classList.toggle('is-image-error', !loaded);
+    }
+
+    // Se usa captura porque load/error de las imágenes no burbujean.
+    document.addEventListener('load', event => settleCatalogImage(event.target, true), true);
+    document.addEventListener('error', event => settleCatalogImage(event.target, false), true);
+    document.querySelectorAll('img[data-catalog-image]').forEach(image => {
+        if (image.complete) settleCatalogImage(image, image.naturalWidth > 0);
+    });
 
     function debounce(fn, ms) {
         let t;
@@ -2370,10 +2435,10 @@
         const box = el('bulkCategoryChips');
         const current = el('bulkCategory').value;
         const allCategoryVisual = allCategory.image
-            ? `<span class="bulk-order-category-icon"><img src="${escapeHtml(allCategory.image)}" alt=""></span>`
+            ? `<span class="bulk-order-category-icon catalog-image-shell">${catalogImage(allCategory.image, allCategory.title || 'Todos')}</span>`
             : categoryIcon('all');
         box.innerHTML = `<button type="button" data-category="" class="${current === '' && !showingPromotions ? 'is-active' : ''}">${allCategoryVisual}<span>${escapeHtml(allCategory.title || 'Todos')}</span></button>` + categories.map(c =>
-            `<button type="button" data-category="${c.id}" class="${String(c.id) === String(current) && !showingPromotions ? 'is-active' : ''}">${c.image ? `<span class="bulk-order-category-icon"><img src="${escapeHtml(c.image)}" alt=""></span>` : categoryIcon(c.title)}<span>${escapeHtml(c.title)}</span></button>`
+            `<button type="button" data-category="${c.id}" class="${String(c.id) === String(current) && !showingPromotions ? 'is-active' : ''}">${c.image ? `<span class="bulk-order-category-icon catalog-image-shell">${catalogImage(c.image, c.title)}</span>` : categoryIcon(c.title)}<span>${escapeHtml(c.title)}</span></button>`
         ).join('');
         box.querySelectorAll('[data-category]').forEach(btn => btn.addEventListener('click', async () => {
             showingPromotions = false;
@@ -2416,7 +2481,7 @@
         box.innerHTML = products.map(p => `
             <article class="bulk-order-product-row" data-product-card="${p.id}" role="button" tabindex="0" aria-label="Ver ${escapeHtml(p.name)}, ${fmt(p.price)}">
                 ${p.is_promo ? '<span class="bulk-order-promo-ribbon">Promo</span>' : ''}
-                <div class="bulk-order-product-media">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy">` : '<div class="fallback">🍗</div>'}</div>
+                <div class="bulk-order-product-media ${p.image ? 'catalog-image-shell' : ''}">${p.image ? catalogImage(p.image, p.name, true) : '<div class="fallback">🍗</div>'}</div>
                 <div class="bulk-order-product-content">
                     <strong>${escapeHtml(p.name)}</strong>
                     ${productMetaHtml(p)}
@@ -2465,7 +2530,7 @@
         if (el('storefrontDetailQty')) el('storefrontDetailQty').textContent = customizerQuantity;
         el('bulkCustomizerTitle').textContent = (isStorefront || isKiosk) ? (p.category || 'Productos') : p.name;
         el('bulkCustomizerPrice').textContent = 'Desde ' + fmt(p.price);
-        let html = `<div class="bulk-order-modal-hero">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}">` : '<div class="fallback">🍗</div>'}</div><h2 class="storefront-product-title">${escapeHtml(p.name)}</h2><div class="storefront-product-base-price">${fmt(p.price)}</div>`;
+        let html = `<div class="bulk-order-modal-hero ${p.image ? 'catalog-image-shell' : ''}">${p.image ? catalogImage(p.image, p.name) : '<div class="fallback">🍗</div>'}</div><h2 class="storefront-product-title">${escapeHtml(p.name)}</h2><div class="storefront-product-base-price">${fmt(p.price)}</div>`;
         if (p.description) {
             html += `<p class="bulk-order-modal-description">${escapeHtml(p.description)}</p>`;
         }
@@ -2825,7 +2890,8 @@
         if (!products.length) toast('No hay promociones disponibles en este momento.');
         moveCatalogHeaderOutOfView();
     });
-    el('storefrontCartNext')?.addEventListener('click', () => {
+    el('storefrontCartNext')?.addEventListener('click', async () => {
+        if (cartTransitioning || isSubmitting) return;
         const panel = el('bulkCartPanel');
         if (panel.classList.contains('is-cart-preview')) {
             panel.classList.remove('is-cart-preview');
@@ -2835,8 +2901,19 @@
             return;
         }
         if (!panel.classList.contains('is-checkout-step')) {
+            const nextButton = el('storefrontCartNext');
+            cartTransitioning = true;
+            nextButton.disabled = true;
+            nextButton.classList.add('is-loading');
+            nextButton.setAttribute('aria-busy', 'true');
+            nextButton.innerHTML = '<span class="bulk-order-btn-spinner" aria-hidden="true"></span> Preparando…';
+            await new Promise(resolve => setTimeout(resolve, 180));
             panel.classList.add('is-checkout-step');
-            el('storefrontCartNext').textContent = 'Confirmar pedido';
+            nextButton.textContent = 'Confirmar pedido';
+            nextButton.classList.remove('is-loading');
+            nextButton.removeAttribute('aria-busy');
+            nextButton.disabled = false;
+            cartTransitioning = false;
             panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
             return;
         }
@@ -3077,11 +3154,20 @@
     }
 
     if (isStorefront) {
-        // goHome() vive en storefront/show.blade.php (expuesta como
-        // window.goHome) -- ya limpia el DOM del catálogo, restaura el
-        // scroll y vuelve a la portada. Sin este botón el cliente quedaba
-        // atrapado en la pantalla de éxito, sin ninguna forma de salir.
-        el('storefrontSuccessHomeBtn')?.addEventListener('click', () => window.goHome?.());
+        el('storefrontSuccessHomeBtn')?.addEventListener('click', () => {
+            // Se inicia una sesión de compra completamente nueva. No basta con
+            // ocultar la pantalla de éxito: su estado DOM permanecía activo y
+            // reaparecía al seleccionar el siguiente producto.
+            cart = [];
+            persistCart();
+            try {
+                if (persistenceKey) localStorage.removeItem(persistenceKey + '_checkout');
+            } catch (_) {
+                // La recarga sigue siendo suficiente si el navegador bloquea storage.
+            }
+            window.clearStorefrontOrderState?.();
+            window.location.reload();
+        });
     }
 
     const storefrontPhoneDigits = value => (value || '').replace(/\D+/g, '');

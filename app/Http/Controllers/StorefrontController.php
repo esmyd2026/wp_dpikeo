@@ -74,6 +74,16 @@ class StorefrontController extends Controller
         ));
     }
 
+    public function csrfToken(Request $request, Company $company): JsonResponse
+    {
+        abort_unless($this->settings($company)->storefront_enabled, 404);
+
+        return response()->json([
+            'ok' => true,
+            'csrf_token' => $request->session()->token(),
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    }
+
     public function deliveryQuote(Request $request, Company $company): JsonResponse
     {
         $profile = $this->profile($company);
@@ -95,7 +105,9 @@ class StorefrontController extends Controller
         return response()->json([
             'ok' => true,
             'location' => [
-                'label' => sprintf('Ubicación detectada: %.6f, %.6f', $latitude, $longitude),
+                // Las coordenadas son datos técnicos para el cálculo. Nunca se
+                // presentan como si fueran una dirección postal al cliente.
+                'label' => 'Ubicación detectada automáticamente',
                 'maps_url' => "https://maps.google.com/?q={$latitude},{$longitude}",
             ],
             'branch' => [

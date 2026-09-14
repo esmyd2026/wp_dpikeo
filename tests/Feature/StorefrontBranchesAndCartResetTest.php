@@ -91,6 +91,8 @@ class StorefrontBranchesAndCartResetTest extends TestCase
         $response->assertSee("cart = [];\n                // renderCart()", false);
         $response->assertSee('document.body.style.overflow = \'\';', false);
         $response->assertSee('id="storefrontSuccessHomeBtn"', false);
-        $response->assertSee('window.goHome?.()', false);
+        $response->assertSee('window.clearStorefrontOrderState?.()', false);
+        $response->assertSee('window.location.reload()', false);
+        $response->assertSee("localStorage.removeItem(persistenceKey + '_checkout')", false);
     }
 }

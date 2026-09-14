@@ -80,6 +80,12 @@ class StorefrontTest extends TestCase
             ->assertSee('id="storefrontDeliveryDistance"', false)
             ->assertSee('const deliveryQuoteUrl=', false)
             ->assertSee('window.updateStorefrontDeliveryQuote', false)
+            ->assertSee('refreshStorefrontCsrf', false)
+            ->assertSee('response.status===419', false)
+            ->assertSee('z-index: 2100', false)
+            ->assertSee('Procesando pedido…', false)
+            ->assertSee('Preparando…', false)
+            ->assertSee('if (cartTransitioning || isSubmitting) return', false)
             ->assertSee('if(!customerAuthenticated)return Promise.resolve()', false)
             ->assertSee('drawer.inert=!open', false)
             ->assertSee('overflow:visible!important;', false)
@@ -87,12 +93,22 @@ class StorefrontTest extends TestCase
         $response->assertSee('PlaceAutocompleteElement', false)
             ->assertSee("autocomplete.addEventListener('gmp-select'", false)
             ->assertSee("place.fetchFields({fields:['formattedAddress','location']})", false)
+            ->assertSee('window.reverseGeocodeStorefrontAddress', false)
+            ->assertSee('new google.maps.Geocoder()', false)
             ->assertSee('class="storefront-address-row"', false)
-            ->assertSee("if(mode==='delivery'){window.loadStorefrontMapsScript?.();if(window.storefrontOrder.latitude===null", false)
+            ->assertSee("if(mode==='delivery'){", false)
+            ->assertSee('resolveDetectedAddress(window.storefrontOrder.latitude,window.storefrontOrder.longitude)', false)
             ->assertSee("geolocateButton.addEventListener('click',()=>requestStorefrontLocation(true))", false)
-            ->assertDontSee('new google.maps.Geocoder(', false)
+            ->assertDontSee('id="storefrontDetectedLocation"', false)
+            ->assertDontSee('id="storefrontDeliveryQuoteNote"', false)
             ->assertDontSee('new google.maps.places.Autocomplete(', false);
         $this->assertSame($company->id, $profile->company_id);
+
+        $this->getJson("/tienda/{$company->slug}/csrf")
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'must-revalidate, no-cache, no-store, private')
+            ->assertJsonPath('ok', true)
+            ->assertJsonStructure(['csrf_token']);
     }
 
     public function test_catalog_endpoint_never_returns_another_companys_products(): void

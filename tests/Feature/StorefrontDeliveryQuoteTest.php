@@ -131,7 +131,7 @@ class StorefrontDeliveryQuoteTest extends TestCase
             // Se envía una sucursal distinta para comprobar que el servidor
             // no confía en el navegador y elige nuevamente la más cercana.
             'branch_id' => $farther->id,
-            'address' => 'Ubicación detectada: -2.171000, -79.921000',
+            'address' => 'Av. Víctor Emilio Estrada, Guayaquil',
             'reference' => 'Casa azul',
             'latitude' => -2.1710,
             'longitude' => -79.9210,

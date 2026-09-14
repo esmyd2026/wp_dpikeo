@@ -280,7 +280,8 @@ class StorefrontAccountController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true])
+            ->header('X-CSRF-TOKEN', $request->session()->token());
     }
 
     public function me(Request $request, Company $company): JsonResponse

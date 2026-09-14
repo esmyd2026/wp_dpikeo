@@ -25,21 +25,35 @@ class SecurityHeaders
     {
         $response = $next($request);
 
+        // connect.facebook.net/*.facebook.com: SDK de "Conectar WhatsApp"
+        // (Embedded Signup, admin/empresas/whatsapp.blade.php) -- se había
+        // quedado fuera de una primera versión de esta política y hubiera
+        // roto ese botón en silencio (el script ni siquiera se carga, sin
+        // error visible más que en la consola del navegador).
         $csp = implode('; ', [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net https://cdnjs.cloudflare.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://maps.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://connect.facebook.net",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.bunny.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
             "img-src 'self' data: blob: https:",
-            "font-src 'self' data: https://fonts.gstatic.com https://fonts.bunny.net https://cdnjs.cloudflare.com",
-            "connect-src 'self' https://maps.googleapis.com",
-            "frame-src 'self' https://maps.google.com",
+            "font-src 'self' data: https://fonts.gstatic.com https://fonts.bunny.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+            "connect-src 'self' https://maps.googleapis.com https://graph.facebook.com https://connect.facebook.net https://cdn.jsdelivr.net",
+            "frame-src 'self' https://maps.google.com https://www.facebook.com https://web.facebook.com",
             "frame-ancestors 'self'",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",
         ]);
 
-        $response->headers->set('Content-Security-Policy', $csp);
+        // Modo "solo reporte" temporal: dos veces ya se detectaron dominios
+        // externos legítimos (connect.facebook.net, cdn.jsdelivr.net en
+        // style-src) que faltaban en la lista blanca sin poder probar en un
+        // navegador real desde aquí. En este modo el navegador AVISA en la
+        // consola/DevTools cuál regla se violaría, pero nunca bloquea nada
+        // -- cero riesgo de romper el panel mientras se termina de navegar
+        // por todas las pantallas. Cuando se confirme que ya no aparecen más
+        // avisos, cambiar el nombre de esta cabecera a
+        // 'Content-Security-Policy' para que empiece a bloquear de verdad.
+        $response->headers->set('Content-Security-Policy-Report-Only', $csp);
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()');
         $response->headers->set('X-Content-Type-Options', 'nosniff');

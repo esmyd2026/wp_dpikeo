@@ -45,10 +45,11 @@ class StorefrontQaFixesTest extends TestCase
         // Ya no se escribe "Ubicación detectada: lat, lon" dentro del campo
         // editable -- eso era lo que se concatenaba con lo que el cliente
         // tecleaba encima, sin separador.
-        $response->assertDontSee("address=`Ubicación detectada:", false);
-        // El respaldo (link de mapa) solo se arma al confirmar, si comparte
-        // ubicación y no escribió nada -- mismo criterio que usa el bot.
-        $response->assertSee('Ubicación compartida: https://maps.google.com', false);
+        $response->assertDontSee('address=`Ubicación detectada:', false);
+        // Las coordenadas se traducen a una dirección legible. Si Google no
+        // puede resolverla, el flujo pide escribirla y nunca expone lat/lon.
+        $response->assertSee('reverseGeocodeStorefrontAddress', false);
+        $response->assertDontSee('Ubicación compartida: https://maps.google.com', false);
     }
 
     public function test_google_maps_script_is_not_loaded_upfront_only_lazily_when_delivery_is_selected(): void
@@ -94,7 +95,7 @@ class StorefrontQaFixesTest extends TestCase
         $source = file_get_contents(resource_path('views/storefront/show.blade.php'));
 
         $this->assertStringContainsString(
-            "<img src=\"{{ \$category['image'] }}\" alt=\"{{ \$category['title'] }}\">",
+            "data-catalog-image src=\"{{ \$category['image'] }}\" alt=\"{{ \$category['title'] }}\">",
             $source
         );
     }
@@ -109,7 +110,10 @@ class StorefrontQaFixesTest extends TestCase
         $response->assertHeader('X-Content-Type-Options', 'nosniff');
         $response->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->assertHeader('Permissions-Policy');
-        $response->assertHeader('Content-Security-Policy');
+        // Modo "solo reporte" por ahora (ver comentario en SecurityHeaders):
+        // avisa en consola sin bloquear nada hasta confirmar en un navegador
+        // real que la lista blanca de dominios está completa.
+        $response->assertHeader('Content-Security-Policy-Report-Only');
         // Nunca se manda HSTS sobre HTTP -- el request de prueba no es HTTPS.
         $this->assertFalse($response->headers->has('Strict-Transport-Security'));
     }

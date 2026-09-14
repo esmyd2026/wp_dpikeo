@@ -11,8 +11,8 @@ use Tests\TestCase;
  * Pedido explícito en vivo: al calcular el envío por dirección, el recuadro
  * mostraba "Tu ubicación" (coordenadas crudas) y una nota extra de cómo se
  * calculó el costo -- el cliente solo quiere ver la sucursal más cercana y
- * la distancia/envío estimado. Los demás campos siguen existiendo en el DOM
- * (el JS los sigue completando sin errores) pero quedan ocultos por CSS.
+ * la distancia/envío estimado. Los elementos descartados ya no deben quedar
+ * escondidos en el DOM: así el bloque sigue siendo limpio y accesible.
  */
 class StorefrontDeliveryQuoteDisplayTest extends TestCase
 {
@@ -30,10 +30,8 @@ class StorefrontDeliveryQuoteDisplayTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        // El bloque "Tu ubicación" y la nota siguen en el DOM (el JS los llena
-        // sin romperse) pero ocultos por CSS.
-        $response->assertSee('#storefrontDeliveryQuoteLocationItem,#storefrontDeliveryQuoteNote{display:none}', false);
-        $response->assertSee('id="storefrontDeliveryQuoteLocationItem"', false);
+        $response->assertDontSee('id="storefrontDeliveryQuoteLocationItem"', false);
+        $response->assertDontSee('id="storefrontDeliveryQuoteNote"', false);
         $response->assertSee('id="storefrontNearestBranch"', false);
         $response->assertSee('id="storefrontDeliveryDistance"', false);
     }
