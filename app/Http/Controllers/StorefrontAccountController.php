@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
@@ -181,7 +182,12 @@ class StorefrontAccountController extends Controller
         if ($channel === 'email') {
             try {
                 Mail::to($email)->send(new StorefrontPasswordResetCode($code, $profile->business_name ?: $company->name));
-            } catch (\Throwable) {
+            } catch (\Throwable $e) {
+                Log::error('storefront.password_reset.email_failed', [
+                    'company_id' => $company->id,
+                    'profile_id' => $profile->id,
+                    'error' => $e->getMessage(),
+                ]);
                 DB::table('password_reset_tokens')->where('email', $resetKey)->delete();
 
                 return response()->json([
@@ -428,7 +434,7 @@ class StorefrontAccountController extends Controller
                     default => 'Por confirmar',
                 },
                 'address' => $delivery['address'] ?? data_get($metadata, 'delivery_location.manual_address'),
-                'reference' => $delivery['reference'] ?? null,
+                'reference' => $metadata['delivery_reference'] ?? ($delivery['reference'] ?? null),
             ],
             'items' => $cart->items->map(fn ($item) => [
                 'name' => $item->name,

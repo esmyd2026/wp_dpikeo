@@ -1616,8 +1616,9 @@ function deliveryDispatchText(order, f, driver) {
         `Pedido: *${order.order_number}*`,
         `Entregar a: ${f.recipient_name || order.contact?.name || 'Cliente'}`,
         `Dirección: ${f.address || 'Sin dirección registrada'}`,
-        `Pago: ${f.payment_dispatch_label || 'No especificado'}`,
     ];
+    if (f.reference) lines.push(`Referencia: ${f.reference}`);
+    lines.push(`Pago: ${f.payment_dispatch_label || 'No especificado'}`);
     return lines.join('\n');
 }
 
@@ -1683,6 +1684,9 @@ function renderFulfillmentSection(order) {
     html += `<div><span class="fulfillment-lbl">Tipo de pedido</span><span class="fulfillment-val">${esc(f.service_type_label)}${f.pickup_mode_label ? ' · ' + esc(f.pickup_mode_label) : ''}</span></div>`;
     if (f.pickup_mode === 'delivery' && f.address) {
         html += `<div class="fulfillment-full"><span class="fulfillment-lbl">Dirección</span><span class="fulfillment-val">${esc(f.address)}</span></div>`;
+    }
+    if (f.pickup_mode === 'delivery' && f.reference) {
+        html += `<div class="fulfillment-full"><span class="fulfillment-lbl">Referencia</span><span class="fulfillment-val">${esc(f.reference)}</span></div>`;
     }
     if (f.pickup_mode === 'delivery' && f.recipient_name) {
         html += `<div><span class="fulfillment-lbl">Recibe</span><span class="fulfillment-val">${esc(f.recipient_name)}</span></div>`;

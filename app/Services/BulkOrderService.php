@@ -232,22 +232,31 @@ class BulkOrderService
         ?string $paymentMethod = null,
         array $delivery = [],
     ): WhatsappCart {
+        // El micrositio solo ofrece retiro o delivery (nunca "para servir" en
+        // mesa, eso es exclusivo del punto de venta) -- se guarda con el
+        // mismo vocabulario que usa el bot ('llevar' + pickup_mode) para que
+        // el panel de admin, el PDF y los reportes reconozcan el pedido
+        // igual que uno hecho por chat, en vez de con las claves propias que
+        // solo entendía la vista "Mis pedidos" del propio micrositio.
         $metadata = [
             'source' => 'storefront_web',
             'branch_id' => $branchId,
             'branch_confirmed' => true,
-            'service_type' => $serviceType,
-            'pickup_mode' => $serviceType === 'pickup' ? 'retiro' : null,
+            'service_type' => 'llevar',
+            'pickup_mode' => $serviceType === 'delivery' ? 'delivery' : 'retiro',
             'submitted_at' => now()->toIso8601String(),
         ];
 
         if ($serviceType === 'delivery') {
-            $metadata['delivery'] = array_filter([
-                'address' => $delivery['address'] ?? null,
-                'reference' => $delivery['reference'] ?? null,
+            $metadata['delivery_location'] = array_filter([
                 'latitude' => $delivery['latitude'] ?? null,
                 'longitude' => $delivery['longitude'] ?? null,
+                'manual_address' => $delivery['address'] ?? null,
             ], fn ($value) => $value !== null && $value !== '');
+            $metadata['delivery_recipient_name'] = $contact->name;
+            if (filled($delivery['reference'] ?? null)) {
+                $metadata['delivery_reference'] = $delivery['reference'];
+            }
         }
 
         $cart = $this->submitForContact($contact, $items, $orderNote, $metadata);

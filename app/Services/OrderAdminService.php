@@ -107,6 +107,9 @@ class OrderAdminService
             },
             'address' => $order->metadata['delivery_location']['manual_address'] ?? null,
             'recipient_name' => $order->metadata['delivery_recipient_name'] ?? null,
+            // Solo lo llena el micrositio (el bot no pregunta esto): útil para
+            // el repartidor, no reemplaza la dirección.
+            'reference' => $order->metadata['delivery_reference'] ?? null,
             'last_dispatch_driver' => \App\Models\DeliveryDriver::summaryFor($order->metadata['last_dispatch_driver_id'] ?? null),
             // Pensado para el repartidor: si es efectivo, cuánto cobrar al
             // entregar; si ya se pagó por transferencia/tarjeta, que no cobre nada.
