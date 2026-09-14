@@ -69,16 +69,20 @@ class LandingController extends Controller
     }
 
     /**
-     * Punto de entrada público (sin WhatsApp) al mismo micrositio de pedidos
-     * que usa el bot: crea un contacto "de web" desechable y su token, igual
-     * que hace caja para ventas de mostrador (ver AdminBulkOrderController),
-     * y manda al cliente directo a /pedido/{token}.
+     * Punto de entrada público (sin WhatsApp) al sistema de pedidos.
+     * Las empresas con storefront publicado usan la tienda moderna; el
+     * formulario con token queda como compatibilidad para instalaciones
+     * heredadas que todavía no tienen habilitado el storefront.
      */
     public function startOrder(BulkOrderService $bulkOrders): RedirectResponse
     {
         abort_unless($bulkOrders->isAvailable(), 404);
 
         $profile = WhatsappBusinessProfile::first();
+
+        if ($profile?->company?->storefrontSetting?->storefront_enabled) {
+            return redirect()->route('storefront.show', $profile->company);
+        }
 
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile?->id,

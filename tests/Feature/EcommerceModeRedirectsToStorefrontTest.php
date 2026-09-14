@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BulkOrderToken;
 use App\Models\Company;
 use App\Models\CompanyStorefrontSetting;
 use App\Models\WhatsappBusinessProfile;
@@ -94,6 +95,44 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
                 && str_contains($url, '/tienda/'.$company->slug)
                 && ! str_contains($url, 'cuenta=pedidos');
         });
+    }
+
+    public function test_armar_lista_also_uses_the_modern_storefront_when_it_is_published(): void
+    {
+        [$company, $profile, $contact] = $this->fixture('100007', ecommerceMode: true);
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId($profile->phone_number_id);
+
+        $response = $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $url = $response['interactive']['action']['parameters']['url'] ?? '';
+
+        $this->assertSame('cta_url', $response['interactive']['type']);
+        $this->assertStringContainsString('/tienda/'.$company->slug, $url);
+        $this->assertStringNotContainsString('/pedido/', $url);
+        $this->assertDatabaseCount('bulk_order_tokens', 0);
+    }
+
+    public function test_an_old_bulk_order_link_redirects_to_the_published_storefront(): void
+    {
+        [$company, , $contact] = $this->fixture('100008', ecommerceMode: true);
+        $token = BulkOrderToken::create([
+            'contact_id' => $contact->id,
+            'token' => BulkOrderToken::generateToken(),
+            'expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('bulk-order.show', $token->token))
+            ->assertRedirect(route('storefront.show', $company));
+    }
+
+    public function test_the_public_order_entry_also_redirects_to_the_published_storefront(): void
+    {
+        [$company] = $this->fixture('100009', ecommerceMode: true);
+
+        $this->get(route('landing.start-order'))
+            ->assertRedirect(route('storefront.show', $company));
+
+        $this->assertDatabaseCount('bulk_order_tokens', 0);
     }
 
     public function test_ecommerce_mode_on_but_storefront_not_enabled_falls_back_to_the_native_catalog(): void

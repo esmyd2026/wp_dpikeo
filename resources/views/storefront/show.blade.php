@@ -357,7 +357,7 @@ try {
 </script>
 @if(filled($settings->google_maps_api_key))
 <script>window.initStorefrontMaps=function(){const input=document.getElementById('storefrontAddress');if(window.google?.maps?.places&&input){const autocomplete=new google.maps.places.Autocomplete(input,{fields:['formatted_address','geometry']});autocomplete.addListener('place_changed',()=>{const p=autocomplete.getPlace();if(p.formatted_address)input.value=p.formatted_address;if(p.geometry?.location){window.storefrontOrder.latitude=p.geometry.location.lat();window.storefrontOrder.longitude=p.geometry.location.lng();}});}};</script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&callback=initStorefrontMaps"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&callback=initStorefrontMaps"></script>
 @endif
 </body>
 </html>

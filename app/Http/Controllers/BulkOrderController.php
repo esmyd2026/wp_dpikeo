@@ -6,12 +6,13 @@ use App\Models\BusinessBranch;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class BulkOrderController extends Controller
 {
-    public function show(string $token, BulkOrderService $bulkOrders): View
+    public function show(string $token, BulkOrderService $bulkOrders): View|RedirectResponse
     {
         $record = $bulkOrders->findValidToken($token);
 
@@ -19,6 +20,15 @@ class BulkOrderController extends Controller
 
         $contact = $record->contact;
         $businessProfile = $contact->businessProfile;
+        $company = $businessProfile?->company;
+
+        // Compatibilidad con enlaces /pedido/{token} enviados antes de
+        // unificar el ecommerce. Si la empresa ya tiene tienda moderna, el
+        // cliente entra al mismo storefront que se muestra en la raíz.
+        if ($company?->storefrontSetting?->storefront_enabled) {
+            return redirect()->route('storefront.show', $company);
+        }
+
         $branches = BusinessBranch::query()
             ->where('business_profile_id', $contact->business_profile_id)
             ->availableForOrders()

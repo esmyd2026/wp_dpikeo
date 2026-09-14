@@ -3663,6 +3663,14 @@ class WhatsappService
             return $activeOrder;
         }
 
+        // Todas las entradas web deben usar la misma tienda moderna. Este
+        // método todavía es invocado por botones históricos como "Armar una
+        // lista" y por reanudaciones después de elegir el pago; si la empresa
+        // ya publicó su storefront, no generamos el formulario /pedido/{token}.
+        if ($redirect = $this->sendStorefrontRedirectLink($contact)) {
+            return $redirect;
+        }
+
         // Pedido explícito: preguntar el método de pago ANTES de mandarlo al
         // micrositio, no después de que vuelva -- no lo vamos a hacer llegar
         // hasta allá y devolverse para preguntarle. Mismo gate que usa
