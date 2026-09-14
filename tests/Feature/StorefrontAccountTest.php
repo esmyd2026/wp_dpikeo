@@ -3,18 +3,21 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Models\OrderAlertEvent;
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
-use App\Models\OrderAlertEvent;
 use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /**
@@ -97,10 +100,86 @@ class StorefrontAccountTest extends TestCase
         $this->postJson("/tienda/{$company->slug}/cuenta/salir")->assertOk();
 
         $bad = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '0991112225', 'password' => 'incorrecta']);
-        $bad->assertStatus(422)->assertJsonPath('ok', false);
+        $bad->assertOk()->assertJsonPath('ok', false);
 
         $good = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '0991112225', 'password' => 'secreto1']);
         $good->assertOk()->assertJsonPath('ok', true)->assertJsonPath('customer.name', 'Ana Torres');
+    }
+
+    public function test_customer_can_recover_password_with_a_whatsapp_code(): void
+    {
+        Http::fake([
+            '*' => Http::response(['messages' => [['id' => 'wamid.password-reset']]], 200),
+        ]);
+        [$company, $profile] = $this->makeProfile('100009');
+        $contact = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112231',
+            'name' => 'Cliente Recuperación',
+            'password' => Hash::make('clave-anterior'),
+            'status' => 'active',
+        ]);
+
+        $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
+            'phone' => '0991112231',
+        ]);
+
+        $requested->assertOk()->assertJsonPath('ok', true);
+        $sentText = collect(Http::recorded())
+            ->map(fn (array $exchange) => data_get($exchange[0]->data(), 'text.body'))
+            ->filter()
+            ->first();
+        $this->assertIsString($sentText);
+        $this->assertMatchesRegularExpression('/\b\d{6}\b/', $sentText);
+        preg_match('/\b(\d{6})\b/', $sentText, $matches);
+
+        $reset = $this->postJson("/tienda/{$company->slug}/cuenta/restablecer", [
+            'phone' => '0991112231',
+            'code' => $matches[1],
+            'password' => 'clave-nueva',
+            'password_confirmation' => 'clave-nueva',
+        ]);
+
+        $reset->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('customer.name', 'Cliente Recuperación');
+        $this->assertTrue(Hash::check('clave-nueva', $contact->fresh()->password));
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => "storefront:{$profile->id}:0991112231",
+        ]);
+        $this->getJson("/tienda/{$company->slug}/cuenta/yo")
+            ->assertOk()
+            ->assertJsonPath('customer.phone', '0991112231');
+    }
+
+    public function test_an_incorrect_recovery_code_does_not_change_the_password(): void
+    {
+        [$company, $profile] = $this->makeProfile('100010');
+        $contact = WhatsappContact::create([
+            'business_profile_id' => $profile->id,
+            'phone_number' => '0991112232',
+            'name' => 'Cliente Seguro',
+            'password' => Hash::make('clave-original'),
+            'status' => 'active',
+        ]);
+        DB::table('password_reset_tokens')->insert([
+            'email' => "storefront:{$profile->id}:0991112232",
+            'token' => Hash::make('123456'),
+            'created_at' => now(),
+        ]);
+
+        $response = $this->postJson("/tienda/{$company->slug}/cuenta/restablecer", [
+            'phone' => '0991112232',
+            'code' => '654321',
+            'password' => 'clave-intrusa',
+            'password_confirmation' => 'clave-intrusa',
+        ]);
+
+        $response->assertOk()->assertJsonPath('ok', false);
+        $this->assertTrue(Hash::check('clave-original', $contact->fresh()->password));
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => "storefront:{$profile->id}:0991112232",
+        ]);
     }
 
     public function test_order_history_and_status_are_scoped_to_the_logged_in_customer(): void

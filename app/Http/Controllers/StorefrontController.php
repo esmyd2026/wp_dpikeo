@@ -5,22 +5,27 @@ namespace App\Http\Controllers;
 use App\Models\BusinessBranch;
 use App\Models\Company;
 use App\Models\CompanyStorefrontSetting;
-use App\Models\WhatsappContact;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
+use App\Models\WhatsappContact;
 use App\Services\BulkOrderService;
 use App\Services\OrderLifecycleService;
 use App\Services\OrderPdfService;
+use App\Services\StorefrontDeliveryQuoteService;
 use App\Services\StorefrontOrderSelfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class StorefrontController extends Controller
 {
-    public function __construct(private BulkOrderService $bulkOrders, private StorefrontOrderSelfService $orderSelfService) {}
+    public function __construct(
+        private BulkOrderService $bulkOrders,
+        private StorefrontOrderSelfService $orderSelfService,
+        private StorefrontDeliveryQuoteService $deliveryQuotes,
+    ) {}
 
     public function show(Request $request, ?Company $company = null): View
     {
@@ -67,6 +72,44 @@ class StorefrontController extends Controller
             $profile->id,
             $request->boolean('promo'),
         ));
+    }
+
+    public function deliveryQuote(Request $request, Company $company): JsonResponse
+    {
+        $profile = $this->profile($company);
+        $validated = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+        $latitude = (float) $validated['latitude'];
+        $longitude = (float) $validated['longitude'];
+        $quote = $this->deliveryQuotes->nearestForProfile($profile->id, $latitude, $longitude);
+
+        if (! $quote) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'No hay una sucursal habilitada con ubicación para calcular el envío.',
+            ]);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'location' => [
+                'label' => sprintf('Ubicación detectada: %.6f, %.6f', $latitude, $longitude),
+                'maps_url' => "https://maps.google.com/?q={$latitude},{$longitude}",
+            ],
+            'branch' => [
+                'id' => $quote['branch']->id,
+                'name' => $quote['branch']->name,
+                'address' => $quote['branch']->address,
+            ],
+            'distance_km' => $quote['distance_km'],
+            'delivery_fee' => $quote['fee'],
+            'pending_review' => $quote['pending_review'],
+            'message' => $quote['pending_review']
+                ? 'La distancia está fuera de los rangos configurados; el costo mostrado es referencial.'
+                : 'Costo calculado con el rango de delivery configurado para esta sucursal.',
+        ]);
     }
 
     public function submit(Request $request, Company $company, OrderPdfService $pdf): JsonResponse
@@ -123,6 +166,21 @@ class StorefrontController extends Controller
             }
         }
 
+        $deliveryQuote = null;
+        if ($validated['service_type'] === 'delivery'
+            && isset($validated['latitude'], $validated['longitude'])) {
+            $deliveryQuote = $this->deliveryQuotes->nearestForProfile(
+                $profile->id,
+                (float) $validated['latitude'],
+                (float) $validated['longitude'],
+            );
+            if ($deliveryQuote) {
+                // La sucursal se decide otra vez en el servidor para que el
+                // navegador no pueda alterar ni el local ni la tarifa.
+                $validated['branch_id'] = $deliveryQuote['branch']->id;
+            }
+        }
+
         $contact = WhatsappContact::query()->firstOrNew([
             'business_profile_id' => $profile->id,
             'phone_number' => $phone,
@@ -149,6 +207,10 @@ class StorefrontController extends Controller
                 $validated['payment_method'],
                 $validated,
             );
+
+            if ($deliveryQuote) {
+                $this->deliveryQuotes->applyToCart($cart, $deliveryQuote);
+            }
 
             $accessToken = Str::random(64);
             $cartMetadata = $cart->metadata ?? [];

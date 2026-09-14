@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappContactNote;
 use App\Services\ClientInsightsService;
+use App\Services\WhatsappService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -73,6 +76,34 @@ class ClientController extends Controller
         return redirect()
             ->route('admin.clients.show', $client)
             ->with('success', 'Datos del cliente actualizados.');
+    }
+
+    /**
+     * El cliente inicia sesión en "Mi cuenta" del micrositio con
+     * teléfono+contraseña. Cuando no puede recibir el código de recuperación
+     * por WhatsApp (o simplemente pide ayuda al negocio), un admin puede
+     * generarle una contraseña nueva directamente desde aquí.
+     */
+    public function resetPassword(WhatsappContact $client, WhatsappService $whatsapp): RedirectResponse
+    {
+        $newPassword = Str::password(8, symbols: false);
+        $client->password = Hash::make($newPassword);
+        $client->save();
+
+        $sent = false;
+        if ($client->businessProfile) {
+            $whatsapp->useBusinessProfile($client->businessProfile);
+            $sent = $whatsapp->sendTextMessage(
+                $client,
+                "🔐 Tu contraseña de \"Mi cuenta\" fue restablecida.\n\nNueva contraseña: *{$newPassword}*\n\nIngresa con tu número de WhatsApp y esta contraseña."
+            ) === true;
+        }
+
+        return redirect()
+            ->route('admin.clients.show', $client)
+            ->with('success', $sent
+                ? "Contraseña restablecida y enviada por WhatsApp al cliente. Nueva contraseña: {$newPassword}"
+                : "Contraseña restablecida, pero no se pudo enviar por WhatsApp. Compártela manualmente: {$newPassword}");
     }
 
     public function storeNote(Request $request, WhatsappContact $client): RedirectResponse

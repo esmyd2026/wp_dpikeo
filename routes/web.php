@@ -42,10 +42,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [StorefrontController::class, 'show'])->name('home');
 Route::get('/tienda/{company:slug}', [StorefrontController::class, 'show'])->name('storefront.show');
 Route::get('/tienda/{company:slug}/catalogo', [StorefrontController::class, 'catalog'])->name('storefront.catalog');
+Route::post('/tienda/{company:slug}/delivery/cotizar', [StorefrontController::class, 'deliveryQuote'])
+    ->middleware('throttle:30,1')
+    ->name('storefront.delivery.quote');
 Route::post('/tienda/{company:slug}/pedido', [StorefrontController::class, 'submit'])->name('storefront.submit');
 Route::post('/tienda/{company:slug}/pedido/{cart}/comprobante', [StorefrontController::class, 'uploadPaymentProof'])->name('storefront.order.payment-proof');
 Route::post('/tienda/{company:slug}/cuenta/registro', [StorefrontAccountController::class, 'register'])->name('storefront.account.register');
 Route::post('/tienda/{company:slug}/cuenta/entrar', [StorefrontAccountController::class, 'login'])->name('storefront.account.login');
+Route::post('/tienda/{company:slug}/cuenta/recuperar', [StorefrontAccountController::class, 'requestPasswordReset'])->name('storefront.account.password.request');
+Route::post('/tienda/{company:slug}/cuenta/restablecer', [StorefrontAccountController::class, 'resetPassword'])->name('storefront.account.password.reset');
 Route::post('/tienda/{company:slug}/cuenta/salir', [StorefrontAccountController::class, 'logout'])->name('storefront.account.logout');
 Route::get('/tienda/{company:slug}/cuenta/yo', [StorefrontAccountController::class, 'me'])->name('storefront.account.me');
 Route::get('/tienda/{company:slug}/cuenta/pedidos', [StorefrontAccountController::class, 'orders'])->name('storefront.account.orders');
@@ -248,6 +253,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/clients/{client}/notes', [ClientController::class, 'storeNote'])
         ->middleware('permission:clients.notes')
         ->name('clients.notes.store');
+    Route::post('/clients/{client}/reset-password', [ClientController::class, 'resetPassword'])
+        ->middleware('permission:clients.update')
+        ->name('clients.reset-password');
 
     Route::get('/chats/{contact}', [AdminController::class, 'chat'])
         ->middleware(['permission:chats.open,chats.view', 'platform.feature:chat'])

@@ -523,6 +523,21 @@
     <details class="client-collapse">
         <summary><i class="fas fa-user-edit me-1 text-muted"></i> Editar datos del cliente</summary>
         <div class="inner">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 pb-3 border-bottom">
+                <div>
+                    <p class="mb-0 fw-semibold"><i class="fas fa-key me-1 text-muted"></i>Acceso a "Mi cuenta" (micrositio)</p>
+                    <p class="text-muted small mb-0">
+                        {{ $contact->hasAccountPassword() ? 'Este cliente ya tiene contraseña configurada.' : 'Este cliente aún no tiene contraseña -- no puede iniciar sesión en "Mi cuenta".' }}
+                    </p>
+                </div>
+                <form method="POST" action="{{ route('admin.clients.reset-password', $contact) }}"
+                      onsubmit="return confirm('¿Restablecer la contraseña de {{ $contact->name ?: $contact->phone_number }}? Se generará una nueva y se le enviará por WhatsApp.');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-key me-1"></i>{{ $contact->hasAccountPassword() ? 'Restablecer contraseña' : 'Crear contraseña' }}
+                    </button>
+                </form>
+            </div>
             <p class="text-muted small mb-3">Campos opcionales. El teléfono WhatsApp no se modifica.</p>
             <form method="POST" action="{{ route('admin.clients.update', $contact) }}">
                 @csrf

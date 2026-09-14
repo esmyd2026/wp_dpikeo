@@ -7,9 +7,11 @@ use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Services\StorefrontOrderSelfService;
+use App\Services\WhatsappService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
@@ -93,13 +95,126 @@ class StorefrontAccountController extends Controller
         if (! $attempted) {
             RateLimiter::hit($throttleKey, 60);
 
-            return response()->json(['ok' => false, 'message' => 'Teléfono o contraseña incorrectos.'], 422);
+            // Es un resultado esperado del formulario, no un error técnico de
+            // validación. El frontend lo muestra dentro del modal sin llenar
+            // la consola del navegador con respuestas 422.
+            return response()->json(['ok' => false, 'message' => 'Teléfono o contraseña incorrectos.']);
         }
 
         RateLimiter::clear($throttleKey);
         $request->session()->regenerate();
 
         return response()->json(['ok' => true, 'customer' => $this->customerPayload(Auth::guard('storefront_customer')->user())]);
+    }
+
+    /** Envía al WhatsApp del cliente un código breve para recuperar su cuenta. */
+    public function requestPasswordReset(Request $request, Company $company, WhatsappService $whatsapp): JsonResponse
+    {
+        $profile = $this->profile($company);
+        $validated = $request->validate(['phone' => ['required', 'string', 'max:30']]);
+        $phone = $this->normalizePhone($validated['phone']);
+
+        if (! $phone) {
+            return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.']);
+        }
+
+        $throttleKey = 'storefront-reset-request:'.$profile->id.':'.$phone.':'.$request->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 3)) {
+            return response()->json(['ok' => false, 'message' => 'Espera unos minutos antes de solicitar otro código.'], 429);
+        }
+        RateLimiter::hit($throttleKey, 600);
+
+        $contact = WhatsappContact::query()
+            ->where('business_profile_id', $profile->id)
+            ->where('phone_number', $phone)
+            ->first();
+
+        // La respuesta no revela si el teléfono está registrado. Así nadie
+        // puede usar este formulario para enumerar clientes de una empresa.
+        if (! $contact?->hasAccountPassword()) {
+            return response()->json([
+                'ok' => true,
+                'message' => 'Si ese número tiene una cuenta, recibirá un código por WhatsApp.',
+            ]);
+        }
+
+        $code = (string) random_int(100000, 999999);
+        $resetKey = $this->passwordResetKey($profile->id, $phone);
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $resetKey],
+            ['token' => Hash::make($code), 'created_at' => now()],
+        );
+
+        $whatsapp->useBusinessProfile($profile);
+        $sent = $whatsapp->sendTextMessage(
+            $contact,
+            "🔐 Código para recuperar tu cuenta: {$code}\n\nVence en 10 minutos. No lo compartas con nadie.",
+        );
+
+        if ($sent !== true) {
+            DB::table('password_reset_tokens')->where('email', $resetKey)->delete();
+
+            return response()->json([
+                'ok' => false,
+                'message' => 'No pudimos enviar el código por WhatsApp. Inténtalo nuevamente o escríbenos para ayudarte.',
+            ], 503);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Te enviamos un código por WhatsApp. Escríbelo para crear tu nueva contraseña.',
+        ]);
+    }
+
+    /** Verifica el código y reemplaza la contraseña sin exponer el token. */
+    public function resetPassword(Request $request, Company $company): JsonResponse
+    {
+        $profile = $this->profile($company);
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'code' => ['required', 'digits:6'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ]);
+        $phone = $this->normalizePhone($validated['phone']);
+
+        if (! $phone) {
+            return response()->json(['ok' => false, 'message' => 'El teléfono o el código no son válidos.']);
+        }
+
+        $attemptKey = 'storefront-reset-attempt:'.$profile->id.':'.$phone.':'.$request->ip();
+        if (RateLimiter::tooManyAttempts($attemptKey, 6)) {
+            return response()->json(['ok' => false, 'message' => 'Demasiados intentos. Solicita un código nuevo en unos minutos.'], 429);
+        }
+
+        $contact = WhatsappContact::query()
+            ->where('business_profile_id', $profile->id)
+            ->where('phone_number', $phone)
+            ->first();
+        $resetKey = $this->passwordResetKey($profile->id, $phone);
+        $reset = DB::table('password_reset_tokens')
+            ->where('email', $resetKey)
+            ->where('created_at', '>=', now()->subMinutes(10))
+            ->first();
+
+        if (! $contact?->hasAccountPassword() || ! $reset || ! Hash::check($validated['code'], $reset->token)) {
+            RateLimiter::hit($attemptKey, 600);
+
+            return response()->json(['ok' => false, 'message' => 'El código es incorrecto o ya venció.']);
+        }
+
+        $contact->password = Hash::make($validated['password']);
+        $contact->save();
+        DB::table('password_reset_tokens')->where('email', $resetKey)->delete();
+        RateLimiter::clear($attemptKey);
+
+        Auth::guard('storefront_customer')->login($contact, true);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Contraseña actualizada correctamente.',
+            'customer' => $this->customerPayload($contact),
+        ]);
     }
 
     public function logout(Request $request, Company $company): JsonResponse
@@ -355,6 +470,11 @@ class StorefrontAccountController extends Controller
         $phone = preg_replace('/\D+/', '', $raw) ?? '';
 
         return (strlen($phone) >= 8 && strlen($phone) <= 15) ? $phone : null;
+    }
+
+    private function passwordResetKey(int $profileId, string $phone): string
+    {
+        return "storefront:{$profileId}:{$phone}";
     }
 
     private function profile(Company $company)

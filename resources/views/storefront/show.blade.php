@@ -14,12 +14,12 @@
         .storefront-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-brand{display:flex;align-items:center;gap:20px}.storefront-menu-toggle{width:36px;height:36px;padding:3px;border:0;background:transparent;color:#2d2d2d;cursor:pointer}.storefront-menu-toggle span{display:block;height:3px;margin:6px 0;border-radius:4px;background:currentColor}.storefront-logo{width:120px;height:100px;object-fit:contain}.storefront-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end;gap:44px}.storefront-tab{position:relative;padding:0 0 17px;font-size:1rem}.storefront-tab:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:4px;background:var(--accent)}
         .storefront-mode-row{display:flex;gap:12px}.storefront-mode{flex:1;border:1px solid #ddd;border-radius:10px;padding:15px;background:#fff;color:#222;font:inherit;font-weight:800;cursor:pointer}.storefront-mode.is-active{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}
         .storefront-place-autocomplete{display:block;width:100%;min-width:0;border:1px solid #d7d7d7;border-radius:9px;background:#fff;color:#242424;color-scheme:light;font:inherit}.storefront-address-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.storefront-address-row>.storefront-geolocate{display:inline-flex;min-width:172px;align-items:center;justify-content:center;gap:7px;padding:0 14px;background:#f3f3f3;color:#242424}.storefront-geolocate svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.storefront-geolocate:disabled{cursor:wait;opacity:.65}
-        .storefront-location{display:none;position:fixed;z-index:130;inset:0;width:auto;margin:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.storefront-location.is-open{display:flex}.storefront-location-card{width:min(800px,100%);min-height:70dvh;max-height:92dvh;padding:42px 56px;border-radius:8px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-location-head{display:flex;align-items:center;justify-content:space-between}.storefront-location-head h2{margin:0 0 18px;font-size:1.55rem}.storefront-location-close{border:0;background:transparent;font-size:2rem;cursor:pointer}.storefront-field{display:grid;gap:6px;margin:14px 0}.storefront-field span{font-size:.78rem;font-weight:800;color:#555}.storefront-field input,.storefront-field select{width:100%;border:1px solid #d7d7d7;border-radius:9px;padding:13px;font:inherit}.storefront-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.storefront-button{border:0;border-radius:8px;padding:14px 22px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-geolocate{background:#f3f3f3}.storefront-preview{width:min(1260px,100%);margin:auto;padding:70px 40px 120px}.storefront-category-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:76px 64px}.storefront-category{min-height:120px;border:0;background:#fff;text-align:center;font:inherit;font-size:1.3rem;cursor:pointer}.storefront-category img,.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;object-fit:contain;font-size:3rem}.storefront-category:hover{transform:translateY(-3px)}.storefront-error{display:none;color:#b42318;font-size:.82rem;margin-top:7px}.storefront-error.is-success{color:#087f5b}
+        .storefront-location{display:none;position:fixed;z-index:130;inset:0;width:auto;margin:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.storefront-location.is-open{display:flex}.storefront-location-card{width:min(800px,100%);min-height:70dvh;max-height:92dvh;padding:42px 56px;border-radius:8px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-location-head{display:flex;align-items:center;justify-content:space-between}.storefront-location-head h2{margin:0 0 18px;font-size:1.55rem}.storefront-location-close{border:0;background:transparent;font-size:2rem;cursor:pointer}.storefront-field{display:grid;gap:6px;margin:14px 0}.storefront-field span{font-size:.78rem;font-weight:800;color:#555}.storefront-field input,.storefront-field select{width:100%;border:1px solid #d7d7d7;border-radius:9px;padding:13px;font:inherit}.storefront-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.storefront-button{border:0;border-radius:8px;padding:14px 22px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-geolocate{background:#f3f3f3}.storefront-delivery-quote{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:0;margin:16px 0 4px;border:1px solid #e7e7e7;border-left:4px solid var(--accent);border-radius:10px;background:#fffaf1;overflow:hidden}.storefront-delivery-quote[hidden]{display:none}.storefront-delivery-quote-item{display:grid;gap:3px;padding:13px 15px;border-right:1px solid #eadfca}.storefront-delivery-quote-item:last-of-type{border-right:0}.storefront-delivery-quote-label{color:#777;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.storefront-delivery-quote strong{font-size:.9rem}.storefront-delivery-quote small{color:#666;line-height:1.35}.storefront-delivery-map{color:var(--brand-dark);font-size:.74rem;font-weight:800}.storefront-delivery-quote-note{grid-column:1/-1;margin:0;padding:9px 15px;border-top:1px solid #eadfca;color:#6f5a28;font-size:.73rem}.storefront-preview{width:min(1260px,100%);margin:auto;padding:70px 40px 120px}.storefront-category-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:76px 64px}.storefront-category{min-height:120px;border:0;background:#fff;text-align:center;font:inherit;font-size:1.3rem;cursor:pointer}.storefront-category img,.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;object-fit:contain;font-size:3rem}.storefront-category:hover{transform:translateY(-3px)}.storefront-error{display:none;color:#b42318;font-size:.82rem;margin-top:7px}.storefront-error.is-success{color:#087f5b}
         .storefront-drawer{position:fixed;z-index:140;inset:0 auto 0 0;width:min(470px,88vw);padding:26px 32px;background:#fff;color:#222;box-shadow:20px 0 60px rgba(0,0,0,.3);transform:translateX(-105%);transition:transform .22s}.storefront-drawer.is-open{transform:none}.storefront-drawer-close{float:right;border:0;background:none;font-size:2rem;cursor:pointer}.storefront-drawer-nav{display:grid;gap:5px;clear:both;padding-top:22px}.storefront-drawer-link{display:flex;width:100%;align-items:center;gap:14px;padding:15px 4px;border:0;border-bottom:1px solid #f0f0f0;background:#fff;color:#222;text-align:left;text-decoration:none;font:inherit;font-weight:700;cursor:pointer}.storefront-drawer-link:hover{color:var(--brand-dark);background:#fffaf2}.storefront-drawer-link-icon{display:grid;width:30px;height:30px;place-items:center;color:var(--brand-dark)}.storefront-drawer-link-icon svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.storefront-drawer-logout{margin-top:18px;color:#b42318}.storefront-home-bottom{display:none}
         .storefront-branch-list{display:grid;gap:2px;margin:8px 0 12px}.storefront-branch-option{display:grid;padding:13px 8px;border:0;border-bottom:1px solid #e5e7eb;background:#fff;text-align:left;font:inherit;cursor:pointer}.storefront-branch-option strong{font-size:.86rem}.storefront-branch-option small{color:#555}.storefront-branch-option.is-active{border-left:4px solid var(--accent);background:#fffaf0}.storefront-location-copy{margin:-8px 0 18px;color:#666;font-size:.82rem}.storefront-pickup-fields{margin-top:18px}
         .storefront-nav-overlay{display:none;position:fixed;z-index:1450;inset:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.48)}.storefront-nav-overlay.is-open{display:flex}.storefront-nav-card{width:min(620px,100%);max-height:90dvh;padding:28px;border-radius:22px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-nav-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.storefront-nav-head h2{margin:0}.storefront-nav-head button{border:0;background:none;font-size:2rem;cursor:pointer}.storefront-account-form{display:grid;gap:14px}.storefront-account-form label{display:grid;gap:6px;font-size:.78rem;font-weight:800}.storefront-account-form input{width:100%;padding:13px;border:1px solid #d7d7d7;border-radius:9px;font:inherit}.storefront-account-save{padding:14px;border:0;border-radius:8px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-account-note{color:#666;font-size:.8rem;line-height:1.45;margin-top:14px}
-        .storefront-account-tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid #eee}.storefront-account-tab{flex:1;padding:12px 4px;border:0;border-bottom:3px solid transparent;background:none;font:inherit;font-weight:800;color:#888;cursor:pointer}.storefront-account-tab.is-active{color:var(--brand-dark);border-bottom-color:var(--accent)}
-        .storefront-account-error{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#fdecea;color:#b42318;font-size:.82rem;font-weight:700}
+        .storefront-account-tabs{display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid #eee}.storefront-account-tab{flex:1;padding:12px 4px;border:0;border-bottom:3px solid transparent;background:none;font:inherit;font-weight:800;color:#888;cursor:pointer}.storefront-account-tab.is-active{color:var(--brand-dark);border-bottom-color:var(--accent)}.storefront-account-link{border:0;background:transparent;color:var(--brand-dark);font:inherit;font-size:.8rem;font-weight:800;text-decoration:underline;cursor:pointer}.storefront-account-forgot{justify-self:end;margin-top:-3px}.storefront-account-recovery{display:grid;gap:14px}.storefront-account-recovery-head{display:flex;align-items:center;gap:10px}.storefront-account-recovery-head button{border:0;background:#f5f5f5;width:35px;height:35px;border-radius:50%;font-size:1.15rem;cursor:pointer}.storefront-account-recovery-head h3{margin:0}.storefront-account-recovery-copy{margin:0;color:#666;font-size:.82rem;line-height:1.45}.storefront-account-save:disabled{cursor:wait;opacity:.65}
+        .storefront-account-error{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#fdecea;color:#b42318;font-size:.82rem;font-weight:700}.storefront-account-error.is-success{background:#eaf8ef;color:#16743b}
         .storefront-account-welcome{margin:0 0 20px;font-size:1.02rem;line-height:1.5}.storefront-account-welcome span{color:#777;font-size:.85rem;font-weight:600}
         .storefront-account-subtitle{margin:0 0 12px;font-size:.92rem}
         .storefront-orders-list{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
@@ -36,7 +36,7 @@
         .storefront-home-cart-fab-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#fff;color:#252525;font-size:1.15rem}
         .storefront-home-cart-fab-count{display:grid;place-items:center;min-width:21px;height:21px;padding:0 5px;border-radius:999px;background:#e4002b;color:#fff;font-size:.72rem}
         @media(min-width:960px){.storefront-home-cart-fab{bottom:26px}}
-        @media(max-width:640px){.storefront-gateway{padding-bottom:88px}.storefront-hero{box-shadow:none}.storefront-nav{min-height:82px;padding:12px 20px}.storefront-brand{gap:14px}.storefront-menu-toggle{width:34px;height:34px}.storefront-logo{width:100px;height:100px}.storefront-tabs{display:none}.storefront-preview{padding:34px 24px 48px}.storefront-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px 24px}.storefront-category{min-height:120px;font-size:1.08rem}.storefront-category img,.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}.storefront-location{padding:0;background:#fff}.storefront-location-card{width:100%;height:100dvh;max-height:none;padding:18px 16px 22px;border-radius:0;box-shadow:none}.storefront-location-copy{display:none}.storefront-location-head{margin-bottom:20px}.storefront-location-head h2{font-size:1.4rem}.storefront-address-row>.storefront-geolocate{min-width:50px;width:50px;padding:0}.storefront-geolocate-label{display:none}.storefront-actions{position:sticky;bottom:0;padding-top:18px;background:#fff}.storefront-actions .storefront-button{width:100%;min-height:52px}.storefront-home-bottom{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;align-items:center;justify-content:space-around;border-top:1px solid #eee;border-radius:10px 10px 0 0;background:#fff;box-shadow:0 -8px 25px rgba(0,0,0,.09)}.storefront-home-bottom button{border:0;background:none;color:#777;font:inherit;font-size:.68rem}.storefront-home-bottom span{display:flex;justify-content:center;margin-bottom:3px}.storefront-home-bottom span svg{display:block}.storefront-home-bottom button:first-child{color:var(--brand);font-weight:800}.storefront-order-detail{padding:0;background:#fff}.storefront-order-detail-card{width:100%;height:100dvh;max-height:none;border-radius:0}.storefront-order-detail-head{padding:16px}.storefront-order-detail-body{padding:14px 12px 28px}.storefront-order-progress{padding:16px 4px}.storefront-order-progress-step{font-size:.62rem}.storefront-order-snapshot{grid-template-columns:repeat(2,1fr)}.storefront-order-snapshot div:nth-child(2){border-right:0}.storefront-order-snapshot div:nth-child(-n+2){border-bottom:1px solid #e5e7eb}}
+        @media(max-width:640px){.storefront-gateway{padding-bottom:88px}.storefront-hero{box-shadow:none}.storefront-nav{min-height:82px;padding:12px 20px}.storefront-brand{gap:14px}.storefront-menu-toggle{width:34px;height:34px}.storefront-logo{width:100px;height:100px}.storefront-tabs{display:none}.storefront-preview{padding:34px 24px 48px}.storefront-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px 24px}.storefront-category{min-height:120px;font-size:1.08rem}.storefront-category img,.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}.storefront-location{padding:0;background:#fff}.storefront-location-card{width:100%;height:100dvh;max-height:none;padding:18px 16px 22px;border-radius:0;box-shadow:none}.storefront-location-copy{display:none}.storefront-location-head{margin-bottom:20px}.storefront-location-head h2{font-size:1.4rem}.storefront-address-row>.storefront-geolocate{min-width:50px;width:50px;padding:0}.storefront-geolocate-label{display:none}.storefront-delivery-quote{grid-template-columns:1fr 1fr}.storefront-delivery-quote-item:first-child{grid-column:1/-1;border-right:0;border-bottom:1px solid #eadfca}.storefront-actions{position:sticky;bottom:0;padding-top:18px;background:#fff}.storefront-actions .storefront-button{width:100%;min-height:52px}.storefront-home-bottom{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;align-items:center;justify-content:space-around;border-top:1px solid #eee;border-radius:10px 10px 0 0;background:#fff;box-shadow:0 -8px 25px rgba(0,0,0,.09)}.storefront-home-bottom button{border:0;background:none;color:#777;font:inherit;font-size:.68rem}.storefront-home-bottom span{display:flex;justify-content:center;margin-bottom:3px}.storefront-home-bottom span svg{display:block}.storefront-home-bottom button:first-child{color:var(--brand);font-weight:800}.storefront-order-detail{padding:0;background:#fff}.storefront-order-detail-card{width:100%;height:100dvh;max-height:none;border-radius:0}.storefront-order-detail-head{padding:16px}.storefront-order-detail-body{padding:14px 12px 28px}.storefront-order-progress{padding:16px 4px}.storefront-order-progress-step{font-size:.62rem}.storefront-order-snapshot{grid-template-columns:repeat(2,1fr)}.storefront-order-snapshot div:nth-child(2){border-right:0}.storefront-order-snapshot div:nth-child(-n+2){border-bottom:1px solid #e5e7eb}}
         /* El selector de entrega debe mostrarse sobre el detalle del producto. */
         .storefront-location{z-index:1600}
     </style>
@@ -59,6 +59,12 @@
             <div id="deliveryFields" style="display:none">
                 <div class="storefront-field"><span>Dirección de entrega</span><div class="storefront-address-row"><input id="storefrontAddress" placeholder="Busca una dirección" autocomplete="street-address"><button type="button" class="storefront-button storefront-geolocate" id="storefrontGeolocate" title="Detectar mi ubicación" aria-label="Detectar mi ubicación"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg><span class="storefront-geolocate-label">Mi ubicación</span></button></div></div>
                 <label class="storefront-field"><span>Referencia para el repartidor</span><input id="storefrontReference" placeholder="Ej.: casa de dos pisos, junto al mercado"></label>
+                <section class="storefront-delivery-quote" id="storefrontDeliveryQuote" aria-live="polite" hidden>
+                    <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Tu ubicación</span><strong id="storefrontDetectedLocation">Calculando…</strong><a class="storefront-delivery-map" id="storefrontDetectedMap" href="#" target="_blank" rel="noopener">Ver en el mapa</a></div>
+                    <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Sucursal más cercana</span><strong id="storefrontNearestBranch">Calculando…</strong><small id="storefrontNearestBranchAddress"></small></div>
+                    <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Distancia y envío</span><strong id="storefrontDeliveryDistance">Calculando…</strong><small id="storefrontDeliveryFee"></small></div>
+                    <p class="storefront-delivery-quote-note" id="storefrontDeliveryQuoteNote"></p>
+                </section>
             </div>
             <p class="storefront-error" id="storefrontError"></p>
             <div class="storefront-actions"><button class="storefront-button" id="storefrontContinue">Comenzar</button></div>
@@ -76,7 +82,7 @@
     <span class="storefront-home-cart-fab-count" id="storefrontHomeCartFabCount">0</span>
     <strong id="storefrontHomeCartFabTotal">$0.00</strong>
 </button>
-<aside class="storefront-drawer" id="storefrontDrawer" aria-hidden="true">
+<aside class="storefront-drawer" id="storefrontDrawer" aria-hidden="true" inert>
     <button type="button" class="storefront-drawer-close" id="storefrontDrawerClose" aria-label="Cerrar">×</button>
     <nav class="storefront-drawer-nav" aria-label="Menú principal">
         <a href="#storefrontGateway" class="storefront-drawer-link" data-drawer-nav="products"><span class="storefront-drawer-link-icon" data-icon="products" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11h16l-1.2 8H5.2L4 11Z"/><path d="M7 11a5 5 0 0 1 10 0"/><path d="M3 20h18"/></svg></span><span>Productos</span></a>
@@ -85,7 +91,7 @@
         <button type="button" class="storefront-drawer-link storefront-drawer-logout" id="storefrontDrawerLogout" style="display:none"><span class="storefront-drawer-link-icon" data-icon="logout" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 5H5v14h5"/><path d="M13 8l4 4-4 4"/><path d="M8 12h9"/></svg></span><span>Cerrar sesión</span></button>
     </nav>
 </aside>
-<section class="storefront-nav-overlay" id="storefrontBranches" aria-hidden="true">
+<section class="storefront-nav-overlay" id="storefrontBranches" aria-hidden="true" inert>
     <div class="storefront-nav-card">
         <div class="storefront-nav-head"><h2>Sucursales</h2><button type="button" data-close-nav="branches" aria-label="Cerrar">×</button></div>
         <div class="storefront-branch-accordion">
@@ -122,7 +128,7 @@
         </div>
     </div>
 </section>
-<section class="storefront-nav-overlay" id="storefrontAccount" aria-hidden="true"><div class="storefront-nav-card">
+<section class="storefront-nav-overlay" id="storefrontAccount" aria-hidden="true" inert><div class="storefront-nav-card">
     <div class="storefront-nav-head"><h2>Mi cuenta</h2><button type="button" data-close-nav="account" aria-label="Cerrar">×</button></div>
     <div id="storefrontAccountGuest">
         <div class="storefront-account-tabs">
@@ -133,6 +139,7 @@
         <form class="storefront-account-form" id="storefrontLoginForm" data-account-panel="login">
             <label>Teléfono<input type="tel" id="loginPhone" required maxlength="30" autocomplete="tel"></label>
             <label>Contraseña<input type="password" id="loginPassword" required autocomplete="current-password"></label>
+            <button type="button" class="storefront-account-link storefront-account-forgot" id="storefrontForgotPassword">¿Olvidaste tu contraseña?</button>
             <button type="submit" class="storefront-account-save">Iniciar sesión</button>
         </form>
         <form class="storefront-account-form" id="storefrontRegisterForm" data-account-panel="register" style="display:none">
@@ -142,6 +149,22 @@
             <label>Confirmar contraseña<input type="password" id="registerPasswordConfirm" required minlength="6" autocomplete="new-password"></label>
             <button type="submit" class="storefront-account-save">Crear cuenta</button>
         </form>
+        <div class="storefront-account-recovery" id="storefrontRecoveryPanel" style="display:none">
+            <div class="storefront-account-recovery-head"><button type="button" id="storefrontRecoveryBack" aria-label="Volver">←</button><h3>Recuperar contraseña</h3></div>
+            <p class="storefront-account-recovery-copy">Escribe el teléfono de tu cuenta. Te enviaremos un código de seis dígitos por WhatsApp.</p>
+            <form class="storefront-account-form" id="storefrontRecoveryRequestForm">
+                <label>Teléfono<input type="tel" id="recoveryPhone" required maxlength="30" autocomplete="tel"></label>
+                <button type="submit" class="storefront-account-save">Enviar código por WhatsApp</button>
+            </form>
+            <form class="storefront-account-form" id="storefrontRecoveryResetForm" style="display:none">
+                <input type="hidden" id="recoveryConfirmPhone">
+                <label>Código de seis dígitos<input type="text" id="recoveryCode" required minlength="6" maxlength="6" inputmode="numeric" autocomplete="one-time-code"></label>
+                <label>Nueva contraseña<input type="password" id="recoveryPassword" required minlength="6" autocomplete="new-password"></label>
+                <label>Confirmar contraseña<input type="password" id="recoveryPasswordConfirm" required minlength="6" autocomplete="new-password"></label>
+                <button type="submit" class="storefront-account-save">Guardar nueva contraseña</button>
+                <button type="button" class="storefront-account-link" id="storefrontRecoveryRetry">Solicitar otro código</button>
+            </form>
+        </div>
         <p class="storefront-account-note">Usa el mismo número de WhatsApp con el que haces tus pedidos.</p>
     </div>
     <div id="storefrontAccountAuthed" style="display:none">
@@ -151,7 +174,7 @@
         <button type="button" class="storefront-account-logout" id="storefrontLogoutBtn">Cerrar sesión</button>
     </div>
 </div></section>
-<section class="storefront-order-detail" id="storefrontOrderDetail" aria-hidden="true">
+<section class="storefront-order-detail" id="storefrontOrderDetail" aria-hidden="true" inert>
     <div class="storefront-order-detail-card" role="dialog" aria-modal="true" aria-labelledby="storefrontOrderDetailTitle">
         <header class="storefront-order-detail-head">
             <div><h2 id="storefrontOrderDetailTitle">Detalle del pedido</h2><p id="storefrontOrderDetailSubtitle"></p></div>
@@ -179,7 +202,7 @@
 
 <script>
 const storefrontOrderStorageKey = @json('storefront_order_'.$company->id);
-const storefrontOrderDefaults = {confirmed:false,service_type:null,branch_id:null,address:'',reference:'',latitude:null,longitude:null};
+const storefrontOrderDefaults = {confirmed:false,service_type:null,branch_id:null,address:'',reference:'',latitude:null,longitude:null,delivery_distance_km:null,delivery_fee:null,delivery_fee_pending_review:false,nearest_branch_name:''};
 try {
     const savedStorefrontOrder = JSON.parse(localStorage.getItem(storefrontOrderStorageKey) || 'null');
     window.storefrontOrder = savedStorefrontOrder && typeof savedStorefrontOrder === 'object'
@@ -195,9 +218,9 @@ try {
  window.clearStorefrontOrderState=()=>{localStorage.removeItem(storefrontOrderStorageKey);window.storefrontOrder={...storefrontOrderDefaults};};
  let pendingCategory='';
  const openCategory=(categoryId,attempt=0)=>{const categorySelect=document.getElementById('bulkCategory'),option=categorySelect?.querySelector(`option[value="${categoryId}"]`);if(!option&&attempt<12){setTimeout(()=>openCategory(categoryId,attempt+1),80);return;}if(categorySelect){categorySelect.value=categoryId;categorySelect.dispatchEvent(new Event('change'));}gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});window.renderStorefrontCartFab?.();};
- const drawer=document.getElementById('storefrontDrawer'),setDrawer=open=>{drawer.classList.toggle('is-open',open);drawer.setAttribute('aria-hidden',open?'false':'true')};document.getElementById('storefrontMenuToggle').addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontCatalogMenu')?.addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontDrawerClose').addEventListener('click',()=>setDrawer(false));document.querySelectorAll('[data-close-drawer]').forEach(link=>link.addEventListener('click',()=>setDrawer(false)));
+ const drawer=document.getElementById('storefrontDrawer'),drawerTrigger=document.getElementById('storefrontMenuToggle'),drawerClose=document.getElementById('storefrontDrawerClose'),setDrawer=open=>{if(!open&&drawer.contains(document.activeElement))drawerTrigger.focus();drawer.inert=!open;drawer.classList.toggle('is-open',open);drawer.setAttribute('aria-hidden',open?'false':'true');if(open)requestAnimationFrame(()=>drawerClose.focus());};drawerTrigger.addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontCatalogMenu')?.addEventListener('click',()=>setDrawer(true));drawerClose.addEventListener('click',()=>setDrawer(false));document.querySelectorAll('[data-close-drawer]').forEach(link=>link.addEventListener('click',()=>setDrawer(false)));
  const branchesOverlay=document.getElementById('storefrontBranches'),account=document.getElementById('storefrontAccount');
- const toggleNavOverlay=(target,open)=>{target.classList.toggle('is-open',open);target.setAttribute('aria-hidden',open?'false':'true');document.body.style.overflow=open?'hidden':'';};
+ const toggleNavOverlay=(target,open)=>{if(!open&&target.contains(document.activeElement))drawerTrigger.focus();target.inert=!open;target.classList.toggle('is-open',open);target.setAttribute('aria-hidden',open?'false':'true');document.body.style.overflow=open?'hidden':'';if(open)requestAnimationFrame(()=>target.querySelector('[data-close-nav]')?.focus());};
  const goHome=()=>{document.getElementById('bulkCustomizer')?.classList.remove('is-open');document.getElementById('bulkCartPanel')?.classList.remove('is-storefront-open','is-checkout-step');document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';document.body.style.overflow='';window.scrollTo({top:0,behavior:'smooth'});window.renderStorefrontCartFab?.();};window.goHome=goHome;
  document.getElementById('storefrontHomeCartFab')?.addEventListener('click',()=>{gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});document.getElementById('bulkCartFab')?.click();});
  document.querySelectorAll('[data-drawer-nav]').forEach(item=>item.addEventListener('click',event=>{
@@ -221,15 +244,25 @@ try {
      const drawerLogout=document.getElementById('storefrontDrawerLogout');
      const errorBox=document.getElementById('storefrontAccountError');
      const loginForm=document.getElementById('storefrontLoginForm'),registerForm=document.getElementById('storefrontRegisterForm');
-     const showError=message=>{errorBox.textContent=message;errorBox.style.display='block';};
-     const clearError=()=>{errorBox.style.display='none';};
+     const accountTabs=document.querySelector('.storefront-account-tabs'),recoveryPanel=document.getElementById('storefrontRecoveryPanel');
+     const recoveryRequestForm=document.getElementById('storefrontRecoveryRequestForm'),recoveryResetForm=document.getElementById('storefrontRecoveryResetForm');
+     const showStatus=(message,success=false)=>{errorBox.textContent=message;errorBox.classList.toggle('is-success',success);errorBox.style.display='block';};
+     const showError=message=>showStatus(message,false);
+     const clearError=()=>{errorBox.style.display='none';errorBox.classList.remove('is-success');};
+     const setFormBusy=(form,busy,label)=>{const button=form.querySelector('button[type="submit"]');if(!button)return;button.disabled=busy;if(busy){button.dataset.originalLabel=button.textContent;button.textContent=label;}else if(button.dataset.originalLabel){button.textContent=button.dataset.originalLabel;delete button.dataset.originalLabel;}};
+     const showRecovery=requestCode=>{accountTabs.style.display='none';loginForm.style.display='none';registerForm.style.display='none';recoveryPanel.style.display='grid';recoveryRequestForm.style.display=requestCode?'grid':'none';recoveryResetForm.style.display=requestCode?'none':'grid';clearError();};
+     const showLogin=()=>{accountTabs.style.display='flex';recoveryPanel.style.display='none';loginForm.style.display='grid';registerForm.style.display='none';document.querySelectorAll('[data-account-tab]').forEach(tab=>tab.classList.toggle('is-active',tab.dataset.accountTab==='login'));clearError();};
      document.querySelectorAll('[data-account-tab]').forEach(tab=>tab.addEventListener('click',()=>{
          document.querySelectorAll('[data-account-tab]').forEach(t=>t.classList.toggle('is-active',t===tab));
          const target=tab.dataset.accountTab;
+         recoveryPanel.style.display='none';
          loginForm.style.display=target==='login'?'grid':'none';
          registerForm.style.display=target==='register'?'grid':'none';
          clearError();
      }));
+     document.getElementById('storefrontForgotPassword').addEventListener('click',()=>{document.getElementById('recoveryPhone').value=document.getElementById('loginPhone').value;showRecovery(true);});
+     document.getElementById('storefrontRecoveryBack').addEventListener('click',showLogin);
+     document.getElementById('storefrontRecoveryRetry').addEventListener('click',()=>showRecovery(true));
      const fillCustomerProfile=customer=>{
          if(!customer)return;
          if(document.getElementById('storefrontCustomerName'))document.getElementById('storefrontCustomerName').value=customer.name||'';
@@ -238,6 +271,7 @@ try {
      };
      const statusKind=status=>({paid:'success',completed:'success',ready:'success',confirmed:'success',cancelled:'danger',payment_pending:'warning',pending:'warning'}[status]||'neutral');
     let customerOrders=[];
+    let customerAuthenticated=false;
     let currentCustomerOrderId=null;
     const escAccount=value=>{const node=document.createElement('div');node.textContent=value??'';return node.innerHTML;};
     const money=value=>'$'+Number(value||0).toFixed(2);
@@ -279,7 +313,7 @@ try {
             ${fulfillment.address?`<section class="storefront-order-section"><h3>Entrega y sucursal</h3><div class="storefront-order-line"><div><strong>${escAccount(fulfillment.address)}</strong>${fulfillment.reference?`<span>Referencia: ${escAccount(fulfillment.reference)}</span>`:''}${order.branch_address?`<span>${escAccount(order.branch_address)}</span>`:''}</div></div></section>`:''}
             <section class="storefront-order-section"><h3>Productos del pedido · ${(order.items||[]).length}</h3>${items||'<div class="storefront-order-line"><span>Sin productos registrados.</span></div>'}<div class="storefront-order-total"><span>Total</span><strong>${money(order.total)}</strong></div></section>
             <section class="storefront-order-section"><h3>Historial del pedido</h3><div class="storefront-order-history">${history}</div></section>`;
-        detail.classList.add('is-open');detail.setAttribute('aria-hidden','false');
+        detail.inert=false;detail.classList.add('is-open');detail.setAttribute('aria-hidden','false');
         const invoiceForm=document.getElementById('storefrontOrderInvoiceForm');
         const invoiceSubmit=document.getElementById('storefrontOrderInvoiceSubmit');
         const rearmInvoiceSubmit=()=>{if(invoiceSubmit)invoiceSubmit.hidden=false;};
@@ -288,7 +322,7 @@ try {
         invoiceForm?.addEventListener('submit',async event=>{event.preventDefault();const status=document.getElementById('storefrontOrderInvoiceStatus');status.textContent='Guardando…';const form=new FormData(invoiceForm),requiresInvoice=form.get('requires_invoice')==='1';const payload={requires_invoice:requiresInvoice,billing_type:form.get('billing_type'),billing_id:form.get('billing_id'),billing_legal_name:form.get('billing_legal_name'),billing_address:form.get('billing_address'),billing_email:form.get('billing_email')};try{const response=await fetch(accountUrl(`/cuenta/pedidos/${order.id}/facturacion`),{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify(payload)});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'No se pudieron guardar los datos.');status.textContent='✓ '+result.message;if(invoiceSubmit)invoiceSubmit.hidden=true;await loadOrders();}catch(error){status.textContent=error.message||'No se pudieron guardar los datos.';}});
         document.getElementById('storefrontOrderProofForm')?.addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,status=document.getElementById('storefrontOrderProofStatus'),file=form.elements.proof.files[0];if(!file)return;status.textContent='Cargando…';const body=new FormData();body.append('proof',file);try{const response=await fetch(accountUrl(`/cuenta/pedidos/${order.id}/comprobante`),{method:'POST',headers:{'Accept':'application/json','X-CSRF-TOKEN':csrf},body});const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.message||'No se pudo cargar el comprobante.');status.textContent='✓ '+result.message;await loadOrders();}catch(error){status.textContent=error.message||'No se pudo cargar el comprobante.';}});
     };
-    const closeOrderDetail=()=>{const detail=document.getElementById('storefrontOrderDetail');detail.classList.remove('is-open');detail.setAttribute('aria-hidden','true');currentCustomerOrderId=null;};
+    const closeOrderDetail=()=>{const detail=document.getElementById('storefrontOrderDetail');if(detail.contains(document.activeElement))document.getElementById('storefrontAccount').querySelector('[data-close-nav]')?.focus();detail.classList.remove('is-open');detail.setAttribute('aria-hidden','true');detail.inert=true;currentCustomerOrderId=null;};
     document.getElementById('storefrontOrderDetailClose').addEventListener('click',closeOrderDetail);
     document.getElementById('storefrontOrderDetail').addEventListener('click',event=>{if(event.target.id==='storefrontOrderDetail')closeOrderDetail();});
     const renderOrders=orders=>{
@@ -299,10 +333,11 @@ try {
         list.querySelectorAll('[data-customer-order]').forEach(button=>button.addEventListener('click',()=>{const order=customerOrders.find(item=>String(item.id)===button.dataset.customerOrder);if(order)renderOrderDetail(order);}));
         if(currentCustomerOrderId){const updated=customerOrders.find(item=>String(item.id)===String(currentCustomerOrderId));if(updated)renderOrderDetail(updated);}
     };
-    const loadOrders=()=>fetch(accountUrl('/cuenta/pedidos'),{headers:{'Accept':'application/json'},cache:'no-store'}).then(r=>r.json()).then(data=>{if(data.ok)renderOrders(data.orders);});
+    const loadOrders=()=>{if(!customerAuthenticated)return Promise.resolve();return fetch(accountUrl('/cuenta/pedidos'),{headers:{'Accept':'application/json'},cache:'no-store'}).then(r=>r.json()).then(data=>{if(data.ok)renderOrders(data.orders);else if(data.message==='Debes iniciar sesión.')showGuest();});};
     window.loadStorefrontOrders=loadOrders;
     window.setInterval(()=>{if(!document.hidden&&(account.classList.contains('is-open')||document.getElementById('storefrontOrderDetail').classList.contains('is-open')))loadOrders();},15000);
      const showAuthed=customer=>{
+         customerAuthenticated=true;
          guestBox.style.display='none';authedBox.style.display='block';
          if(drawerLogout)drawerLogout.style.display='flex';
          document.getElementById('storefrontAccountName').textContent=customer.name||'';
@@ -310,19 +345,43 @@ try {
          fillCustomerProfile(customer);
          loadOrders();
      };
-     const showGuest=()=>{guestBox.style.display='block';authedBox.style.display='none';if(drawerLogout)drawerLogout.style.display='none';};
+     const showGuest=()=>{customerAuthenticated=false;guestBox.style.display='block';authedBox.style.display='none';if(drawerLogout)drawerLogout.style.display='none';};
      fetch(accountUrl('/cuenta/yo'),{headers:{'Accept':'application/json'}}).then(r=>r.json()).then(data=>{if(data.ok&&data.customer)showAuthed(data.customer);});
      loginForm.addEventListener('submit',event=>{
-         event.preventDefault();clearError();
+         event.preventDefault();clearError();setFormBusy(loginForm,true,'Ingresando…');
          fetch(accountUrl('/cuenta/entrar'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify({phone:document.getElementById('loginPhone').value.trim(),password:document.getElementById('loginPassword').value})})
-             .then(r=>r.json()).then(data=>{if(data.ok){showAuthed(data.customer);}else{showError(data.message||'No pudimos iniciar sesión.');}});
+             .then(r=>r.json()).then(data=>{if(data.ok){showAuthed(data.customer);}else{showError(data.message||'No pudimos iniciar sesión.');}})
+             .catch(()=>showError('No pudimos comunicarnos con el servidor. Inténtalo nuevamente.'))
+             .finally(()=>setFormBusy(loginForm,false));
      });
      registerForm.addEventListener('submit',event=>{
          event.preventDefault();clearError();
          const password=document.getElementById('registerPassword').value,confirm=document.getElementById('registerPasswordConfirm').value;
          if(password!==confirm){showError('Las contraseñas no coinciden.');return;}
+         setFormBusy(registerForm,true,'Creando cuenta…');
          fetch(accountUrl('/cuenta/registro'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify({name:document.getElementById('registerName').value.trim(),phone:document.getElementById('registerPhone').value.trim(),password,password_confirmation:confirm})})
-             .then(r=>r.json()).then(data=>{if(data.ok){showAuthed(data.customer);}else{showError(data.message||'No pudimos crear tu cuenta.');}});
+             .then(r=>r.json()).then(data=>{if(data.ok){showAuthed(data.customer);}else{showError(data.message||'No pudimos crear tu cuenta.');}})
+             .catch(()=>showError('No pudimos comunicarnos con el servidor. Inténtalo nuevamente.'))
+             .finally(()=>setFormBusy(registerForm,false));
+     });
+     recoveryRequestForm.addEventListener('submit',event=>{
+         event.preventDefault();clearError();
+         const phone=document.getElementById('recoveryPhone').value.trim();
+         setFormBusy(recoveryRequestForm,true,'Enviando código…');
+         fetch(accountUrl('/cuenta/recuperar'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify({phone})})
+             .then(r=>r.json()).then(data=>{if(!data.ok){showError(data.message||'No pudimos enviar el código.');return;}document.getElementById('recoveryConfirmPhone').value=phone;showRecovery(false);showStatus(data.message,true);document.getElementById('recoveryCode').focus();})
+             .catch(()=>showError('No pudimos comunicarnos con el servidor. Inténtalo nuevamente.'))
+             .finally(()=>setFormBusy(recoveryRequestForm,false));
+     });
+     recoveryResetForm.addEventListener('submit',event=>{
+         event.preventDefault();clearError();
+         const password=document.getElementById('recoveryPassword').value,confirmation=document.getElementById('recoveryPasswordConfirm').value;
+         if(password!==confirmation){showError('Las contraseñas no coinciden.');return;}
+         setFormBusy(recoveryResetForm,true,'Actualizando…');
+         fetch(accountUrl('/cuenta/restablecer'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify({phone:document.getElementById('recoveryConfirmPhone').value,code:document.getElementById('recoveryCode').value.trim(),password,password_confirmation:confirmation})})
+             .then(r=>r.json()).then(data=>{if(data.ok){recoveryRequestForm.reset();recoveryResetForm.reset();showAuthed(data.customer);}else{showError(data.message||'No pudimos actualizar la contraseña.');}})
+             .catch(()=>showError('No pudimos comunicarnos con el servidor. Inténtalo nuevamente.'))
+             .finally(()=>setFormBusy(recoveryResetForm,false));
      });
      const logout=()=>{
          fetch(accountUrl('/cuenta/salir'),{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf}})
@@ -341,21 +400,66 @@ try {
  const geolocateButton=document.getElementById('storefrontGeolocate');
  const geolocateLabel=geolocateButton.querySelector('.storefront-geolocate-label');
  const setGeolocateBusy=(busy,label='Mi ubicación')=>{geolocateButton.disabled=busy;if(geolocateLabel)geolocateLabel.textContent=label;};
+ const deliveryQuoteUrl=@json(route('storefront.delivery.quote',$company));
+ const deliveryQuoteBox=document.getElementById('storefrontDeliveryQuote');
+ let deliveryQuoteRequest=0;
+ const selectNearestBranch=branchId=>{const value=String(branchId||'');document.getElementById('storefrontBranch').value=value;document.getElementById('bulkBranch').value=value;window.storefrontOrder.branch_id=Number(value)||null;document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item.dataset.branchOption===value));};
+ const clearDeliveryQuote=(clearStored=true)=>{deliveryQuoteRequest++;deliveryQuoteBox.hidden=true;if(clearStored){window.storefrontOrder.delivery_distance_km=null;window.storefrontOrder.delivery_fee=null;window.storefrontOrder.delivery_fee_pending_review=false;window.storefrontOrder.nearest_branch_name='';persistOrder();}};
+ window.clearStorefrontDeliveryQuote=clearDeliveryQuote;
+ const renderDeliveryQuote=quote=>{
+     if(!quote||quote.distance_km===null)return;
+     deliveryQuoteBox.hidden=false;
+     document.getElementById('storefrontDetectedLocation').textContent=quote.location_label||window.storefrontOrder.address||'Ubicación detectada';
+     const map=document.getElementById('storefrontDetectedMap');map.href=quote.maps_url||`https://maps.google.com/?q=${window.storefrontOrder.latitude},${window.storefrontOrder.longitude}`;
+     document.getElementById('storefrontNearestBranch').textContent=quote.branch_name||'Sucursal disponible';
+     document.getElementById('storefrontNearestBranchAddress').textContent=quote.branch_address||'';
+     document.getElementById('storefrontDeliveryDistance').textContent=`≈ ${Number(quote.distance_km).toFixed(1)} km`;
+     document.getElementById('storefrontDeliveryFee').textContent=quote.pending_review?`Envío referencial: $${Number(quote.fee).toFixed(2)}`:`Envío estimado: $${Number(quote.fee).toFixed(2)}`;
+     document.getElementById('storefrontDeliveryQuoteNote').textContent=quote.message||'';
+ };
+ const requestDeliveryQuote=async(latitude,longitude,knownAddress='')=>{
+     const requestId=++deliveryQuoteRequest;
+     deliveryQuoteBox.hidden=false;
+     document.getElementById('storefrontDetectedLocation').textContent=knownAddress||`Ubicación detectada: ${Number(latitude).toFixed(6)}, ${Number(longitude).toFixed(6)}`;
+     document.getElementById('storefrontNearestBranch').textContent='Buscando…';
+     document.getElementById('storefrontNearestBranchAddress').textContent='';
+     document.getElementById('storefrontDeliveryDistance').textContent='Calculando…';
+     document.getElementById('storefrontDeliveryFee').textContent='';
+     document.getElementById('storefrontDeliveryQuoteNote').textContent='Consultando las tarifas configuradas por la empresa.';
+     try{
+         const response=await fetch(deliveryQuoteUrl,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name="csrf-token"]')?.content||''},body:JSON.stringify({latitude,longitude})});
+         const data=await response.json();
+         if(requestId!==deliveryQuoteRequest)return false;
+         if(!response.ok||!data.ok)throw new Error(data.message||'No pudimos calcular el envío.');
+         const quote={location_label:knownAddress||data.location.label,maps_url:data.location.maps_url,branch_name:data.branch.name,branch_address:data.branch.address,distance_km:data.distance_km,fee:data.delivery_fee,pending_review:data.pending_review,message:data.message};
+         selectNearestBranch(data.branch.id);
+         window.storefrontOrder.delivery_distance_km=quote.distance_km;
+         window.storefrontOrder.delivery_fee=quote.fee;
+         window.storefrontOrder.delivery_fee_pending_review=quote.pending_review;
+         window.storefrontOrder.nearest_branch_name=quote.branch_name;
+         persistOrder();renderDeliveryQuote(quote);
+         return true;
+     }catch(exception){
+         if(requestId!==deliveryQuoteRequest)return false;
+         deliveryQuoteBox.hidden=true;error.classList.remove('is-success');error.textContent=exception.message||'No pudimos calcular la distancia y el envío.';error.style.display='block';
+         return false;
+     }
+ };
+ window.updateStorefrontDeliveryQuote=requestDeliveryQuote;
  const requestStorefrontLocation=(force=false)=>{
      if(!navigator.geolocation){error.textContent='Tu navegador no permite obtener la ubicación. Escribe la dirección manualmente.';error.style.display='block';return;}
      if(storefrontGeolocationRequested&&!force)return;
      storefrontGeolocationRequested=true;
      setGeolocateBusy(true,'Ubicando…');
-     navigator.geolocation.getCurrentPosition(position=>{
-         const latitude=position.coords.latitude,longitude=position.coords.longitude,address='Ubicación actual confirmada';
+     navigator.geolocation.getCurrentPosition(async position=>{
+         const latitude=position.coords.latitude,longitude=position.coords.longitude,address=`Ubicación detectada: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
          window.storefrontOrder.latitude=latitude;
          window.storefrontOrder.longitude=longitude;
          window.storefrontOrder.address=address;
          if(window.setStorefrontAddressValue){window.setStorefrontAddressValue(address,latitude,longitude);}else{document.getElementById('storefrontAddress').value=address;window.storefrontOrder.confirmed=false;persistOrder();}
-         error.textContent='Ubicación detectada. Puedes precisar la dirección escribiéndola o seleccionándola en la lista.';
-         error.classList.add('is-success');
-         error.style.display='block';
-         setGeolocateBusy(false,'Ubicación lista');
+         const quoted=await requestDeliveryQuote(latitude,longitude,address);
+         if(quoted){error.textContent='Ubicación lista. Seleccionamos automáticamente la sucursal más cercana.';error.classList.add('is-success');error.style.display='block';}
+         setGeolocateBusy(false,quoted?'Ubicación lista':'Reintentar');
      },geolocationError=>{
          storefrontGeolocationRequested=false;
          const message=geolocationError.code===1?'Permite el acceso a tu ubicación o escribe la dirección manualmente.':geolocationError.code===3?'La ubicación tardó demasiado. Intenta nuevamente o escribe la dirección.':'No pudimos detectar tu ubicación. Intenta nuevamente o escribe la dirección.';
@@ -367,7 +471,7 @@ try {
  };
  const selectMode=(mode,save=true)=>{document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));window.storefrontOrder.service_type=mode;delivery.style.display=mode==='delivery'?'block':'none';document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';if(save){window.storefrontOrder.confirmed=false;persistOrder();}if(mode==='delivery'&&window.storefrontOrder.latitude===null&&window.storefrontOrder.longitude===null)requestStorefrontLocation();};document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
  document.querySelectorAll('[data-branch-option]').forEach(button=>button.addEventListener('click',()=>{const branchId=button.dataset.branchOption;document.getElementById('storefrontBranch').value=branchId;document.getElementById('bulkBranch').value=branchId;window.storefrontOrder.confirmed=false;window.storefrontOrder.branch_id=Number(branchId)||null;persistOrder();document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item===button));}));document.getElementById('storefrontBranchSearch').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-branch-option]').forEach(item=>item.style.display=item.dataset.branchSearch.includes(query)?'grid':'none');});
- document.getElementById('storefrontAddress').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.address=event.target.value;if(event.target.dataset.preserveCoordinates==='1'){delete event.target.dataset.preserveCoordinates;}else{window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;}persistOrder();});
+ document.getElementById('storefrontAddress').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.address=event.target.value;if(event.target.dataset.preserveCoordinates==='1'){delete event.target.dataset.preserveCoordinates;}else{window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;clearDeliveryQuote();}persistOrder();});
  document.getElementById('storefrontReference').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.reference=event.target.value;persistOrder();});
  window.openStorefrontOrderMode=()=>{selectMode(window.storefrontOrder.service_type||'pickup');if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);locationBox.classList.add('is-open');};
  window.addEventListener('storefront:start-order',window.openStorefrontOrderMode);
@@ -382,6 +486,7 @@ try {
  }
  document.getElementById('storefrontAddress').value=window.storefrontOrder.address||'';
  document.getElementById('storefrontReference').value=window.storefrontOrder.reference||'';
+ if(window.storefrontOrder.delivery_distance_km!==null)renderDeliveryQuote({location_label:window.storefrontOrder.address,branch_name:window.storefrontOrder.nearest_branch_name,distance_km:window.storefrontOrder.delivery_distance_km,fee:window.storefrontOrder.delivery_fee,pending_review:window.storefrontOrder.delivery_fee_pending_review,message:window.storefrontOrder.delivery_fee_pending_review?'Costo referencial pendiente de confirmación.':'Costo calculado con el rango configurado para esta sucursal.'});
  if(window.storefrontOrder.confirmed&&window.storefrontOrder.service_type){
      selectMode(window.storefrontOrder.service_type,false);
      const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'';
@@ -428,6 +533,7 @@ window.initStorefrontMaps=async function(){
         window.storefrontPlaceAutocomplete=autocomplete;
 
         const syncAddress=(value,latitude=null,longitude=null)=>{
+            if(latitude===null||longitude===null)window.clearStorefrontDeliveryQuote?.();
             input.value=value||'';
             window.storefrontOrder.latitude=latitude;
             window.storefrontOrder.longitude=longitude;
@@ -449,10 +555,10 @@ window.initStorefrontMaps=async function(){
                 await place.fetchFields({fields:['formattedAddress','location']});
                 const latitude=place.location?.lat?.()??null;
                 const longitude=place.location?.lng?.()??null;
-                window.setStorefrontAddressValue(place.formattedAddress||autocomplete.value||'',latitude,longitude);
-                const error=document.getElementById('storefrontError');
-                error.textContent='';
-                error.style.display='none';
+                const address=place.formattedAddress||autocomplete.value||'';
+                window.setStorefrontAddressValue(address,latitude,longitude);
+                const quoted=latitude!==null&&longitude!==null?await window.updateStorefrontDeliveryQuote?.(latitude,longitude,address):false;
+                if(quoted){const error=document.getElementById('storefrontError');error.textContent='';error.style.display='none';}
             }catch(e){
                 document.getElementById('storefrontError').classList.remove('is-success');
                 showManualInput('No pudimos completar esa dirección. Puedes escribirla manualmente.');
