@@ -655,7 +655,14 @@ class StorefrontAccountController extends Controller
         return [
             'name' => $contact->name,
             'phone' => $contact->phone_number,
-            'email' => $contact->metadata['email'] ?? null,
+            'email' => $contact->google_email ?? ($contact->metadata['email'] ?? $contact->billing_email),
+            // Una compra cuenta cuando el pedido ya fue entregado/completado;
+            // los carritos activos, abandonados o cancelados no inflan este
+            // indicador que ve el cliente en "Mi cuenta".
+            'purchases_count' => WhatsappCart::query()
+                ->where('contact_id', $contact->id)
+                ->where('status', WhatsappCart::STATUS_COMPLETED)
+                ->count(),
         ];
     }
 

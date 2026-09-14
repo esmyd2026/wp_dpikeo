@@ -426,6 +426,7 @@ class StorefrontAccountTest extends TestCase
             ->assertOk()
             ->assertSee('Iniciar sesión con Google')
             ->assertSee('Crear cuenta con Google')
+            ->assertSee('fill="#4285F4"', false)
             ->assertDontSee('google-client-secret');
 
         $redirect = $this->get("/tienda/{$company->slug}/cuenta/google");
@@ -458,6 +459,11 @@ class StorefrontAccountTest extends TestCase
             'billing_email' => 'cliente@example.com',
             'password' => Hash::make('secreto1'),
         ]);
+        WhatsappCart::create([
+            'contact_id' => $contact->id,
+            'total' => 12.50,
+            'status' => WhatsappCart::STATUS_COMPLETED,
+        ]);
         Http::fake([
             'oauth2.googleapis.com/token' => Http::response(['access_token' => 'access-token']),
             'openidconnect.googleapis.com/v1/userinfo' => Http::response([
@@ -473,6 +479,9 @@ class StorefrontAccountTest extends TestCase
 
         $this->assertSame('google-user-21', $contact->fresh()->google_id);
         $this->getJson("/tienda/{$company->slug}/cuenta/yo")
-            ->assertOk()->assertJsonPath('customer.phone', '0991112288');
+            ->assertOk()
+            ->assertJsonPath('customer.phone', '0991112288')
+            ->assertJsonPath('customer.email', 'cliente@example.com')
+            ->assertJsonPath('customer.purchases_count', 1);
     }
 }
