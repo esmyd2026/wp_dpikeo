@@ -92,6 +92,21 @@ class OrderLifecycleTest extends TestCase
         $this->assertEquals(11.80, (float) $order->total);
     }
 
+    public function test_order_rejects_a_product_without_its_required_option(): void
+    {
+        [$product, $contact] = $this->catalogProduct(stock: 10);
+        $product->update([
+            'metadata' => ['variations' => [['title' => 'Grande', 'price' => 7.50]]],
+        ]);
+
+        $this->expectExceptionMessage('Selecciona una opción obligatoria para Combo de prueba.');
+
+        app(BulkOrderService::class)->submitForContact($contact, [[
+            'product_id' => $product->id,
+            'quantity' => 1,
+        ]]);
+    }
+
     /** @return array{WhatsappPrice, WhatsappContact} */
     private function catalogProduct(int $stock): array
     {

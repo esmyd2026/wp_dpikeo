@@ -6,6 +6,7 @@ use App\Models\WhatsappCart;
 use App\Models\WhatsappMessage;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Http\UploadedFile;
 
 /** Conserva una copia privada de comprobantes que WhatsApp puede expirar. */
 class PaymentProofArchiveService
@@ -34,6 +35,39 @@ class PaymentProofArchiveService
         $order->save();
 
         return true;
+    }
+
+    /** Guarda un comprobante enviado desde el ecommerce en el mismo respaldo privado usado por WhatsApp. */
+    public function archiveUpload(WhatsappCart $order, UploadedFile $file): array
+    {
+        $size = (int) ($file->getSize() ?: 0);
+        if ($size <= 0 || $size > self::MAX_BYTES) {
+            throw new \InvalidArgumentException('El comprobante debe pesar máximo 12 MB.');
+        }
+
+        $mime = strtolower((string) ($file->getMimeType() ?: $file->getClientMimeType()));
+        $extension = $this->extension($file->getClientOriginalName(), $mime);
+        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf'], true)) {
+            throw new \InvalidArgumentException('El comprobante debe ser una imagen JPG, PNG, WEBP o un PDF.');
+        }
+
+        $path = 'payment-proofs/order-'.$order->id.'/'.now()->format('YmdHis').'-'.Str::random(12).'.'.$extension;
+        Storage::disk('local')->put($path, $file->getContent());
+
+        $proof = [
+            'source' => 'storefront_web',
+            'type' => $extension === 'pdf' ? 'document' : 'image',
+            'mime_type' => $mime,
+            'filename' => $this->safeFilename($file->getClientOriginalName(), $extension),
+            'backup_path' => $path,
+            'backup_filename' => $this->safeFilename($file->getClientOriginalName(), $extension),
+            'backup_content_type' => $mime,
+            'received_at' => now()->toIso8601String(),
+            'archived_at' => now()->toIso8601String(),
+        ];
+        $order->attachPaymentProof($proof);
+
+        return $proof;
     }
 
     /** @return array{body:string,content_type:string,filename:string}|null */

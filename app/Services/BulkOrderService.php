@@ -6,6 +6,7 @@ use App\Models\BulkOrderToken;
 use App\Models\BusinessBranch;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappContact;
+use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use Illuminate\Support\Facades\DB;
@@ -96,8 +97,14 @@ class BulkOrderService
     /**
      * @return array{categories: array<int, array<string, mixed>>, products: array<int, array<string, mixed>>}
      */
-    public function catalogPayload(?int $categoryId = null, ?string $search = null, ?int $businessProfileId = null): array
+    public function catalogPayload(?int $categoryId = null, ?string $search = null, ?int $businessProfileId = null, bool $promotionsOnly = false): array
     {
+        $catalogMenu = WhatsappMenu::query()
+            ->where('action_id', 'prices_menu')
+            ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+            ->first(['metadata']);
+        $allCategoryImage = data_get($catalogMenu?->metadata, 'storefront_all_category_image');
+
         $categories = $this->demoCliente->scopeCategoriesWithVisibleProducts(
             $this->demoCliente->applyCategoryScope(
                 WhatsappMenuItem::catalogCategories($businessProfileId)
@@ -105,11 +112,12 @@ class BulkOrderService
         )
             ->where('is_active', true)
             ->orderBy('order')
-            ->get(['id', 'title', 'icon'])
+            ->get(['id', 'title', 'icon', 'image'])
             ->map(fn ($c) => [
                 'id' => $c->id,
                 'title' => $c->title,
                 'icon' => $c->icon ?: '📦',
+                'image' => $this->productImages->resolveWebUrl($c->image),
             ])
             ->values()
             ->all();
@@ -132,6 +140,12 @@ class BulkOrderService
                     ->orWhere('sku', 'like', $term)
                     ->orWhere('description', 'like', $term);
             });
+        }
+
+        if ($promotionsOnly) {
+            $query->where('is_promo', true)
+                ->whereNotNull('promo_price')
+                ->where('promo_price', '>', 0);
         }
 
         $products = $query
@@ -166,6 +180,11 @@ class BulkOrderService
             ->all();
 
         return [
+            'all_category' => [
+                'title' => 'Todos',
+                'icon' => 'all',
+                'image' => $this->productImages->resolveWebUrl($allCategoryImage),
+            ],
             'categories' => $categories,
             'products' => $products,
         ];
@@ -199,6 +218,45 @@ class BulkOrderService
         );
 
         $token->markUsed($cart->id);
+
+        return $cart;
+    }
+
+    /** Registra un pedido del ecommerce conservando modalidad y ubicación. */
+    public function submitFromStorefront(
+        WhatsappContact $contact,
+        array $items,
+        ?string $orderNote,
+        int $branchId,
+        string $serviceType,
+        ?string $paymentMethod = null,
+        array $delivery = [],
+    ): WhatsappCart {
+        $metadata = [
+            'source' => 'storefront_web',
+            'branch_id' => $branchId,
+            'branch_confirmed' => true,
+            'service_type' => $serviceType,
+            'pickup_mode' => $serviceType === 'pickup' ? 'retiro' : null,
+            'submitted_at' => now()->toIso8601String(),
+        ];
+
+        if ($serviceType === 'delivery') {
+            $metadata['delivery'] = array_filter([
+                'address' => $delivery['address'] ?? null,
+                'reference' => $delivery['reference'] ?? null,
+                'latitude' => $delivery['latitude'] ?? null,
+                'longitude' => $delivery['longitude'] ?? null,
+            ], fn ($value) => $value !== null && $value !== '');
+        }
+
+        $cart = $this->submitForContact($contact, $items, $orderNote, $metadata);
+
+        if ($paymentMethod !== null) {
+            $cart->payment_method = $paymentMethod;
+            $cart->payment_status = $paymentMethod === 'efectivo' ? 'cash_on_delivery' : 'pending';
+            $cart->save();
+        }
 
         return $cart;
     }
@@ -395,8 +453,11 @@ class BulkOrderService
                     : (float) $price->price;
 
                 $variationName = trim((string) ($row['variation'] ?? ''));
-                $variation = collect($this->pricedOptions($price->metadata['variations'] ?? []))
-                    ->firstWhere('title', $variationName);
+                $availableVariations = collect($this->pricedOptions($price->metadata['variations'] ?? []));
+                $variation = $availableVariations->firstWhere('title', $variationName);
+                if ($availableVariations->isNotEmpty() && ! $variation) {
+                    throw new InvalidArgumentException('Selecciona una opción obligatoria para '.$price->name.'.');
+                }
                 if ($variation) {
                     $unitPrice = (float) $variation['price'];
                 }
@@ -598,7 +659,7 @@ class BulkOrderService
         )));
     }
 
-    /** @return array<int, array{title: string, price: float}> */
+    /** @return array<int, array{title: string, description: string|null, price: float, image: string|null}> */
     private function pricedOptions(mixed $options): array
     {
         if (! is_array($options)) {
@@ -609,7 +670,9 @@ class BulkOrderService
             ->filter(fn ($item) => is_array($item) && ! empty($item['title']))
             ->map(fn ($item) => [
                 'title' => trim((string) $item['title']),
+                'description' => $this->cleanText($item['description'] ?? null),
                 'price' => (float) ($item['price'] ?? 0),
+                'image' => $this->productImages->resolveWebUrl($item['image'] ?? null),
             ])
             ->values()
             ->all();

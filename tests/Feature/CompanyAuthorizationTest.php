@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Company;
+use App\Models\Franchise;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\WhatsappBusinessProfile;
@@ -18,7 +19,9 @@ use App\Services\OrderConfirmationService;
 use App\Services\PermissionService;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -108,7 +111,74 @@ class CompanyAuthorizationTest extends TestCase
         $response = $this->get(route('admin.products.index'));
         $response->assertOk();
         $response->assertSee('Producto piqueo');
+        $response->assertSee('Administrar imágenes');
         $response->assertDontSee('Producto zapatos-demo');
+    }
+
+    public function test_all_products_category_image_is_saved_only_for_the_active_company(): void
+    {
+        Storage::fake('public');
+        $a = $this->makeCompanyWithCatalogAndUser('piqueo', 'TOKEN-A');
+        $b = $this->makeCompanyWithCatalogAndUser('zapatos-demo', 'TOKEN-B');
+        $image = UploadedFile::fake()->createWithContent(
+            'todos.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+        );
+
+        $response = $this->actingAs($a['user'])
+            ->withSession(['active_company_id' => $a['company']->id])
+            ->post(route('admin.menu-items.all-products-image'), ['image' => $image]);
+
+        $response->assertRedirect();
+        $menuA = WhatsappMenu::where('business_profile_id', $a['profile']->id)->where('action_id', 'prices_menu')->firstOrFail();
+        $menuB = WhatsappMenu::where('business_profile_id', $b['profile']->id)->where('action_id', 'prices_menu')->firstOrFail();
+        $path = data_get($menuA->metadata, 'storefront_all_category_image');
+
+        $this->assertNotNull($path);
+        Storage::disk('public')->assertExists($path);
+        $this->assertNull(data_get($menuB->metadata, 'storefront_all_category_image'));
+    }
+
+    public function test_admin_can_upload_a_small_image_for_each_product_extra(): void
+    {
+        Storage::fake('public');
+        $catalog = $this->makeCompanyWithCatalogAndUser('extras-imagen', 'TOKEN-EXTRAS');
+        $franchise = Franchise::create([
+            'business_profile_id' => $catalog['profile']->id,
+            'name' => 'Principal',
+            'slug' => 'principal-extras',
+            'is_default' => true,
+            'is_active' => true,
+        ]);
+        $catalog['category']->update(['franchise_id' => $franchise->id]);
+        $catalog['product']->update(['franchise_id' => $franchise->id]);
+
+        $this->actingAs($catalog['user']);
+        $this->session(['active_company_id' => $catalog['company']->id]);
+        $image = UploadedFile::fake()->createWithContent(
+            'salsa.png',
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=')
+        );
+
+        $response = $this->put(route('admin.products.update', $catalog['product']), [
+            'sku' => $catalog['product']->sku,
+            'name' => $catalog['product']->name,
+            'menu_item_id' => $catalog['category']->id,
+            'franchise_id' => $franchise->id,
+            'price' => 10,
+            'stock' => 5,
+            'min_quantity' => 1,
+            'max_quantity' => 99,
+            'is_active' => 1,
+            'allow_quantity_selection' => 1,
+            'extras' => "Salsa especial | Porción individual | 0.50\nPapas extra | Porción adicional | 1.00",
+            'extra_images' => [$image],
+        ]);
+
+        $response->assertOk()->assertJsonPath('product.extra_items.0.title', 'Salsa especial');
+        $path = data_get($catalog['product']->fresh()->metadata, 'extras.0.image');
+        $this->assertNotNull($path);
+        Storage::disk('public')->assertExists($path);
     }
 
     public function test_operational_lists_never_mix_campaigns_failures_messages_or_agent_requests(): void

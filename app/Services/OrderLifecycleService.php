@@ -93,13 +93,24 @@ class OrderLifecycleService
      * Estados a los que puede avanzar un pedido desde su etapa actual.
      *
      * La interfaz administrativa consume esta misma regla para no ofrecer
-     * cambios que luego serían rechazados por transition().
+     * cambios que luego serían rechazados por transition(). Pasar
+     * $paymentMethod además quita "Pagado" de la lista para pedidos en
+     * efectivo (ver el guard equivalente en transition()) -- se omite para
+     * seguir devolviendo el set completo cuando no se conoce el pedido en
+     * particular (por ejemplo, al armar el mapa genérico estado→estado que
+     * usa el JS del panel).
      *
      * @return array<int, string>
      */
-    public static function allowedTransitionsFor(string $status): array
+    public static function allowedTransitionsFor(string $status, ?string $paymentMethod = null): array
     {
-        return self::ALLOWED_TRANSITIONS[$status] ?? [];
+        $transitions = self::ALLOWED_TRANSITIONS[$status] ?? [];
+
+        if ($paymentMethod === 'efectivo') {
+            $transitions = array_values(array_diff($transitions, [WhatsappCart::STATUS_PAID]));
+        }
+
+        return $transitions;
     }
 
     public function transition(WhatsappCart $order, string $nextStatus, ?int $userId = null, ?string $note = null): WhatsappCart
@@ -120,6 +131,15 @@ class OrderLifecycleService
 
             if (! in_array($nextStatus, self::ALLOWED_TRANSITIONS[$current] ?? [], true)) {
                 throw new InvalidArgumentException("No se puede cambiar un pedido de {$current} a {$nextStatus}.");
+            }
+
+            // "Pagado" representa la verificación de un comprobante de
+            // transferencia/tarjeta -- en efectivo no hay comprobante que
+            // verificar, el dinero se recibe recién al entregar el pedido
+            // (caja o el repartidor), así que este estado no aplica y no
+            // debe poder marcarse desde el panel.
+            if ($nextStatus === WhatsappCart::STATUS_PAID && $order->payment_method === 'efectivo') {
+                throw new InvalidArgumentException('Los pedidos en efectivo no pasan por "Pago recibido": el pago se confirma al entregar el pedido.');
             }
 
             $currentRank = self::STATUS_RANK[$current] ?? null;

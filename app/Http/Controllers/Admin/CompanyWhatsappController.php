@@ -19,9 +19,11 @@ use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use App\Services\MetaEmbeddedSignupService;
 use App\Services\MetaGraphService;
+use App\Services\WhatsappProfileConfigCloner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 
@@ -302,6 +304,39 @@ class CompanyWhatsappController extends Controller
 
         return redirect()->route('admin.empresas.whatsapp', $company)
             ->with('success', 'Conexión desconectada de la plataforma. El número sigue existiendo en Meta/WhatsApp Business -- esto no lo elimina ni lo migra.');
+    }
+
+    /**
+     * Copia categorías, productos/inventario, sucursales, franquicias,
+     * palabras clave, config del bot (+ flujo visual), FAQs, botones,
+     * repartidores y clientes desde otro número DE LA MISMA EMPRESA hacia
+     * $profile (el destino, recién conectado) -- pedido explícito en vivo
+     * para no rearmar todo a mano al pasar el bot a un número nuevo. Nunca
+     * copia conversaciones/mensajes ni pedidos. Ver
+     * WhatsappProfileConfigCloner para el detalle tabla por tabla.
+     */
+    public function cloneConfig(Request $request, Company $company, WhatsappBusinessProfile $profile, WhatsappProfileConfigCloner $cloner)
+    {
+        $this->authorizeCompany($company);
+        $this->authorizeProfile($company, $profile);
+
+        $validated = $request->validate([
+            'source_profile_id' => ['required', 'integer', 'exists:whatsapp_business_profiles,id'],
+        ]);
+
+        $source = WhatsappBusinessProfile::where('company_id', $company->id)->find($validated['source_profile_id']);
+        if (! $source || $source->id === $profile->id) {
+            return back()->with('error', 'El número de origen no es válido.');
+        }
+
+        try {
+            $cloner->clone($source, $profile);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', "Se copió la configuración de «{$source->display_name}» a «{$profile->display_name}».");
     }
 
     /**

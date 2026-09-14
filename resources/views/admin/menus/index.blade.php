@@ -41,6 +41,43 @@
         margin-bottom: 1.25rem;
     }
 
+    .all-category-config {
+        display: grid;
+        grid-template-columns: auto minmax(180px, 1fr) minmax(300px, auto);
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.25rem;
+        padding: 1rem 1.1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    }
+
+    .all-category-preview {
+        display: grid;
+        width: 72px;
+        height: 72px;
+        place-items: center;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #f8fafc;
+        color: #334155;
+        font-size: 2rem;
+    }
+
+    .all-category-preview img { width: 100%; height: 100%; object-fit: contain; }
+    .all-category-copy strong { display: block; color: #212529; }
+    .all-category-copy small { display: block; margin-top: .2rem; color: #6c757d; }
+    .all-category-form { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .65rem; }
+    .all-category-form input[type="file"] { width: min(310px, 100%); }
+
+    @media (max-width: 767.98px) {
+        .all-category-config { grid-template-columns: auto 1fr; }
+        .all-category-form { grid-column: 1 / -1; justify-content: stretch; }
+        .all-category-form input[type="file"] { width: 100%; }
+    }
+
     .categories-stat-card {
         background: #fff;
         border-radius: 12px;
@@ -287,6 +324,33 @@
         <button type="button" class="btn btn-light btn-sm px-3" onclick="openCreateModal()">
             <i class="fas fa-plus me-1"></i> Nueva categoría
         </button>
+    </div>
+
+    <div class="all-category-config">
+        <div class="all-category-preview" id="allCategoryImagePreview">
+            @if($allProductsCategoryImage)
+                <img src="{{ $allProductsCategoryImage }}" alt="Imagen actual de Todos">
+            @else
+                <i class="fas fa-list" aria-hidden="true"></i>
+            @endif
+        </div>
+        <div class="all-category-copy">
+            <strong>Imagen de la categoría “Todos”</strong>
+            <small>Se mostrará en el micrositio y en la toma manual para acceder a todos los productos.</small>
+        </div>
+        <form class="all-category-form" action="{{ route('admin.menu-items.all-products-image') }}" method="POST" enctype="multipart/form-data">
+            @csrf
+            <input type="file" class="form-control form-control-sm" name="image" id="all_category_image" accept="image/jpeg,image/png,image/webp">
+            @if($allProductsCategoryImage)
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="remove_image" id="remove_all_category_image" value="1">
+                    <label class="form-check-label small" for="remove_all_category_image">Quitar</label>
+                </div>
+            @endif
+            <button type="submit" class="btn btn-wa btn-sm px-3">
+                <i class="fas fa-image me-1"></i> Guardar imagen
+            </button>
+        </form>
     </div>
 
     <div class="categories-stats">
@@ -538,6 +602,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('bulk-deactivate-btn')?.addEventListener('click', () => bulkUpdateStatus(false));
     document.getElementById('bulk-clear-btn')?.addEventListener('click', clearSelection);
     filterTable();
+});
+
+document.getElementById('all_category_image')?.addEventListener('change', function () {
+    const file = this.files?.[0];
+    const preview = document.getElementById('allCategoryImagePreview');
+    if (!file || !preview) return;
+    preview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Vista previa de Todos">`;
+    const remove = document.getElementById('remove_all_category_image');
+    if (remove) remove.checked = false;
 });
 
 function resetCategoryImagePreview() {

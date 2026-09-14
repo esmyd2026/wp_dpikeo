@@ -1,0 +1,366 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Company;
+use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
+use App\Models\WhatsappContact;
+use App\Services\StorefrontOrderSelfService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
+
+/**
+ * "Mi cuenta" del storefront: login/registro de clientes con teléfono +
+ * contraseña. La identidad es el mismo WhatsappContact que ya usa el bot --
+ * un contacto puede existir sin password (por haber escrito o pedido antes
+ * sin "crear cuenta"); registrarse simplemente le pone contraseña a ese
+ * mismo registro en vez de crear una identidad paralela.
+ */
+class StorefrontAccountController extends Controller
+{
+    public function __construct(private StorefrontOrderSelfService $orderSelfService) {}
+
+    public function register(Request $request, Company $company): JsonResponse
+    {
+        $profile = $this->profile($company);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:120'],
+            'phone' => ['required', 'string', 'max:30'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ]);
+
+        $phone = $this->normalizePhone($validated['phone']);
+        if (! $phone) {
+            return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.'], 422);
+        }
+
+        $contact = WhatsappContact::query()->firstOrNew([
+            'business_profile_id' => $profile->id,
+            'phone_number' => $phone,
+        ]);
+
+        if ($contact->exists && $contact->hasAccountPassword()) {
+            return response()->json(['ok' => false, 'message' => 'Ya existe una cuenta con ese teléfono. Inicia sesión.'], 422);
+        }
+
+        $isNewContact = ! $contact->exists;
+        $contact->fill([
+            'name' => trim($validated['name']),
+            'password' => Hash::make($validated['password']),
+        ]);
+        if ($isNewContact) {
+            $contact->status = 'active';
+            $contact->bot_enabled = true;
+        }
+        $contact->save();
+
+        Auth::guard('storefront_customer')->login($contact, true);
+
+        return response()->json(['ok' => true, 'customer' => $this->customerPayload($contact)]);
+    }
+
+    public function login(Request $request, Company $company): JsonResponse
+    {
+        $profile = $this->profile($company);
+
+        $validated = $request->validate([
+            'phone' => ['required', 'string', 'max:30'],
+            'password' => ['required', 'string'],
+        ]);
+
+        $phone = $this->normalizePhone($validated['phone']);
+        if (! $phone) {
+            return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.'], 422);
+        }
+
+        $throttleKey = 'storefront-login:'.$profile->id.':'.$phone;
+        if (RateLimiter::tooManyAttempts($throttleKey, 6)) {
+            return response()->json(['ok' => false, 'message' => 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.'], 429);
+        }
+
+        $attempted = Auth::guard('storefront_customer')->attempt([
+            'business_profile_id' => $profile->id,
+            'phone_number' => $phone,
+            'password' => $validated['password'],
+        ], true);
+
+        if (! $attempted) {
+            RateLimiter::hit($throttleKey, 60);
+
+            return response()->json(['ok' => false, 'message' => 'Teléfono o contraseña incorrectos.'], 422);
+        }
+
+        RateLimiter::clear($throttleKey);
+        $request->session()->regenerate();
+
+        return response()->json(['ok' => true, 'customer' => $this->customerPayload(Auth::guard('storefront_customer')->user())]);
+    }
+
+    public function logout(Request $request, Company $company): JsonResponse
+    {
+        Auth::guard('storefront_customer')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function me(Request $request, Company $company): JsonResponse
+    {
+        $contact = $this->authenticatedContactFor($company);
+
+        return response()->json(['ok' => true, 'customer' => $contact ? $this->customerPayload($contact) : null]);
+    }
+
+    public function orders(Request $request, Company $company): JsonResponse
+    {
+        $contact = $this->authenticatedContactFor($company);
+        if (! $contact) {
+            return response()->json(['ok' => false, 'message' => 'Debes iniciar sesión.'], 401);
+        }
+
+        $orders = WhatsappCart::query()
+            ->reportable()
+            ->where('contact_id', $contact->id)
+            ->with([
+                'branch:id,name,address',
+                'items:id,whatsapp_cart_id,name,price,quantity,line_note',
+            ])
+            ->latest()
+            ->limit(50)
+            ->get()
+            ->map(fn (WhatsappCart $cart) => $this->customerOrderPayload($cart));
+
+        return response()->json(['ok' => true, 'orders' => $orders])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    public function updateInvoice(Request $request, Company $company, WhatsappCart $cart): JsonResponse
+    {
+        $contact = $this->ownedOrderContact($company, $cart);
+        $validated = $request->validate([
+            'requires_invoice' => ['required', 'boolean'],
+            'billing_type' => ['nullable', 'required_if:requires_invoice,true', Rule::in(['cedula', 'ruc', 'pasaporte'])],
+            'billing_id' => ['nullable', 'required_if:requires_invoice,true', 'string', 'max:20'],
+            'billing_legal_name' => ['nullable', 'required_if:requires_invoice,true', 'string', 'max:255'],
+            'billing_address' => ['nullable', 'required_if:requires_invoice,true', 'string', 'max:500'],
+            'billing_email' => ['nullable', 'required_if:requires_invoice,true', 'email:rfc', 'max:255'],
+        ]);
+        abort_if($cart->isCancelled(), 422, 'No se puede modificar un pedido cancelado.');
+
+        $this->orderSelfService->saveInvoicePreference($cart, $contact, $validated);
+
+        return response()->json(['ok' => true, 'message' => 'Datos de facturación actualizados.']);
+    }
+
+    public function uploadPaymentProof(Request $request, Company $company, WhatsappCart $cart): JsonResponse
+    {
+        $contact = $this->ownedOrderContact($company, $cart);
+        abort_unless($cart->payment_method === 'transferencia', 422, 'Este pedido no requiere comprobante de transferencia.');
+        abort_if($cart->hasPaymentProof(), 422, 'Este pedido ya tiene un comprobante cargado.');
+        abort_if($cart->isCancelled(), 422, 'No se puede cargar un comprobante a un pedido cancelado.');
+        $validated = $request->validate(['proof' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:12288']]);
+
+        try {
+            $this->orderSelfService->savePaymentProof($cart, $contact, $validated['proof']);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Comprobante recibido. Lo verificaremos pronto.']);
+    }
+
+    /**
+     * Detalle seguro para el cliente. No incluye notas internas, datos de
+     * facturación sensibles, comprobantes ni identidad de los operadores.
+     */
+    private function customerOrderPayload(WhatsappCart $cart): array
+    {
+        $metadata = is_array($cart->metadata) ? $cart->metadata : [];
+        $storedInvoice = is_array($cart->invoice_data) ? $cart->invoice_data : [];
+        $invoiceData = $storedInvoice ?: array_filter([
+            'billing_type' => $cart->contact?->billing_type,
+            'billing_id' => $cart->contact?->billing_id ?? $cart->contact?->national_id,
+            'billing_legal_name' => $cart->contact?->billing_legal_name,
+            'address' => $cart->contact?->address,
+            'email' => $cart->contact?->billing_email,
+        ], fn ($value) => filled($value));
+        $serviceType = $metadata['service_type'] ?? null;
+        $pickupMode = $metadata['pickup_mode'] ?? null;
+        $delivery = is_array($metadata['delivery'] ?? null) ? $metadata['delivery'] : [];
+        $timeline = collect($metadata['operational_timeline'] ?? [])
+            ->filter(fn ($event) => is_array($event) && filled($event['to'] ?? null))
+            ->map(fn ($event) => [
+                'status' => $event['to'],
+                'label' => $this->statusLabelFromValue((string) $event['to']),
+                'at' => $event['at'] ?? null,
+            ])
+            ->values();
+
+        $events = collect([[
+            'status' => 'created',
+            'label' => 'Pedido creado',
+            'at' => $cart->created_at?->toIso8601String(),
+        ]])->concat($timeline);
+
+        if ($events->last()['status'] !== $cart->status) {
+            $events->push([
+                'status' => $cart->status,
+                'label' => $this->statusLabel($cart),
+                'at' => $metadata['status_changed_at'] ?? $cart->updated_at?->toIso8601String(),
+            ]);
+        }
+
+        return [
+            'id' => $cart->id,
+            'order_number' => $cart->getOrderNumber(),
+            'status' => $cart->status,
+            'status_label' => $this->statusLabel($cart),
+            'total' => (float) $cart->total,
+            'branch' => $cart->branch?->name,
+            'branch_address' => $cart->branch?->address,
+            'created_at' => $cart->created_at?->toIso8601String(),
+            'created_at_label' => $cart->created_at?->translatedFormat('d M Y, h:i A'),
+            'payment_method' => match ($cart->payment_method) {
+                'efectivo' => 'Efectivo',
+                'transferencia' => 'Transferencia bancaria',
+                'tarjeta' => 'Tarjeta',
+                default => 'Por confirmar',
+            },
+            'payment' => [
+                'method' => $cart->payment_method,
+                'status' => $cart->payment_status,
+                'proof_submitted' => $cart->hasPaymentProof(),
+                'can_upload_proof' => $cart->payment_method === 'transferencia' && ! $cart->hasPaymentProof() && ! $cart->isCancelled(),
+                'bank_instructions' => $cart->payment_method === 'transferencia'
+                    ? WhatsappChatbotConfig::query()->where('business_profile_id', $cart->contact->business_profile_id)->first()?->bank_transfer_instructions
+                    : null,
+            ],
+            'invoice' => [
+                'requires_invoice' => (bool) $cart->requires_invoice,
+                'status' => $cart->invoice_status,
+                'data' => $invoiceData,
+                // true una vez que el cliente ya contestó esto desde el
+                // micrositio -- 'none' por sí solo es ambiguo (es también el
+                // valor por defecto de un pedido al que nunca se le preguntó),
+                // así que hay que fijarse en la marca que deja
+                // StorefrontOrderSelfService::saveInvoicePreference().
+                'decided' => filled($metadata['invoice_preference_source'] ?? null),
+            ],
+            'fulfillment' => [
+                'label' => match ($serviceType) {
+                    'pickup' => 'Retiro en el local',
+                    'delivery' => 'Delivery',
+                    'llevar' => $pickupMode === 'delivery' ? 'Delivery' : 'Para llevar',
+                    'servir' => 'Para servir',
+                    default => 'Por confirmar',
+                },
+                'address' => $delivery['address'] ?? data_get($metadata, 'delivery_location.manual_address'),
+                'reference' => $delivery['reference'] ?? null,
+            ],
+            'items' => $cart->items->map(fn ($item) => [
+                'name' => $item->name,
+                'price' => (float) $item->price,
+                'quantity' => (int) $item->quantity,
+                'subtotal' => round((float) $item->price * (int) $item->quantity, 2),
+                'selection' => $item->line_note,
+            ])->values(),
+            'timeline' => $events->values(),
+            'next_action' => $this->customerNextAction($cart),
+        ];
+    }
+
+    private function customerNextAction(WhatsappCart $cart): array
+    {
+        return match ($cart->status) {
+            WhatsappCart::STATUS_PENDING => ['title' => 'Pedido recibido', 'description' => 'Estamos revisando los productos y datos de tu pedido.'],
+            WhatsappCart::STATUS_PAYMENT_PENDING => ['title' => 'Pago pendiente', 'description' => $cart->hasPaymentProof() ? 'Recibimos tu comprobante y estamos verificándolo.' : 'Completa o envía el comprobante de pago para continuar.'],
+            WhatsappCart::STATUS_PAID => ['title' => 'Pago confirmado', 'description' => 'Tu pago fue validado y el pedido continuará a preparación.'],
+            WhatsappCart::STATUS_CONFIRMED => ['title' => 'Pedido confirmado', 'description' => 'Tu pedido está listo para pasar a cocina.'],
+            WhatsappCart::STATUS_PREPARING => ['title' => 'Estamos preparando tu pedido', 'description' => 'Te avisaremos cuando esté listo.'],
+            WhatsappCart::STATUS_READY => ['title' => 'Tu pedido está listo', 'description' => 'Ya puedes retirarlo o esperar la coordinación de la entrega.'],
+            WhatsappCart::STATUS_COMPLETED => ['title' => 'Pedido entregado', 'description' => 'El proceso de este pedido ha finalizado.'],
+            WhatsappCart::STATUS_CANCELLED => ['title' => 'Pedido cancelado', 'description' => $cart->cancellationReasonLabel() ?? 'Este pedido ya no continuará.'],
+            default => ['title' => 'Pedido en proceso', 'description' => 'Estamos actualizando el estado de tu pedido.'],
+        };
+    }
+
+    private function statusLabelFromValue(string $status): string
+    {
+        $cart = new WhatsappCart(['status' => $status]);
+
+        return $this->statusLabel($cart);
+    }
+
+    /**
+     * El guard es una sesión global del navegador: si el cliente inició
+     * sesión en la tienda de otra empresa y luego visita esta, no debe
+     * arrastrar esa identidad ajena -- se trata como "no autenticado aquí".
+     */
+    private function authenticatedContactFor(Company $company): ?WhatsappContact
+    {
+        $contact = Auth::guard('storefront_customer')->user();
+        if (! $contact) {
+            return null;
+        }
+
+        $profile = $this->profile($company);
+        if ($contact->business_profile_id !== $profile->id) {
+            return null;
+        }
+
+        return $contact;
+    }
+
+    private function ownedOrderContact(Company $company, WhatsappCart $cart): WhatsappContact
+    {
+        $contact = $this->authenticatedContactFor($company);
+        abort_unless($contact && $cart->contact_id === $contact->id, 404);
+
+        return $contact;
+    }
+
+    private function customerPayload(WhatsappContact $contact): array
+    {
+        return [
+            'name' => $contact->name,
+            'phone' => $contact->phone_number,
+            'email' => $contact->metadata['email'] ?? null,
+        ];
+    }
+
+    private function statusLabel(WhatsappCart $cart): string
+    {
+        return match ($cart->status) {
+            WhatsappCart::STATUS_PENDING => 'Pendiente de confirmación',
+            WhatsappCart::STATUS_CONFIRMED => 'Confirmado',
+            WhatsappCart::STATUS_PAYMENT_PENDING => 'Esperando verificación de pago',
+            WhatsappCart::STATUS_PAID => 'Pago verificado',
+            WhatsappCart::STATUS_PREPARING => 'En preparación',
+            WhatsappCart::STATUS_READY => 'Listo',
+            WhatsappCart::STATUS_COMPLETED => 'Entregado',
+            WhatsappCart::STATUS_CANCELLED => $cart->cancellationReasonLabel() ?? 'Cancelado',
+            default => ucfirst($cart->status),
+        };
+    }
+
+    private function normalizePhone(string $raw): ?string
+    {
+        $phone = preg_replace('/\D+/', '', $raw) ?? '';
+
+        return (strlen($phone) >= 8 && strlen($phone) <= 15) ? $phone : null;
+    }
+
+    private function profile(Company $company)
+    {
+        abort_unless($company->status === 'active', 404);
+
+        return $company->whatsappAccounts()->orderByDesc('is_primary')->orderBy('id')->firstOrFail();
+    }
+}

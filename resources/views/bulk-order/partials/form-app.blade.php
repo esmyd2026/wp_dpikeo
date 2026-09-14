@@ -1,6 +1,15 @@
 @php
+    $storefrontSettings = $storefrontSettings ?? null;
     $isAgent = ($mode ?? 'public') === 'agent';
     $isKiosk = ($mode ?? 'public') === 'kiosk';
+    $isStorefront = ($mode ?? 'public') === 'storefront';
+    // El POS conserva su flujo operativo, pero comparte el detalle moderno
+    // (variaciones obligatorias, adicionales y cantidad) con el ecommerce.
+    $usesEnhancedCustomizer = $isStorefront || $isAgent || $isKiosk;
+    $brandPrimary = $storefrontSettings?->primary_color ?? '#E85D04';
+    $brandSecondary = $storefrontSettings?->secondary_color ?? '#7C2D12';
+    $brandAccent = $storefrontSettings?->accent_color ?? '#FFD166';
+    $logoUrl = $storefrontSettings?->logoUrl() ?? ($logoUrl ?? null);
     $contactName = $contactName ?? 'Cliente';
     $headerTitle = $headerTitle ?? 'Pedido en línea';
     $headerSubtitle = $headerSubtitle ?? (
@@ -15,9 +24,9 @@
 
 <style>
     .bulk-order-app {
-        --wa: #e85d04;
-        --wa-dark: #9d2e00;
-        --lime: #ffd166;
+        --wa: {{ $brandPrimary }};
+        --wa-dark: {{ $brandSecondary }};
+        --lime: {{ $brandAccent }};
         --bg: {{ $isAgent ? '#f8fafc' : '#fff8f2' }};
         --card: #fff;
         --muted: #667781;
@@ -354,11 +363,16 @@
         box-shadow:0 -5px 18px rgba(0,0,0,.06);
     }
     .bulk-order-modal-footer::before {
-        content:'Listo para tu pedido';
+        content:attr(data-guide);
         flex:1;
         color:var(--muted);
         font-size:.8rem;
         font-weight:700;
+    }
+    /* Antes de iniciar el pedido no mostramos una advertencia pasiva: la
+       acción principal ya explica exactamente qué debe hacer el cliente. */
+    .bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-footer::before {
+        display:none;
     }
     .bulk-order-modal-add {
         flex:1.35;
@@ -1168,9 +1182,293 @@
         .bulk-order-touch-link span { display:none; }
         .bulk-order-form-disabled::before { top:56px; max-width:90%; white-space:normal; text-align:center; }
     }
+
+    /* Identidad común para ecommerce, POS y pedido manual. */
+    .bulk-order-app[data-channel="storefront"],
+    .bulk-order-app[data-channel="kiosk"],
+    .bulk-order-app[data-channel="agent"] {
+        --wa: {{ $brandPrimary }};
+        --wa-dark: {{ $brandSecondary }};
+        --lime: {{ $brandAccent }};
+    }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-header,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-header {
+        min-height:92px;
+        padding:18px max(22px,calc((100% - 1460px)/2));
+        color:#242424;
+        background:#fff;
+        border-bottom:4px solid var(--lime);
+        box-shadow:0 5px 18px rgba(0,0,0,.07);
+    }
+    .bulk-order-app[data-channel="agent"] .bulk-order-header {
+        color:#fff;
+        background:linear-gradient(115deg,var(--wa-dark),var(--wa));
+        border-bottom-color:var(--lime);
+    }
+    .bulk-order-app[data-channel="agent"] .bulk-order-header .bulk-order-brand { display:flex; align-items:center; gap:12px; }
+    .bulk-order-app[data-channel="agent"] .bulk-order-header .bulk-order-brand img { width:52px; height:52px; object-fit:contain; padding:4px; border-radius:12px; background:#fff; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-header p::before,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-header p::before,
+    .bulk-order-app[data-channel="storefront"] .bulk-order-panel h2::before,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-panel h2::before { content:none; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-header h1,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-header h1 { text-transform:none; letter-spacing:-.04em; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-header .bulk-order-brand img,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-header .bulk-order-brand img { background:#fff; box-shadow:none; object-fit:contain; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button.is-active { color:#222; background:#fff; border-color:#eee; box-shadow:0 4px 0 var(--lime); }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active .bulk-order-category-icon,
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button.is-active .bulk-order-category-icon { color:#fff; background:var(--wa); }
+    .bulk-order-category-icon img { width:100%; height:100%; object-fit:contain; display:block; border-radius:6px; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-row { border:0; border-radius:6px; box-shadow:0 7px 20px rgba(0,0,0,.1); }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-media { height:180px; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-price { color:#222; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-footer { background:#fff; border-top:1px solid #ddd; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-total { color:#333; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-total strong { color:#222; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-footer .bulk-order-btn-primary { background:var(--lime); color:#222; box-shadow:none; text-transform:none; }
+    .bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab { background:#252525; color:#fff; }
+    .bulk-order-storefront-customer { display:grid; gap:10px; margin-top:16px; padding-top:16px; border-top:1px solid #ececec; }
+    .bulk-order-storefront-customer h3 { margin:0; font-size:1rem; }
+    .bulk-order-storefront-customer label { display:grid; gap:5px; color:#444; font-size:.76rem; font-weight:800; }
+    .bulk-order-storefront-customer label span { color:#8a8a8a; font-weight:500; }
+    .bulk-order-storefront-customer input,.bulk-order-storefront-customer select { width:100%; border:1px solid #d6d6d6; border-radius:8px; padding:10px 11px; background:#fff; font:inherit; }
+    .storefront-checkout-block{display:grid;gap:10px;margin-top:6px;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fafafa}.storefront-checkout-block h4{margin:0;font-size:.9rem}.storefront-checkout-block p{margin:0;color:#666;font-size:.78rem;line-height:1.45}.storefront-bank-instructions{padding:12px;border-left:3px solid var(--brand);background:#fff8e7;white-space:normal}.storefront-invoice-fields{display:none;gap:10px}.storefront-invoice-fields.is-open{display:grid}.storefront-payment-fields,.storefront-card-fields{display:none}.storefront-payment-fields.is-open,.storefront-card-fields.is-open{display:grid;gap:10px}.storefront-card-fields{border-color:#f4c95d;background:#fff9e9}.storefront-card-link{display:flex;min-height:48px;align-items:center;justify-content:center;border-radius:8px;background:var(--brand);color:#fff;text-decoration:none;font-weight:850}.storefront-card-link:hover{filter:brightness(.94)}.storefront-proof-status{font-weight:750;color:#087f5b}.bulk-order-success .storefront-proof-status{margin:12px auto;max-width:520px}
+    /* Punto de venta: mismo lenguaje visual del micrositio (tarjetas de
+       producto, categorías como chips con ícono grande, pie de página claro)
+       -- sin tocar la mecánica del POS (nombre del cliente, para
+       llevar/servir, mesa), que sigue igual que antes. */
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-menu-panel { margin:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-title { display:none; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips { flex-direction:row; align-items:flex-start; gap:20px; max-height:none; margin:0 0 26px; padding:2px 2px 10px 0; background:none; border:0; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button { width:104px; min-width:104px; flex:0 0 104px; flex-direction:column; justify-content:flex-start; min-height:118px; padding:2px 4px 12px; border:0; background:#fff; box-shadow:none; text-align:center; white-space:normal; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button span:last-child { white-space:normal; line-height:1.2; font-size:.78rem; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-icon { width:60px; height:56px; padding:0; background:transparent!important; color:inherit!important; font-size:2.1rem; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-row { border:0; border-radius:16px; box-shadow:0 7px 20px rgba(0,0,0,.08); }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-media { height:190px; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-price { color:#222; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-footer { background:#fff; border-top:1px solid #ddd; box-shadow:0 -8px 20px rgba(0,0,0,.06); }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-total { color:#333; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-total strong { color:#222; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-footer .bulk-order-btn-primary { background:var(--lime); color:#222; box-shadow:none; text-transform:none; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-cart-fab { background:#252525; color:#fff; }
+    /* El botón del carrito debe llevar el total junto al ícono (igual que en
+       el micrositio) para que la operadora vea de un vistazo cuánto lleva el
+       pedido antes de abrirlo -- por defecto esas piezas vienen ocultas y
+       solo se activan para [data-channel="storefront"]. */
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-cart-fab-total { display:block; font-size:1.1rem; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-cart-fab-arrow { display:block; margin-left:auto; font-size:1.6rem; }
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-cart-fab-count { position:static; order:-1; min-width:24px; height:24px; line-height:24px; background:#fff; color:#222; }
+    /* El carrito deja de ser una columna fija siempre visible y pasa a ser
+       una tarjeta flotante que se abre con el botón del carrito, igual que
+       en el micrositio -- sin la ficha de datos del cliente/facturación que
+       usa el micrositio, porque en el POS eso ya lo cubre el panel de
+       nombre/forma de pago/mesa que sigue igual. */
+    .bulk-order-app[data-channel="kiosk"] #bulkOrderFormBody { display:block; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel { display:none; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open {
+        /* !important: a esta misma tarjeta (.bulk-order-panel, 2do hijo de
+           #bulkOrderFormBody) el layout de escritorio del micrositio clásico
+           ([data-mode="public"]) le pone position:sticky con más
+           especificidad -- sin esto, el carrito flotante del POS queda
+           pegado en su lugar normal del documento (al final de la página) en
+           vez de flotar fijo sobre el contenido. */
+        display:block !important; position:fixed !important; z-index:120;
+        top:74px !important; right:32px !important; left:auto !important; bottom:auto !important;
+        width:min(416px,calc(100% - 48px)); max-height:calc(100dvh - 98px);
+        margin:0; padding:0; border:0; border-radius:18px; background:#fff;
+        box-shadow:0 20px 55px rgba(0,0,0,.22); overflow-x:hidden; overflow-y:auto;
+    }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open>.bulk-order-section-head { display:none; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open .storefront-cart-header { display:flex; position:sticky; top:0; z-index:2; align-items:center; justify-content:space-between; padding:18px 20px 10px; background:#fff; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open .storefront-cart-header h2 { margin:0; font-size:1.1rem; }
+    .bulk-order-app[data-channel="kiosk"] .storefront-cart-back { font-size:0; }
+    .bulk-order-app[data-channel="kiosk"] .storefront-cart-back:after { content:'×'; font-size:1.6rem; }
+    .bulk-order-app[data-channel="kiosk"] .storefront-cart-clear { text-decoration:underline; color:#075985; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open #bulkCartItems { padding:0 20px; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open .bulk-order-cart-item { border:0; border-bottom:1px solid #eee; border-radius:0; box-shadow:none; margin:0; padding:14px 0; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open #bulkCartEmpty { padding:0 20px 16px; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open>label,
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open>textarea,
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open>div:not(.storefront-cart-header) { margin-left:20px; margin-right:20px; }
+    .bulk-order-app[data-channel="kiosk"] #bulkCartPanel.is-storefront-open>#bulkOrderNote {
+        width:calc(100% - 40px);
+    }
+    .kiosk-order-options{padding:20px 0 22px;border-top:1px solid #ececec}
+    .kiosk-order-options-title{display:block;margin:0 0 12px;color:#222;font-size:.93rem;font-weight:850}
+    .kiosk-service-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+    .kiosk-service-option{position:relative;display:grid;min-width:0;grid-template-columns:42px minmax(0,1fr) 22px;align-items:center;gap:10px;padding:13px 12px;border:1px solid #dedede;border-radius:12px;background:#fff;color:#222;text-align:left;font:inherit;cursor:pointer;transition:border-color .18s,background .18s,box-shadow .18s}
+    .kiosk-service-option:hover{border-color:#c8c8c8;background:#fafafa}
+    .kiosk-service-option.is-selected{border-color:var(--lime);background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}
+    .kiosk-service-icon{display:grid;width:42px;height:42px;place-items:center;border-radius:50%;background:#f5f5f5;font-size:1.25rem}
+    .kiosk-service-copy{display:grid;gap:2px;min-width:0}
+    .kiosk-service-copy strong{font-size:.88rem;line-height:1.2}
+    .kiosk-service-copy small{overflow:hidden;color:#777;font-size:.7rem;line-height:1.25;text-overflow:ellipsis;white-space:nowrap}
+    .kiosk-service-check{display:grid;width:21px;height:21px;place-items:center;border:2px solid #d7d7d7;border-radius:50%;color:transparent;font-size:.74rem;font-weight:900}
+    .kiosk-service-option.is-selected .kiosk-service-check{border-color:var(--lime);background:var(--lime);color:#222}
+    .kiosk-payment-field{display:grid;gap:7px}
+    .kiosk-payment-field>span{color:#222;font-size:.9rem;font-weight:850}
+    .kiosk-select-wrap{position:relative;display:flex;align-items:center}
+    .kiosk-select-icon{position:absolute;z-index:1;left:14px;font-size:1.15rem;pointer-events:none}
+    .kiosk-select-wrap:after{content:'⌄';position:absolute;right:15px;top:50%;transform:translateY(-58%);color:#444;font-size:1.2rem;font-weight:900;pointer-events:none}
+    .bulk-order-app[data-channel="kiosk"] #kioskPaymentMethod{width:100%;min-height:52px;padding:0 42px 0 48px;border:1px solid #d8d8d8;border-radius:12px;appearance:none;background:#fff;color:#222;font:inherit;font-weight:750;cursor:pointer}
+    .bulk-order-app[data-channel="kiosk"] #kioskPaymentMethod:focus{border-color:var(--lime);outline:3px solid color-mix(in srgb,var(--lime) 24%,transparent)}
+    .kiosk-payment-help{color:#777;font-size:.72rem;line-height:1.35}
+    .bulk-order-app[data-channel="kiosk"] #kioskTableWrap{padding:13px;border-radius:12px;background:#f7f7f7}
+    .bulk-order-app[data-channel="kiosk"] #kioskTableReference{width:100%;min-height:46px;border:1px solid #d8d8d8;border-radius:9px;padding:0 12px;font:inherit}
+    @media(max-width:480px){.kiosk-service-options{grid-template-columns:1fr}.kiosk-service-copy small{white-space:normal}}
+    @media (min-width:720px) {
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-menu-layout { display:block; }
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-rail { position:static; top:auto; width:100%; max-height:none; }
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips { flex:none; width:100%; position:static; top:auto; max-height:none; overflow-x:auto; overflow-y:hidden; }
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button { width:104px; }
+    }
+    /* POS: catálogo con la misma escala y jerarquía visual del micrositio. */
+    .bulk-order-app[data-channel="kiosk"]{min-height:100dvh;padding-bottom:90px;overflow-x:clip;background:#fff}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-header{display:none}
+    .bulk-order-app[data-channel="kiosk"] .storefront-catalog-header{display:block;background:#fff;box-shadow:0 12px 26px rgba(0,0,0,.05)}
+    .bulk-order-app[data-channel="kiosk"] .storefront-catalog-admin{display:inline-flex;min-height:44px;margin-left:auto;padding:0 18px;align-items:center;gap:9px;border:1px solid #dedede;border-radius:10px;background:#fff;color:#242424;text-decoration:none;font-size:.88rem;font-weight:800}
+    .bulk-order-app[data-channel="kiosk"] .storefront-catalog-admin:hover{border-color:var(--lime);background:#fff9e8}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-wrap{max-width:1800px;padding:18px 28px 110px}
+    .bulk-order-app[data-channel="kiosk"] #kioskNamePanel{max-width:1180px;margin:0 auto 28px;border:1px solid #e7e7e7;border-radius:18px;box-shadow:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-menu-panel>.bulk-order-section-head{display:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-filters{display:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips{justify-content:center;gap:26px;margin:0 0 42px;padding:0 10px 7px;scrollbar-width:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips::-webkit-scrollbar{display:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button{position:relative;flex:0 0 118px;width:118px;min-width:118px;min-height:128px;padding:2px 5px 18px;gap:8px;border-radius:0}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button.is-active{border:0;background:#fff;box-shadow:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button.is-active:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--lime)}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-category-icon{width:80px;height:74px;font-size:3rem}
+    .bulk-order-app[data-channel="kiosk"] .storefront-category-heading{display:block;margin:0 0 24px;font-size:2rem;line-height:1.15;letter-spacing:-.035em}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:36px;max-height:none!important;padding:0;overflow:visible!important}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-row{min-height:365px;border-radius:6px}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-media{height:210px;background:#fff}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-content{display:flex;flex:1;flex-direction:column;padding:20px}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-product-price{margin-top:auto;padding-top:8px;font-weight:850}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-scroll-controls{display:none!important}
+    .bulk-order-app[data-channel="kiosk"] .storefront-product-title{display:block;margin:18px 0 8px;font-size:1.7rem}
+    .bulk-order-app[data-channel="kiosk"] .storefront-product-base-price{display:block;margin-bottom:16px;font-size:1.15rem;font-weight:850}
+    .bulk-order-app[data-channel="kiosk"] .storefront-variation-section{display:block;margin:22px 0}
+    .bulk-order-app[data-channel="kiosk"] .storefront-extra-trigger{display:flex;width:100%;margin:22px 0;padding:20px 0;justify-content:space-between;border:0;border-top:1px solid #eee;border-bottom:1px solid #eee;background:#fff;font:inherit;font-weight:800}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-inline-extras{display:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-addon-sheet.is-open{display:flex;position:fixed;z-index:1400;inset:0;align-items:flex-end;background:rgba(0,0,0,.48)}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-modal{align-items:stretch;padding:0;background:#fff}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-card{display:flex;width:100%;max-width:none;height:100dvh;max-height:none;flex-direction:column;border-radius:0}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-head{flex-direction:row-reverse;justify-content:flex-end;gap:14px;padding:20px 28px;border:0}
+    .bulk-order-app[data-channel="kiosk"] #bulkCustomizerPrice{display:none}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-close{font-size:0}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-close:after{content:'‹';font-size:2.2rem}
+    .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-footer{position:fixed;z-index:2;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:18px 28px 0;background:#fff;box-shadow:0 -8px 30px rgba(0,0,0,.12)}
+    .bulk-order-app[data-channel="kiosk"] .storefront-detail-qty{display:flex;align-items:center;border:1px solid #aaa;border-radius:999px;overflow:hidden}
+    .bulk-order-app[data-channel="kiosk"] .storefront-detail-total{display:block;margin-left:auto;font-size:1.7rem}
+    .bulk-order-app[data-channel="kiosk"] .storefront-detail-actions{display:grid;width:calc(100% + 56px);margin:0 -28px;grid-template-columns:1fr}
+    .bulk-order-app[data-channel="kiosk"] .storefront-detail-actions .bulk-order-modal-add{width:100%;min-height:62px;margin:0;border-radius:0;background:var(--lime);color:#222}
+    @media(min-width:900px){
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-rail{position:sticky;z-index:70;top:0;margin:-18px -28px 0;padding:12px 28px 10px;background:rgba(255,255,255,.98);box-shadow:0 10px 22px rgba(0,0,0,.07);backdrop-filter:blur(10px)}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-addon-sheet.is-open{align-items:center;justify-content:center;padding:30px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-addon-sheet-card{width:min(820px,100%);max-height:86dvh;border-radius:22px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-card{overflow-y:auto}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-options{flex:none;width:min(1360px,calc(100% - 64px));display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);column-gap:clamp(36px,5vw,76px);align-content:start;padding:28px 0 110px;overflow:visible}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-modal-hero{grid-column:1;grid-row:1 / span 12;width:100%;height:410px;margin-top:10px}
+        .bulk-order-app[data-channel="kiosk"] .storefront-product-title,.bulk-order-app[data-channel="kiosk"] .storefront-product-base-price,.bulk-order-app[data-channel="kiosk"] .bulk-order-modal-description,.bulk-order-app[data-channel="kiosk"] .storefront-variation-section,.bulk-order-app[data-channel="kiosk"] .storefront-extra-trigger{grid-column:2;min-width:0}
+        .bulk-order-app[data-channel="kiosk"] .storefront-product-title{margin-top:28px;font-size:clamp(2.25rem,3.2vw,3rem)}
+    }
+    @media(min-width:900px) and (max-width:1199.98px){.bulk-order-app[data-channel="kiosk"] .bulk-order-product-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}}
+    @media(min-width:720px) and (max-width:899.98px){.bulk-order-app[data-channel="kiosk"] .bulk-order-product-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}}
+    @media(max-width:719.98px){
+        .bulk-order-app[data-channel="kiosk"] .storefront-catalog-header{display:none}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-wrap{padding:14px 16px 110px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips{justify-content:flex-start;gap:8px;margin-bottom:26px;padding:2px 4px 10px;scroll-snap-type:x mandatory}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-chips button{flex:0 0 102px;width:102px;min-width:102px;height:142px;min-height:142px;padding:2px 4px 12px;overflow:hidden;scroll-snap-align:start}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-category-icon{width:72px;height:78px;min-height:78px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-product-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-product-row{min-height:320px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-product-media{height:160px}
+        .bulk-order-app[data-channel="kiosk"] .bulk-order-product-content{padding:14px}
+        .bulk-order-app[data-channel="kiosk"] .storefront-catalog-admin-label{display:none}
+        .bulk-order-app[data-channel="kiosk"] .storefront-catalog-admin{width:44px;padding:0;justify-content:center}
+    }
+    .storefront-fulfillment{display:none}
+    .bulk-order-app[data-channel="storefront"]{min-height:100dvh;padding-bottom:90px;overflow:visible;overflow-x:clip;background:#fff}
+    .bulk-order-app[data-channel="storefront"] .storefront-fulfillment{display:none!important}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-header,.bulk-order-app[data-channel="storefront"] .bulk-order-footer{display:none}
+    .storefront-catalog-header{display:none}.bulk-order-app[data-channel="storefront"] .storefront-catalog-header{display:block;background:#fff;box-shadow:0 12px 26px rgba(0,0,0,.05)}.storefront-catalog-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-catalog-menu{width:36px;height:36px;padding:3px;border:0;background:transparent;cursor:pointer}.storefront-catalog-menu span{display:block;height:3px;margin:6px 0;border-radius:4px;background:#2d2d2d}.storefront-catalog-logo{width:58px;height:58px;margin-left:20px;object-fit:contain}.storefront-catalog-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end}.storefront-catalog-tabs span{position:relative;padding-bottom:17px}.storefront-catalog-tabs span:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--lime)}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-wrap{max-width:1800px;padding:18px 28px 110px}
+    .bulk-order-app[data-channel="storefront"] #bulkOrderFormBody{display:block}
+    .bulk-order-app[data-channel="storefront"] .storefront-fulfillment{display:flex;width:min(720px,calc(100% - 30px));margin:0 auto 44px;padding:15px 22px;gap:14px;align-items:center;border:0;border-radius:999px;background:#f7f7f7;text-align:left;font:inherit}.storefront-fulfillment-icon{font-size:1.8rem}.storefront-fulfillment span{display:block}.storefront-fulfillment strong{font-size:1rem}.storefront-fulfillment small{margin-top:2px;color:#696969;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-menu-panel{margin:0;padding:0;border:0;border-radius:0;background:#fff;box-shadow:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-menu-panel>.bulk-order-section-head,.bulk-order-app[data-channel="storefront"] .bulk-order-filters{display:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-menu-layout{display:block!important;min-width:0}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-rail{position:static;top:auto;min-width:0}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-title{display:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{display:flex;flex-direction:row;align-items:flex-start;justify-content:center;gap:26px;max-height:none;margin:0 0 42px;padding:0 10px 7px;overflow-x:auto;overflow-y:hidden;-ms-overflow-style:none;scrollbar-width:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips::-webkit-scrollbar{display:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button{position:relative;flex:0 0 118px;width:118px;min-width:118px;min-height:128px;padding:2px 5px 18px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;border:0;border-radius:0;background:#fff;color:#333;box-shadow:none;text-align:center;white-space:normal}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active{border:0;background:#fff;box-shadow:none}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--lime)}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-icon{width:80px;height:74px;padding:0;background:transparent!important;color:inherit!important;font-size:3rem}
+    .bulk-order-app[data-channel="storefront"] .storefront-category-heading{display:block;margin:0 0 24px;font-size:2rem;line-height:1.15;letter-spacing:-.035em}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:36px;max-height:none!important;padding:0;overflow:visible!important}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:300px;display:flex;flex-direction:column;overflow:hidden}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-media{height:210px;background:#fff}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-content{display:flex;flex:1;flex-direction:column;padding:20px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content strong{font-size:1.05rem}.bulk-order-app[data-channel="storefront"] .bulk-order-product-price{margin-top:auto;padding-top:12px;font-weight:850}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-scroll-controls{display:none!important}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel{display:none}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open{display:block;position:fixed;z-index:120;inset:0;margin:0;padding:0 28px 210px;border:0;border-radius:0;background:#fff;overflow:auto}
+    .storefront-cart-header,.storefront-cart-delivery,.storefront-cart-promo,.storefront-cart-summary{display:none}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-header{display:flex;position:sticky;z-index:3;top:0;margin:0 -28px 28px;padding:24px 28px;align-items:center;justify-content:space-between;background:#fff}.storefront-cart-header h2{margin:0;font-size:1.5rem}.storefront-cart-back,.storefront-cart-clear{border:0;background:none;font:inherit;cursor:pointer}.storefront-cart-back{font-size:2rem}.storefront-cart-clear{text-decoration:underline;color:#075985}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>.bulk-order-section-head{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-delivery,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-promo{display:flex;max-width:900px;margin:0 auto 28px;padding:22px;gap:14px;align-items:center;border-radius:22px;background:#f8f8f8}.storefront-cart-delivery{width:100%;border:0;color:#151515;text-align:left;font:inherit;cursor:pointer}.storefront-cart-delivery:hover,.storefront-cart-delivery:focus-visible{background:#fff8e7!important;outline:2px solid var(--brand);outline-offset:2px}.storefront-cart-delivery div{display:grid;min-width:0}.storefront-cart-delivery small{overflow:hidden;color:#666;text-overflow:ellipsis;white-space:nowrap}.storefront-cart-change{margin-left:auto;color:var(--brand);font-size:.82rem;font-weight:850;white-space:nowrap}.storefront-cart-promo{width:100%;justify-content:space-between;border:0;color:#151515;font:inherit;font-weight:800;text-align:left;cursor:pointer}.storefront-cart-promo:hover,.storefront-cart-promo:focus-visible{background:#fff8e7!important;outline:2px solid var(--brand);outline-offset:2px}
+    .bulk-order-app[data-channel="storefront"] #bulkCartItems{max-width:900px;margin:auto}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-item{border:0;border-bottom:1px solid #eee;border-radius:0;box-shadow:none}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .bulk-order-storefront-customer,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>label,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>#bulkOrderNote{display:none;max-width:900px;margin-left:auto;margin-right:auto}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step .bulk-order-storefront-customer,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step>label,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step>#bulkOrderNote{display:grid}
+    .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-summary{display:block;position:fixed;z-index:4;left:0;right:0;bottom:0;padding:24px 28px 0;border-radius:36px 36px 0 0;background:#fff;box-shadow:0 -10px 35px rgba(0,0,0,.14)}.storefront-cart-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;font-size:1.4rem}.storefront-cart-total-row strong{font-size:1.8rem}.storefront-cart-actions{display:grid;grid-template-columns:1fr 1fr;margin:0 -28px}.storefront-cart-actions button{min-height:76px;border:1px solid #bbb;background:#fff;font:inherit;font-weight:750}.storefront-cart-actions button:last-child{border-color:var(--lime);background:var(--lime)}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab{z-index:90;left:50%;right:auto;bottom:92px;width:min(660px,calc(100% - 48px));height:68px;padding:0 22px;border-radius:999px;transform:translate(-50%,18px);display:none;align-items:center;gap:13px}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab.is-visible{display:flex;transform:translate(-50%,0)}.bulk-order-cart-fab-total{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab-total{display:block;font-size:1.25rem}.bulk-order-cart-fab-arrow{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab-arrow{display:block;margin-left:auto;font-size:2rem}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab-count{position:static;order:-1;min-width:24px;height:24px;line-height:24px;background:#fff;color:#222}
+    .storefront-bottom-nav,.bulk-order-app[data-channel="storefront"] .storefront-bottom-nav{display:none}.storefront-bottom-nav button{border:0;background:transparent;color:#777;font:inherit}.storefront-bottom-nav button:first-child{color:var(--wa);font-weight:800}.storefront-bottom-nav span{display:flex;justify-content:center;margin-bottom:3px}.storefront-bottom-nav span svg{display:block}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-modal{align-items:stretch;padding:0;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-card{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-head{flex-direction:row-reverse;justify-content:flex-end;gap:14px;padding:20px 28px;border:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-head h3{display:block;margin:0;font-size:1rem}.bulk-order-app[data-channel="storefront"] #bulkCustomizerPrice{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-close{font-size:0}.bulk-order-app[data-channel="storefront"] .bulk-order-close:after{content:'‹';font-size:2.2rem}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options{width:min(850px,100%);margin:auto;padding:0 28px 180px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{height:360px;border:0;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero img{object-fit:contain}.storefront-product-title{display:none}.bulk-order-app[data-channel="storefront"] .storefront-product-title{display:block;margin:22px 0 10px;font-size:2rem;line-height:1.15}.storefront-product-base-price{display:none}.bulk-order-app[data-channel="storefront"] .storefront-product-base-price{display:block;margin:8px 0 20px;font-size:1.25rem;font-weight:850}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-description{font-size:1rem;line-height:1.55;color:#686868}.bulk-order-app[data-channel="storefront"] .bulk-order-choice{border:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-footer{position:fixed;z-index:2;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:18px 28px 0;background:#fff;box-shadow:0 -8px 30px rgba(0,0,0,.12)}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-add{margin:0;min-height:62px;border-radius:0;background:var(--lime);color:#222}.storefront-detail-qty{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-qty{display:flex;align-items:center;border:1px solid #aaa;border-radius:999px;overflow:hidden}.storefront-detail-qty button{width:44px;height:42px;border:0;background:#fff;font-size:1.5rem}.storefront-detail-qty span{min-width:36px;text-align:center}.storefront-detail-total{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-total{display:block;margin-left:auto;font-size:1.7rem}.storefront-detail-actions{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-actions{display:grid;width:calc(100% + 56px);margin:0 -28px;grid-template-columns:1fr 1fr}.storefront-detail-actions>button{min-height:62px;border:1px solid #bbb;background:#fff;font:inherit}.storefront-detail-actions .bulk-order-modal-add{width:100%}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>h4{font-size:1.2rem!important;margin-top:28px!important}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice{display:inline-flex;width:auto;margin:10px 14px 10px 0;padding:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice label{display:flex;width:76px;height:76px;align-items:center;justify-content:center;border:1px solid #bbb;border-radius:50%;font-size:1.1rem}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice:has(input:checked) label{border:3px solid var(--lime)}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice small{display:none}
+    .bulk-order-addon-sheet{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-sheet.is-open{display:flex;position:fixed;z-index:1400;inset:0;align-items:flex-end;background:rgba(0,0,0,.55)}.bulk-order-addon-sheet-card{display:flex;width:100%;max-height:82dvh;padding:0;border-radius:34px 34px 0 0;background:#fff;overflow:hidden;flex-direction:column}.bulk-order-addon-head{display:flex;flex:0 0 auto;align-items:center;gap:18px;margin:0;padding:26px 28px 12px}.bulk-order-addon-head button{border:0;background:none;font-size:2rem}.bulk-order-addon-head h3{margin:0;font-size:1.45rem}.bulk-order-addon-options{min-height:0;padding:0 28px 18px;overflow:auto}.bulk-order-addon-section{margin-top:22px}.bulk-order-addon-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.bulk-order-addon-section-head h4{margin:0;font-size:1.05rem}.bulk-order-required-badge{padding:5px 9px;border-radius:999px;background:#fff2bf;color:#6b4b00;font-size:.7rem;font-weight:850}.bulk-order-addon-option{display:flex;width:100%;min-height:76px;align-items:center;gap:15px;border:0;background:#fff;text-align:left;font:inherit;font-weight:750}.bulk-order-addon-option.is-selected{background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}.bulk-order-addon-option-icon{display:flex;width:54px;height:54px;flex:0 0 54px;align-items:center;justify-content:center;border-radius:50%;background:#fafafa}.bulk-order-addon-option-icon.is-choice{border:2px solid #dedede;background:#fff;color:transparent}.bulk-order-addon-option-icon.is-choice:after{content:''}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice{border-color:var(--lime);background:var(--lime);color:#222}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice:after{content:'✓';font-size:1.25rem;font-weight:900}.bulk-order-addon-option small{margin-left:auto;color:#666;font-weight:500}.bulk-order-addon-actions{flex:0 0 auto;padding:14px 28px 22px;border-top:1px solid #ececec;background:#fff}.bulk-order-addon-status{min-height:20px;margin:0 0 8px;color:#8a5a00;font-size:.78rem;font-weight:750}.bulk-order-addon-add{position:relative;width:100%;min-height:56px;border:0;border-radius:6px;background:var(--lime);color:#222;font:inherit;font-weight:850;cursor:pointer}.bulk-order-addon-add:disabled{cursor:not-allowed;opacity:.5}.bulk-order-addon-add.is-loading{color:transparent}.bulk-order-addon-add.is-loading:after{content:'';position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border:3px solid rgba(34,34,34,.28);border-top-color:#222;border-radius:50%;animation:bulk-order-spin .7s linear infinite}@keyframes bulk-order-spin{to{transform:rotate(360deg)}}.storefront-extra-trigger{display:none}.bulk-order-app[data-channel="storefront"] .storefront-extra-trigger{display:flex;width:100%;margin:22px 0;padding:20px 0;justify-content:space-between;border:0;border-top:1px solid #eee;border-bottom:1px solid #eee;background:#fff;font:inherit;font-weight:800;cursor:pointer}
+    .bulk-order-addon-option-icon{color:#555;font-size:1.65rem;font-weight:400}.bulk-order-addon-option-icon img{width:42px;height:42px;object-fit:contain}
+    .bulk-order-addon-option.is-selected .bulk-order-addon-option-icon:not(.is-choice){background:var(--lime);color:#222}
+    .bulk-order-addon-option.is-selected .bulk-order-addon-option-icon:not(.is-choice)>*{display:none}
+    .bulk-order-addon-option.is-selected .bulk-order-addon-option-icon:not(.is-choice)::after{content:'✓';font-size:1.25rem;font-weight:900}
+    .bulk-order-addon-copy{display:grid;gap:3px;min-width:0}.bulk-order-addon-copy strong{line-height:1.25}.bulk-order-addon-copy span{color:#777;font-size:.78rem;font-weight:500;line-height:1.25}.bulk-order-addon-option .bulk-order-addon-price{margin-left:auto;color:#666;font-size:.84rem;font-weight:500;white-space:nowrap}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-inline-extras{display:none}
+    .storefront-variation-section{display:none}.bulk-order-app[data-channel="storefront"] .storefront-variation-section,.bulk-order-app[data-channel="agent"] .storefront-variation-section{display:block;margin:22px 0}.storefront-variation-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.storefront-variation-head h3{margin:0;font-size:1.05rem}.storefront-variation-list{display:grid;gap:10px}.storefront-variation-option{display:grid;width:100%;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:13px;padding:14px;border:1px solid #e2e2e2;border-radius:10px;background:#fff;color:#222;text-align:left;font:inherit;cursor:pointer}.storefront-variation-option:hover{border-color:#c9c9c9}.storefront-variation-option.is-selected{border-color:var(--lime);background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}.storefront-variation-check{display:grid;width:36px;height:36px;place-items:center;border:2px solid #ddd;border-radius:50%;font-weight:900}.storefront-variation-option.is-selected .storefront-variation-check{border-color:var(--lime);background:var(--lime)}.storefront-variation-copy{display:grid;gap:3px;min-width:0}.storefront-variation-copy strong{font-size:.94rem}.storefront-variation-copy small{overflow:hidden;color:#747474;font-size:.78rem;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}.storefront-variation-price{font-size:.9rem;font-weight:850;white-space:nowrap}
+    .storefront-cart-products-title{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-products-title{display:block;max-width:900px;margin:34px auto 18px;font-size:2rem}
+    .storefront-product-info{display:none}
+    .bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-options>h4,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-options>.bulk-order-choice,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-variation-section,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-extra-trigger,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-product-base-price,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-qty,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-total,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) #storefrontPayNow{display:none}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-actions{grid-template-columns:1fr}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-add{width:100%;min-height:72px;background:var(--lime)}
+    @media(min-width:720px){.bulk-order-app[data-channel="storefront"] .bulk-order-category-rail{position:sticky;z-index:70;top:0;margin:-18px -28px 0;padding:12px 28px 10px;background:rgba(255,255,255,.98);box-shadow:0 10px 22px rgba(0,0,0,.07);backdrop-filter:blur(10px)}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{position:static!important;margin:0;padding-bottom:7px}.bulk-order-app[data-channel="storefront"] .bulk-order-products-stage{padding-top:34px}}
+    @media(min-width:720px){
+        .bulk-order-app[data-channel="storefront"]{min-height:0;padding-bottom:0}
+        .bulk-order-app[data-channel="storefront"] .bulk-order-wrap{padding-bottom:36px}
+        .bulk-order-app[data-channel="storefront"] #bulkOrderFormBody,
+        .bulk-order-app[data-channel="storefront"] .bulk-order-menu-panel,
+        .bulk-order-app[data-channel="storefront"] .bulk-order-menu-layout,
+        .bulk-order-app[data-channel="storefront"] .bulk-order-products-stage,
+        .bulk-order-app[data-channel="storefront"] .bulk-order-product-list{
+            width:100%;
+            height:auto!important;
+            min-height:0!important;
+            max-height:none!important;
+            overflow:visible!important;
+            scrollbar-gutter:auto!important;
+            overscroll-behavior:auto!important;
+        }
+    }
+    /* El pedido manual conserva su panel de cliente y carrito, pero comparte el
+       lenguaje visual del prototipo para navegar y abrir productos. */
+    .bulk-order-app[data-channel="agent"]{overflow-x:hidden}.bulk-order-app[data-channel="agent"] .bulk-order-filters{display:none}.bulk-order-app[data-channel="agent"] .bulk-order-menu-layout{display:block!important}.bulk-order-app[data-channel="agent"] .bulk-order-category-title{display:none!important}.bulk-order-app[data-channel="agent"] .bulk-order-category-chips{display:flex!important;flex-direction:row!important;gap:12px!important;max-height:none!important;margin:0 0 22px!important;padding:0 0 7px!important;overflow-x:auto!important;overflow-y:hidden!important;-ms-overflow-style:none;scrollbar-width:none}.bulk-order-app[data-channel="agent"] .bulk-order-category-chips::-webkit-scrollbar{display:none}.bulk-order-app[data-channel="agent"] .bulk-order-category-chips button{flex:0 0 118px!important;width:118px!important;min-height:108px!important;padding-top:2px!important;flex-direction:column!important;justify-content:flex-start!important;text-align:center!important}.bulk-order-app[data-channel="agent"] .bulk-order-category-icon{width:72px;height:66px;padding:0}.bulk-order-app[data-channel="agent"] .bulk-order-category-chips button.is-active:after{left:8px!important;right:8px!important}.bulk-order-app[data-channel="agent"] .bulk-order-product-list{grid-template-columns:repeat(auto-fill,minmax(175px,1fr))!important;max-height:none!important;padding:3px!important;overflow:visible!important;scrollbar-gutter:auto!important}.bulk-order-app[data-channel="agent"] .bulk-order-scroll-controls{display:none!important}.bulk-order-app[data-channel="agent"] .bulk-order-modal-card{width:min(900px,calc(100% - 28px));max-height:94dvh}.bulk-order-app[data-channel="agent"] .storefront-product-title{display:block;margin:18px 0 8px;font-size:1.7rem}.bulk-order-app[data-channel="agent"] .storefront-product-base-price{display:block;margin-bottom:16px;font-size:1.15rem;font-weight:850}.bulk-order-app[data-channel="agent"] .storefront-extra-trigger{display:flex;width:100%;margin:22px 0;padding:20px 0;justify-content:space-between;border:0;border-top:1px solid #eee;border-bottom:1px solid #eee;background:#fff;font:inherit;font-weight:800}.bulk-order-app[data-channel="agent"] .bulk-order-inline-extras{display:none}.bulk-order-app[data-channel="agent"] .bulk-order-addon-sheet.is-open{display:flex;position:fixed;z-index:1400;inset:0;align-items:flex-end;background:rgba(0,0,0,.48)}
+    @media(min-width:900px){.bulk-order-app[data-channel="storefront"] .bulk-order-modal-card{overflow-y:auto}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options{flex:none;width:min(1360px,calc(100% - 64px));display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);grid-auto-flow:row;column-gap:clamp(36px,5vw,76px);align-content:start;padding:28px 0 110px;overflow:visible}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{grid-column:1;grid-row:1 / span 12;width:100%;min-width:0;height:410px;margin-top:10px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero img{width:100%;max-width:100%}.bulk-order-app[data-channel="storefront"] .storefront-product-title,.bulk-order-app[data-channel="storefront"] .storefront-product-base-price,.bulk-order-app[data-channel="storefront"] .bulk-order-modal-description,.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>h4,.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice,.bulk-order-app[data-channel="storefront"] .storefront-extra-trigger{grid-column:2;min-width:0}.bulk-order-app[data-channel="storefront"] .storefront-product-title{margin-top:28px;font-size:clamp(2.25rem,3.2vw,3rem)}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-description{font-size:1.05rem}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-footer{position:absolute;left:max(32px,calc((100% - 1360px)/2));right:auto;top:520px;bottom:auto;width:min(calc((100% - 128px)/2),612px);padding:0;background:transparent;box-shadow:none}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-actions{width:100%;margin:0}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-add{min-height:48px;border-radius:4px}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab{left:auto;right:28px;bottom:28px;width:min(410px,calc(100% - 56px));transform:translateY(18px)}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-fab.is-visible{transform:translateY(0)}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-sheet.is-open{align-items:center;justify-content:center;padding:30px}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-sheet-card{width:min(820px,100%);max-height:86dvh;border-radius:22px}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-head{padding:32px 42px 12px}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-options{padding:0 42px 20px}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-actions{padding:16px 42px 28px}}
+    @media(min-width:900px){.bulk-order-app[data-channel="storefront"] .storefront-variation-section{grid-column:2;min-width:0}}
+    @media(min-width:900px) and (max-width:1199.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}}
+    @media(min-width:720px) and (max-width:899.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}}
+    @media(min-width:900px){.bulk-order-app[data-channel="agent"] .bulk-order-addon-sheet.is-open{align-items:center;justify-content:center;padding:30px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-sheet-card{width:min(820px,100%);max-height:86dvh;border-radius:22px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-head{padding:32px 42px 12px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-options{padding:0 42px 20px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-actions{padding:16px 42px 28px}}
+    @media(min-width:900px){.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open.is-cart-preview{inset:74px 116px auto auto;width:min(416px,calc(100% - 48px));max-height:calc(100dvh - 98px);padding:0;border-radius:0;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.18);overflow:auto}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header{position:static;margin:0;padding:18px 24px 10px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header h2{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back{font-size:0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back:after{content:'×';font-size:1.7rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-delivery,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-promo{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-products-title{margin:8px 24px 14px;font-size:1.15rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #bulkCartItems{margin:0;padding:0 24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-item{padding:14px 0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-toggle,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-editor{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-summary{position:sticky;left:auto;right:auto;bottom:0;margin-top:18px;padding:18px 24px 0;border-radius:0;background:#f7f7f7;box-shadow:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-total-row{margin-bottom:16px;font-size:1.25rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-actions{display:block;margin:0 -24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontContinueShopping{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontCartNext{width:100%;min-height:56px}}
+    @media(max-width:719.98px){.bulk-order-app[data-channel="storefront"] .storefront-catalog-header{display:none}.bulk-order-app[data-channel="storefront"] .storefront-bottom-nav{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;justify-content:space-around;align-items:center;border-top:1px solid #ddd;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-wrap{padding:14px 16px 110px}.bulk-order-app[data-channel="storefront"] .storefront-fulfillment{margin-bottom:32px}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{justify-content:flex-start;gap:8px;margin:0 0 26px;padding:2px 4px 10px;border:0;background:#fff;scroll-snap-type:x mandatory}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button{flex:0 0 102px;width:102px;min-width:102px;height:142px;min-height:142px;padding:2px 4px 12px;justify-content:flex-start;gap:8px;overflow:hidden;scroll-snap-align:start}.bulk-order-app[data-channel="storefront"] .bulk-order-category-icon{width:72px;height:78px;min-height:78px;padding:0}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button span:last-child{display:-webkit-box;min-height:34px;max-width:94px;overflow:hidden;white-space:normal;line-height:1.2;-webkit-line-clamp:2;-webkit-box-orient:vertical}.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:285px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-media{height:160px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content{padding:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{height:300px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open{padding-left:18px;padding-right:18px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-header{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:365px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-desc,.bulk-order-app[data-channel="agent"] .bulk-order-product-desc,.bulk-order-app[data-channel="kiosk"] .bulk-order-product-desc{display:-webkit-box;min-height:2.8em;max-height:2.8em;margin:7px 0 8px;overflow:hidden;color:#666;font-size:.82rem;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content>strong,.bulk-order-app[data-channel="agent"] .bulk-order-product-content>strong,.bulk-order-app[data-channel="kiosk"] .bulk-order-product-content>strong{-webkit-line-clamp:2}.bulk-order-app[data-channel="storefront"] .bulk-order-product-price{padding-top:8px}
+    @media(max-width:719.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:320px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-desc{display:-webkit-box;min-height:2.7em;max-height:2.7em;font-size:.76rem;line-height:1.35}}
 </style>
 
-<div class="bulk-order-app" id="bulkOrderApp" data-mode="{{ $isAgent ? 'agent' : 'public' }}" data-channel="{{ $isAgent ? 'agent' : ($isKiosk ? 'kiosk' : 'microsite') }}">
+<div class="bulk-order-app" id="bulkOrderApp" data-mode="{{ $isAgent ? 'agent' : 'public' }}" data-channel="{{ $isAgent ? 'agent' : ($isKiosk ? 'kiosk' : ($isStorefront ? 'storefront' : 'microsite')) }}">
     <header class="bulk-order-header">
         @if($isAgent && !empty($ordersUrl))
             <div class="bulk-order-header-nav">
@@ -1179,13 +1477,16 @@
             </div>
         @endif
         <div class="bulk-order-brand">
-            @if(!$isAgent && !empty($logoUrl))
+            @if(!empty($logoUrl))
                 <img src="{{ $logoUrl }}" alt="Logo">
             @endif
             <h1>{{ $headerTitle }}</h1>
         </div>
         <p>{{ $headerSubtitle }}</p>
     </header>
+    @if($isStorefront || $isKiosk)
+    <div class="storefront-catalog-header"><div class="storefront-catalog-nav"><button type="button" class="storefront-catalog-menu" id="storefrontCatalogMenu" aria-label="Abrir menú"><span></span><span></span><span></span></button>@if(!empty($logoUrl))<img src="{{ $logoUrl }}" class="storefront-catalog-logo" alt="Logo">@endif @if($isKiosk && !empty($adminUrl))<a href="{{ $adminUrl }}" class="storefront-catalog-admin" aria-label="Ir al panel administrativo"><span aria-hidden="true">⚙</span><span class="storefront-catalog-admin-label">Panel administrativo</span></a>@endif</div><div class="storefront-catalog-tabs"><span>Productos</span></div></div>
+    @endif
 
     @if(!$isAgent && !$isKiosk && !empty($existingCartItems))
         <div class="bulk-order-wrap" style="padding-top:14px;padding-bottom:0">
@@ -1214,7 +1515,7 @@
             </section>
             <input type="hidden" id="bulkBranch" value="{{ $defaultBranchId ?? (!empty($branches) ? $branches->first()?->id : '') }}">
             @endif
-            @if(!$isAgent && !$isKiosk)
+            @if(!$isAgent && !$isKiosk && !$isStorefront)
                 @if(!empty($branches) && count($branches) > 1)
                     <section class="bulk-order-panel">
                         <h2>¿Dónde retirás o recibís tu pedido?</h2>
@@ -1229,6 +1530,8 @@
                 @else
                     <input type="hidden" id="bulkBranch" value="{{ !empty($branches) ? $branches->first()?->id : '' }}">
                 @endif
+            @elseif($isStorefront)
+                <input type="hidden" id="bulkBranch" value="{{ !empty($branches) ? $branches->firstWhere('is_default', true)?->id ?? $branches->first()?->id : '' }}">
             @endif
             @if($isAgent)
             <section class="bulk-order-panel bulk-order-client-panel">
@@ -1270,6 +1573,9 @@
             @endif
 
             <div id="bulkOrderFormBody" @if($isAgent || $isKiosk) class="bulk-order-form-disabled" @endif>
+                @if($isStorefront)
+                <button type="button" class="storefront-fulfillment" id="storefrontFulfillmentBar"><span class="storefront-fulfillment-icon">🛵</span><span><strong id="storefrontFulfillmentTitle">Enviar a</strong><small id="storefrontFulfillmentAddress">Selecciona tu dirección</small></span></button>
+                @endif
                 <section class="bulk-order-panel bulk-order-menu-panel">
                     <div class="bulk-order-section-head">
                         <h2>Menú</h2>
@@ -1288,6 +1594,7 @@
                             <div class="bulk-order-category-chips" id="bulkCategoryChips" aria-label="Categorías"></div>
                         </aside>
                         <div class="bulk-order-products-stage">
+                            @if($isStorefront || $isKiosk)<h2 class="storefront-category-heading" id="storefrontCategoryHeading">Todo el menú</h2>@endif
                             <div class="bulk-order-product-list" id="bulkProductList"></div>
                             <div class="bulk-order-scroll-controls" aria-label="Desplazar productos">
                                 <button type="button" id="bulkProductsUp" aria-label="Subir en el menú" title="Subir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
@@ -1298,33 +1605,77 @@
                 </section>
 
                 <section class="bulk-order-panel" id="bulkCartPanel">
+                    @if($isStorefront)
+                    <div class="storefront-cart-header"><button type="button" class="storefront-cart-back" id="storefrontCartBack" aria-label="Volver">‹</button><h2>Mi pedido</h2><button type="button" class="storefront-cart-clear" id="storefrontCartClear">Limpiar</button></div>
+                    <button type="button" class="storefront-cart-delivery" id="storefrontCartDeliveryChange" aria-label="Cambiar forma de entrega o ubicación"><span style="font-size:1.8rem" aria-hidden="true">🛵</span><div><strong id="storefrontCartDeliveryTitle">Enviar a</strong><small id="storefrontCartDeliveryAddress">Dirección seleccionada</small></div><span class="storefront-cart-change">Cambiar ›</span></button>
+                    <button type="button" class="storefront-cart-promo" id="storefrontCartPromotions" aria-label="Ver descuentos y promociones"><span>🏷️ &nbsp; Descuentos y promociones</span><span aria-hidden="true">›</span></button>
+                    <h2 class="storefront-cart-products-title">Productos</h2>
+                    @elseif($isKiosk)
+                    <div class="storefront-cart-header"><button type="button" class="storefront-cart-back" id="storefrontCartBack" aria-label="Cerrar">‹</button><h2>Tu pedido</h2><button type="button" class="storefront-cart-clear" id="storefrontCartClear">Limpiar</button></div>
+                    @endif
                     <div class="bulk-order-section-head">
                         <h2>{{ $isAgent ? 'Lista del pedido' : 'Tu pedido' }}</h2>
                         <span class="bulk-order-cart-count" id="bulkCartCount">Vacío</span>
                     </div>
                     <div id="bulkCartItems"></div>
                     <p class="bulk-order-cart-empty" id="bulkCartEmpty">Aún no agregaste productos.</p>
+                    @if($isStorefront)
+                    <div class="bulk-order-storefront-customer">
+                        <h3>Datos para confirmar</h3>
+                        <label>Nombre completo<input type="text" id="storefrontCustomerName" maxlength="120" autocomplete="name" placeholder="¿Quién recibe el pedido?"></label>
+                        <label>Teléfono<input type="tel" id="storefrontCustomerPhone" maxlength="30" autocomplete="tel" placeholder="Ej.: 099 123 4567"></label>
+                        <label>Correo <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"></label>
+                        <label>Forma de pago<select id="storefrontPaymentMethod"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option></select></label>
+                        <section class="storefront-checkout-block storefront-payment-fields" id="storefrontTransferFields">
+                            <h4>Datos para realizar la transferencia</h4>
+                            @if(filled($bankTransferInstructions ?? null))
+                                <p class="storefront-bank-instructions">{!! nl2br(e($bankTransferInstructions)) !!}</p>
+                            @else
+                                <p>La empresa todavía no ha publicado sus datos bancarios. Puedes confirmar el pedido y solicitarlos por WhatsApp.</p>
+                            @endif
+                            <label>Comprobante <span>(puedes cargarlo ahora o después desde Mi cuenta)</span><input type="file" id="storefrontPaymentProof" accept="image/jpeg,image/png,image/webp,application/pdf"></label>
+                        </section>
+                        <section class="storefront-checkout-block storefront-card-fields" id="storefrontCardFields" aria-live="polite">
+                            <h4>Pago seguro con tarjeta</h4>
+                            <p>Por el momento este micrositio no procesa pagos con tarjeta. Para pagar de manera segura, continúa en la página web de la empresa.</p>
+                            @if(filled($cardPaymentUrl ?? null))
+                                <a class="storefront-card-link" id="storefrontCheckoutCardPaymentLink" href="{{ $cardPaymentUrl }}" target="_blank" rel="noopener noreferrer">Continuar en {{ parse_url($cardPaymentUrl, PHP_URL_HOST) ?: 'la página de pago' }}</a>
+                            @else
+                                <p><strong>El enlace de pago todavía no está configurado.</strong> Selecciona efectivo o transferencia para continuar.</p>
+                            @endif
+                        </section>
+                        <section class="storefront-checkout-block">
+                            <h4>Datos para el comprobante de venta</h4>
+                            <label>¿Cómo deseas tu comprobante?<select id="storefrontInvoicePreference"><option value="consumer">Consumidor final</option><option value="invoice">Factura con datos</option></select></label>
+                            <div class="storefront-invoice-fields" id="storefrontInvoiceFields">
+                                <label>Tipo de identificación<select id="storefrontBillingType"><option value="cedula">Cédula</option><option value="ruc">RUC</option><option value="pasaporte">Pasaporte</option></select></label>
+                                <label>Cédula, RUC o pasaporte<input id="storefrontBillingId" maxlength="20" autocomplete="off"></label>
+                                <label>Nombre o razón social<input id="storefrontBillingLegalName" maxlength="255" autocomplete="name"></label>
+                                <label>Dirección de facturación<input id="storefrontBillingAddress" maxlength="500" autocomplete="street-address"></label>
+                                <label>Correo de facturación<input id="storefrontBillingEmail" type="email" maxlength="255" autocomplete="email"></label>
+                            </div>
+                        </section>
+                    </div>
+                    @endif
                     <label for="bulkOrderNote" style="display:block;margin-top:12px;font-size:.85rem;color:var(--muted)">Nota general del pedido (opcional)</label>
                     <textarea id="bulkOrderNote" rows="2" placeholder="Instrucciones de entrega, facturación…"></textarea>
 
                     @if($isKiosk)
-                    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-                        <label style="display:block;margin-bottom:8px;font-size:.85rem;color:var(--muted)">¿Para llevar o para servir?</label>
-                        <div style="display:flex;gap:8px;margin-bottom:12px">
-                            <button type="button" class="bulk-order-btn bulk-order-btn-ghost" id="kioskServiceLlevar" style="flex:1">🥡 Para llevar</button>
-                            <button type="button" class="bulk-order-btn bulk-order-btn-ghost" id="kioskServiceServir" style="flex:1">🍽️ Para servir</button>
+                    <div class="kiosk-order-options">
+                        <span class="kiosk-order-options-title">¿Cómo entregarás este pedido?</span>
+                        <div class="kiosk-service-options" role="group" aria-label="Forma de entrega">
+                            <button type="button" class="kiosk-service-option" id="kioskServiceLlevar" aria-pressed="false"><span class="kiosk-service-icon">🥡</span><span class="kiosk-service-copy"><strong>Para llevar</strong><small>El cliente retira su pedido</small></span><span class="kiosk-service-check">✓</span></button>
+                            <button type="button" class="kiosk-service-option" id="kioskServiceServir" aria-pressed="false"><span class="kiosk-service-icon">🍽️</span><span class="kiosk-service-copy"><strong>Para servir</strong><small>Se consume en el local</small></span><span class="kiosk-service-check">✓</span></button>
                         </div>
-                        <div id="kioskTableWrap" style="display:none;margin-bottom:12px">
+                        <div id="kioskTableWrap" style="display:none;margin-bottom:18px">
                             <label for="kioskTableReference" style="display:block;margin-bottom:6px;font-size:.85rem;color:var(--muted)">Mesa / referencia (opcional)</label>
                             <input type="text" id="kioskTableReference" placeholder="Ej.: Mesa 4" maxlength="120">
                         </div>
-                        <label for="kioskPaymentMethod" style="display:block;margin-bottom:6px;font-size:.85rem;color:var(--muted)">Forma de pago</label>
-                        <select id="kioskPaymentMethod">
-                            <option value="efectivo">💵 Efectivo</option>
-                            <option value="transferencia">🏦 Transferencia</option>
-                            <option value="tarjeta">💳 Tarjeta</option>
-                        </select>
+                        <label class="kiosk-payment-field" for="kioskPaymentMethod"><span>Forma de pago</span><span class="kiosk-select-wrap"><span class="kiosk-select-icon" id="kioskPaymentIcon" aria-hidden="true">💵</span><select id="kioskPaymentMethod"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option></select></span><small class="kiosk-payment-help">Selecciona cómo pagará el cliente en caja.</small></label>
                     </div>
+                    @endif
+                    @if($isStorefront)
+                    <div class="storefront-cart-summary"><div class="storefront-cart-total-row"><b>Total</b><strong id="storefrontCartTotal">$0.00</strong></div><div class="storefront-cart-actions"><button type="button" id="storefrontContinueShopping">Continuar comprando</button><button type="button" id="storefrontCartNext">Siguiente</button></div></div>
                     @endif
                 </section>
             </div>
@@ -1335,6 +1686,14 @@
             <h2>Pedido enviado</h2>
             <p id="bulkSuccessOrderNumber" style="font-size:1.1rem;font-weight:700;color:var(--wa-dark);margin:12px 0;"></p>
             <p id="bulkSuccessHint">{{ $successWhatsappHint }}</p>
+            @if($isStorefront)<p class="storefront-proof-status" id="storefrontSuccessPaymentStatus" style="display:none"></p>@endif
+            @if($isStorefront)
+                <p style="display:none;margin-top:16px" id="storefrontCardPaymentWrap">
+                    <a href="#" id="storefrontCardPaymentLink" class="bulk-order-btn bulk-order-btn-primary" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener">
+                        Pagar en línea de forma segura
+                    </a>
+                </p>
+            @endif
             <p id="bulkSuccessPdfWrap" style="display:none;margin-top:16px">
                 <a href="#" id="bulkSuccessPdfLink" class="bulk-order-btn bulk-order-btn-primary" style="display:inline-block;text-decoration:none" target="_blank" rel="noopener">
                     Descargar PDF de la orden
@@ -1348,6 +1707,11 @@
             @if($isKiosk)
                 <p style="margin-top:16px">
                     <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="kioskNewOrderBtn">Nuevo pedido</button>
+                </p>
+            @endif
+            @if($isStorefront)
+                <p style="margin-top:16px">
+                    <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="storefrontSuccessHomeBtn">Volver al inicio</button>
                 </p>
             @endif
         </div>
@@ -1365,17 +1729,18 @@
                 <span id="bulkItemsCount">0 productos</span>
                 <strong id="bulkGrandTotal">$0.00</strong>
             </div>
-            <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="bulkSubmitBtn" disabled>{{ $isKiosk ? 'Revisar y ordenar' : ($isAgent ? 'Registrar pedido' : 'Confirmar pedido') }}</button>
+            <button type="button" class="bulk-order-btn bulk-order-btn-primary" id="bulkSubmitBtn" disabled>{{ $isKiosk ? 'Revisar y ordenar' : ($isAgent ? 'Registrar pedido' : ($isStorefront ? 'Siguiente' : 'Confirmar pedido')) }}</button>
         </div>
     </div>
 
     <div class="bulk-order-toast" id="bulkToast"></div>
 
-    @if(!$isAgent)
+    @if(!$isAgent && !$isKiosk)
         <button type="button" class="bulk-order-cart-fab" id="bulkCartFab" aria-label="Ver mi pedido">
             <span class="bulk-order-cart-fab-icon">🛒</span>
-     
             <span class="bulk-order-cart-fab-count" id="bulkCartFabCount">0</span>
+            <strong class="bulk-order-cart-fab-total" id="bulkCartFabTotal">$0.00</strong>
+            <span class="bulk-order-cart-fab-arrow">›</span>
         </button>
     @endif
 
@@ -1389,11 +1754,24 @@
                 <button type="button" class="bulk-order-close" id="bulkCustomizerClose" aria-label="Cerrar">×</button>
             </div>
             <div id="bulkCustomizerOptions" class="bulk-order-modal-options"></div>
-            <div class="bulk-order-modal-footer">
+            <div class="bulk-order-modal-footer" data-guide="Listo para tu pedido">
+                @if($isStorefront || $isKiosk)<div class="storefront-detail-qty"><button type="button" id="storefrontDetailMinus" aria-label="Restar">−</button><span id="storefrontDetailQty">1</span><button type="button" id="storefrontDetailPlus" aria-label="Sumar">+</button></div><strong class="storefront-detail-total" id="storefrontDetailTotal">$0.00</strong><div class="storefront-detail-actions">@if($isStorefront)<button type="button" id="storefrontPayNow">Pagar ahora</button>@endif @endif
                 <button type="button" class="bulk-order-btn bulk-order-btn-primary bulk-order-modal-add" id="bulkCustomizerAdd">Agregar al carrito</button>
+                @if($isStorefront || $isKiosk)</div>@endif
             </div>
         </div>
     </div>
+
+    @if($usesEnhancedCustomizer)
+    <div class="bulk-order-addon-sheet" id="bulkAddonSheet" aria-hidden="true"><div class="bulk-order-addon-sheet-card" role="dialog" aria-modal="true"><div class="bulk-order-addon-head"><button type="button" id="bulkAddonClose" aria-label="Cerrar">×</button><h3 id="bulkAddonTitle">Selecciona tus adicionales</h3></div><div id="bulkAddonOptions" class="bulk-order-addon-options"></div><div class="bulk-order-addon-actions"><p class="bulk-order-addon-status" id="bulkAddonStatus" aria-live="polite"></p><button type="button" class="bulk-order-addon-add" id="bulkAddonAdd">Agregar al carrito</button></div></div></div>
+    @endif
+    @if($isStorefront)
+    <nav class="storefront-bottom-nav" aria-label="Navegación principal">
+        <button type="button" data-storefront-nav="home"><span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1v-9"/></svg></span>Inicio</button>
+        <button type="button" data-storefront-nav="branches"><span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.2a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.6"/></svg></span>Sucursales</button>
+        <button type="button" data-storefront-nav="account"><span><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c0-4 3.5-6.2 7.5-6.2s7.5 2.2 7.5 6.2"/></svg></span>Mi cuenta</button>
+    </nav>
+    @endif
 
     @if($isAgent)
     <div class="bulk-order-modal bulk-order-contact-modal" id="contactCreateModal" aria-hidden="true">
@@ -1432,26 +1810,115 @@
 (function () {
     const isAgent = @json($isAgent);
     const isKiosk = @json($isKiosk);
+    const isStorefront = @json($isStorefront);
+    const usesEnhancedCustomizer = @json($usesEnhancedCustomizer);
     const catalogUrl = @json($catalogUrl);
     const submitUrl = @json($submitUrl);
     const contactsSearchUrl = @json($contactsSearchUrl ?? null);
     const contactsCreateUrl = @json($contactsCreateUrl ?? null);
     const initialContact = @json($initialContact ?? null);
+    const persistenceKey = @json($persistenceKey ?? null);
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
     let products = [];
-    let cart = [];
+    let cart = restorePersistedCart();
     let editingCartIndex = null;
     let selectedContact = initialContact ? { ...initialContact } : null;
     let isSubmitting = false;
     let kioskServiceType = null;
     let contactSearchRequest = 0;
     let activeContactOption = -1;
+    let customizerQuantity = 1;
+    let customizerExtras = [];
+    let customizerVariation = '';
+    let customizerOptionsReviewed = false;
+    let customizerSubmitting = false;
+    let showingPromotions = false;
 
     const root = document.getElementById('bulkOrderApp');
     const el = (id) => document.getElementById(id);
     const fmt = (n) => '$' + Number(n).toFixed(2);
     const submitBtnDefaultLabel = el('bulkSubmitBtn')?.textContent.trim() || 'Confirmar pedido';
+
+    function restorePersistedCart() {
+        if (!isStorefront || !persistenceKey) return [];
+        try {
+            const saved = JSON.parse(localStorage.getItem(persistenceKey) || '[]');
+            return Array.isArray(saved)
+                ? saved.filter(line => line && Number(line.product_id) > 0 && Number(line.quantity) > 0)
+                : [];
+        } catch (_) {
+            localStorage.removeItem(persistenceKey);
+            return [];
+        }
+    }
+
+    function persistCart() {
+        if (!isStorefront || !persistenceKey) return;
+        try {
+            if (cart.length) localStorage.setItem(persistenceKey, JSON.stringify(cart));
+            else localStorage.removeItem(persistenceKey);
+        } catch (_) {
+            // El flujo continúa aunque el navegador tenga bloqueado localStorage.
+        }
+    }
+
+    function restoreStorefrontDraft() {
+        if (!isStorefront || !persistenceKey) return;
+        try {
+            const draft = JSON.parse(localStorage.getItem(persistenceKey + '_checkout') || 'null');
+            if (!draft || typeof draft !== 'object') return;
+            const fields = {
+                storefrontCustomerName: draft.name,
+                storefrontCustomerPhone: draft.phone,
+                storefrontCustomerEmail: draft.email,
+                storefrontPaymentMethod: draft.payment_method,
+                storefrontInvoicePreference: draft.invoice_preference,
+                storefrontBillingType: draft.billing_type,
+                storefrontBillingId: draft.billing_id,
+                storefrontBillingLegalName: draft.billing_legal_name,
+                storefrontBillingAddress: draft.billing_address,
+                storefrontBillingEmail: draft.billing_email,
+                bulkOrderNote: draft.order_note,
+            };
+            Object.entries(fields).forEach(([id, value]) => {
+                if (el(id) && typeof value === 'string') el(id).value = value;
+            });
+        } catch (_) {
+            localStorage.removeItem(persistenceKey + '_checkout');
+        }
+    }
+
+    function persistStorefrontDraft() {
+        if (!isStorefront || !persistenceKey) return;
+        try {
+            localStorage.setItem(persistenceKey + '_checkout', JSON.stringify({
+                name: el('storefrontCustomerName')?.value || '',
+                phone: el('storefrontCustomerPhone')?.value || '',
+                email: el('storefrontCustomerEmail')?.value || '',
+                payment_method: el('storefrontPaymentMethod')?.value || 'efectivo',
+                invoice_preference: el('storefrontInvoicePreference')?.value || 'consumer',
+                billing_type: el('storefrontBillingType')?.value || 'cedula',
+                billing_id: el('storefrontBillingId')?.value || '',
+                billing_legal_name: el('storefrontBillingLegalName')?.value || '',
+                billing_address: el('storefrontBillingAddress')?.value || '',
+                billing_email: el('storefrontBillingEmail')?.value || '',
+                order_note: el('bulkOrderNote')?.value || '',
+            }));
+        } catch (_) {
+            // El checkout continúa aunque el navegador bloquee localStorage.
+        }
+    }
+
+    function syncStorefrontCheckoutFields() {
+        if (!isStorefront) return;
+        const isTransfer = el('storefrontPaymentMethod')?.value === 'transferencia';
+        const isCard = el('storefrontPaymentMethod')?.value === 'tarjeta';
+        const wantsInvoice = el('storefrontInvoicePreference')?.value === 'invoice';
+        el('storefrontTransferFields')?.classList.toggle('is-open', isTransfer);
+        el('storefrontCardFields')?.classList.toggle('is-open', isCard);
+        el('storefrontInvoiceFields')?.classList.toggle('is-open', wantsInvoice);
+    }
 
     function setSubmitting(submitting) {
         isSubmitting = submitting;
@@ -1509,14 +1976,14 @@
         };
     }
 
-    function productMetaHtml(p, { truncateDesc = 120 } = {}) {
+    function productMetaHtml(p, { truncateDesc = 110 } = {}) {
         let html = '';
-        if (p.description) {
-            const desc = truncateDesc && p.description.length > truncateDesc
-                ? p.description.slice(0, truncateDesc - 1) + '…'
-                : p.description;
-            html += `<p class="bulk-order-product-desc">${escapeHtml(desc)}</p>`;
-        }
+        const productDescription = String(p.description || '').trim()
+            || 'Consulta las opciones disponibles de este producto.';
+        const desc = truncateDesc && productDescription.length > truncateDesc
+            ? productDescription.slice(0, truncateDesc - 1).trimEnd() + '…'
+            : productDescription;
+        html += `<p class="bulk-order-product-desc">${escapeHtml(desc)}</p>`;
         let meta = '';
         if (p.measurements) {
             meta += `<span class="bulk-order-tag">📏 ${escapeHtml(p.measurements)}</span>`;
@@ -1690,7 +2157,9 @@
             const body = el('bulkOrderFormBody');
             const enabled = !!selectedContact;
             body.classList.toggle('bulk-order-form-disabled', !enabled);
-            btn.disabled = cart.length === 0 || !enabled || (isKiosk && !kioskServiceType);
+            // En el POS la primera acción es revisar. La forma de entrega se
+            // elige dentro de ese resumen, por eso no debe bloquear su apertura.
+            btn.disabled = cart.length === 0 || !enabled;
             return;
         }
         btn.disabled = cart.length === 0;
@@ -1871,6 +2340,7 @@
         const params = new URLSearchParams();
         if (q) params.set('q', q);
         if (cat) params.set('category', cat);
+        if (showingPromotions) params.set('promo', '1');
         const res = await fetch(catalogUrl + '?' + params.toString());
         const data = await res.json();
         products = data.products || [];
@@ -1888,19 +2358,43 @@
         }
 
         renderProducts();
-        renderCategoryChips(data.categories || []);
+        renderCategoryChips(data.categories || [], data.all_category || {});
     }
 
-    function renderCategoryChips(categories) {
+    function renderCategoryChips(categories, allCategory = {}) {
         const box = el('bulkCategoryChips');
         const current = el('bulkCategory').value;
-        box.innerHTML = `<button type="button" data-category="" class="${current === '' ? 'is-active' : ''}">${categoryIcon('all')}<span>Todo</span></button>` + categories.map(c =>
-            `<button type="button" data-category="${c.id}" class="${String(c.id) === String(current) ? 'is-active' : ''}">${categoryIcon(c.title)}<span>${escapeHtml(c.title)}</span></button>`
+        const allCategoryVisual = allCategory.image
+            ? `<span class="bulk-order-category-icon"><img src="${escapeHtml(allCategory.image)}" alt=""></span>`
+            : categoryIcon('all');
+        box.innerHTML = `<button type="button" data-category="" class="${current === '' && !showingPromotions ? 'is-active' : ''}">${allCategoryVisual}<span>${escapeHtml(allCategory.title || 'Todos')}</span></button>` + categories.map(c =>
+            `<button type="button" data-category="${c.id}" class="${String(c.id) === String(current) && !showingPromotions ? 'is-active' : ''}">${c.image ? `<span class="bulk-order-category-icon"><img src="${escapeHtml(c.image)}" alt=""></span>` : categoryIcon(c.title)}<span>${escapeHtml(c.title)}</span></button>`
         ).join('');
-        box.querySelectorAll('[data-category]').forEach(btn => btn.addEventListener('click', () => {
+        box.querySelectorAll('[data-category]').forEach(btn => btn.addEventListener('click', async () => {
+            showingPromotions = false;
             el('bulkCategory').value = btn.dataset.category;
-            loadCatalog();
+            await loadCatalog();
+            moveCatalogHeaderOutOfView();
         }));
+        if (isStorefront || isKiosk) {
+            const selected = categories.find(category => String(category.id) === String(current));
+            el('storefrontCategoryHeading').textContent = showingPromotions ? 'Promociones' : (selected?.title || 'Todo el menú');
+        }
+    }
+
+    function moveCatalogHeaderOutOfView() {
+        if (!isStorefront || !window.matchMedia('(min-width: 720px)').matches) return;
+
+        const categoryRail = document.querySelector('.bulk-order-app[data-channel="storefront"] .bulk-order-category-rail');
+        if (!categoryRail) return;
+
+        const targetTop = window.scrollY + categoryRail.getBoundingClientRect().top;
+        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        window.scrollTo({
+            top: Math.max(0, targetTop),
+            behavior: reduceMotion ? 'auto' : 'smooth',
+        });
     }
 
     function renderProducts() {
@@ -1959,27 +2453,58 @@
         if (!p) return;
         customizingProduct = p;
         editingCartIndex = existingLine?.index ?? null;
-        el('bulkCustomizerTitle').textContent = p.name;
+        customizerQuantity = existingLine?.quantity || p.min_qty || 1;
+        customizerExtras = [...(existingLine?.extras || [])];
+        customizerVariation = existingLine?.variation || '';
+        customizerOptionsReviewed = Boolean(existingLine) || (p.extras || []).length === 0;
+        if (el('storefrontDetailQty')) el('storefrontDetailQty').textContent = customizerQuantity;
+        el('bulkCustomizerTitle').textContent = (isStorefront || isKiosk) ? (p.category || 'Productos') : p.name;
         el('bulkCustomizerPrice').textContent = 'Desde ' + fmt(p.price);
-        let html = `<div class="bulk-order-modal-hero">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}">` : '<div class="fallback">🍗</div>'}</div>`;
+        let html = `<div class="bulk-order-modal-hero">${p.image ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}">` : '<div class="fallback">🍗</div>'}</div><h2 class="storefront-product-title">${escapeHtml(p.name)}</h2><div class="storefront-product-base-price">${fmt(p.price)}</div>`;
         if (p.description) {
             html += `<p class="bulk-order-modal-description">${escapeHtml(p.description)}</p>`;
         }
         if ((p.variations || []).length) {
-            html += '<h4 style="margin:8px 0;font-size:.9rem">Elige tu opción</h4>';
-            html += p.variations.map((v, i) => `<div class="bulk-order-choice"><label><input type="radio" name="bulkVariation" value="${escapeHtml(v.title)}" data-price="${v.price}" ${(existingLine?.variation ? existingLine.variation === v.title : i === 0) ? 'checked' : ''}> ${escapeHtml(v.title)}</label><small>${fmt(v.price)}</small></div>`).join('');
+            if (usesEnhancedCustomizer) {
+                html += `<section class="storefront-variation-section" id="storefrontVariationSection"><div class="storefront-variation-head"><h3>Elige una opción</h3><span class="bulk-order-required-badge">Obligatorio</span></div><div class="storefront-variation-list">${p.variations.map(variation => `
+                    <button type="button" class="storefront-variation-option ${customizerVariation === variation.title ? 'is-selected' : ''}" data-inline-variation="${escapeHtml(variation.title)}">
+                        <span class="storefront-variation-check">${customizerVariation === variation.title ? '✓' : ''}</span>
+                        <span class="storefront-variation-copy"><strong>${escapeHtml(variation.title)}</strong><small>${escapeHtml(variation.description || `Selecciona ${variation.title}`)}</small></span>
+                        <span class="storefront-variation-price">${fmt(variation.price)}</span>
+                    </button>`).join('')}</div></section>`;
+            } else {
+                html += '<h4 style="margin:8px 0;font-size:.9rem">Elige tu opción</h4>';
+                html += p.variations.map((v, i) => `<div class="bulk-order-choice"><label><input type="radio" name="bulkVariation" value="${escapeHtml(v.title)}" data-price="${v.price}" ${(existingLine?.variation ? existingLine.variation === v.title : i === 0) ? 'checked' : ''}> ${escapeHtml(v.title)}</label><small>${fmt(v.price)}</small></div>`).join('');
+            }
         }
         if ((p.extras || []).length) {
-            html += '<h4 style="margin:18px 0 8px;font-size:.9rem">Hazlo aún mejor <span style="font-weight:400;color:var(--muted)">(opcional)</span></h4>';
-            html += p.extras.map(e => `<div class="bulk-order-choice"><label><input type="checkbox" name="bulkExtra" value="${escapeHtml(e.title)}" data-price="${e.price}" ${(existingLine?.extras || []).includes(e.title) ? 'checked' : ''}> ${escapeHtml(e.title)}</label><small>+${fmt(e.price)}</small></div>`).join('');
+            const requiredCopy = 'Opcional: puedes agregarlos o continuar sin ellos';
+            html += `<button type="button" class="storefront-extra-trigger" id="storefrontExtraTrigger"><span>Ver adicionales <small style="display:block;color:#777;font-weight:500">${requiredCopy}</small></span><span id="storefrontExtraSummary">${customizerExtras.length ? customizerExtras.length + ' elegidos' : '›'}</span></button>`;
+        }
+        if ((p.extras || []).length) {
+            html += `<div class="bulk-order-inline-extras"><h4 style="margin:18px 0 8px;font-size:.9rem">Hazlo aún mejor <span style="font-weight:400;color:var(--muted)">(opcional)</span></h4>${p.extras.map(e => `<div class="bulk-order-choice"><label><input type="checkbox" name="bulkExtra" value="${escapeHtml(e.title)}" data-price="${e.price}" ${customizerExtras.includes(e.title) ? 'checked' : ''}> ${escapeHtml(e.title)}</label><small>+${fmt(e.price)}</small></div>`).join('')}</div>`;
         }
         if (!html) html = '<p style="color:var(--muted);margin:0">Listo para agregar a tu carrito.</p>';
         el('bulkCustomizerOptions').innerHTML = html;
         el('bulkCustomizerOptions').scrollTop = 0;
-        el('bulkCustomizerAdd').textContent = existingLine ? 'Guardar cambios' : 'Agregar al carrito';
+        el('bulkCustomizerOptions').querySelectorAll('input[name="bulkVariation"]').forEach(input => input.addEventListener('change', updateCustomizerTotal));
+        el('bulkCustomizerOptions').querySelectorAll('[data-inline-variation]').forEach(button => button.addEventListener('click', () => {
+            customizerVariation = button.dataset.inlineVariation;
+            el('bulkCustomizerOptions').querySelectorAll('[data-inline-variation]').forEach(item => {
+                const selected = item === button;
+                item.classList.toggle('is-selected', selected);
+                item.querySelector('.storefront-variation-check').textContent = selected ? '✓' : '';
+            });
+            updateCustomizerSelectionSummary();
+            updateCustomizerTotal();
+            syncCustomizerActions();
+        }));
         el('bulkCustomizer').classList.add('is-open');
         el('bulkCustomizer').setAttribute('aria-hidden', 'false');
+        el('storefrontExtraTrigger')?.addEventListener('click', openAddonSheet);
         syncBulkModalScrollLock();
+        updateCustomizerTotal();
+        syncCustomizerActions();
         setTimeout(() => el('bulkCustomizerClose').focus(), 0);
     }
 
@@ -1989,6 +2514,105 @@
         syncBulkModalScrollLock();
         customizingProduct = null;
         editingCartIndex = null;
+    }
+
+    function openAddonSheet() {
+        if (!usesEnhancedCustomizer || !customizingProduct) return;
+        customizerOptionsReviewed = true;
+        const options = el('bulkAddonOptions');
+        let sheetHtml = '';
+        if ((customizingProduct.extras || []).length) {
+            sheetHtml += `<section class="bulk-order-addon-section"><div class="bulk-order-addon-section-head"><h4>Adicionales</h4><span style="color:#777;font-size:.75rem">Opcional</span></div>${customizingProduct.extras.map(extra => `
+            <button type="button" class="bulk-order-addon-option ${customizerExtras.includes(extra.title) ? 'is-selected' : ''}" data-addon="${escapeHtml(extra.title)}" aria-pressed="${customizerExtras.includes(extra.title) ? 'true' : 'false'}">
+                <span class="bulk-order-addon-option-icon">${extra.image ? `<img src="${escapeHtml(extra.image)}" alt="">` : '<span aria-hidden="true">＋</span>'}</span>
+                <span class="bulk-order-addon-copy"><strong>${escapeHtml(extra.title)}</strong>${extra.description ? `<span>${escapeHtml(extra.description)}</span>` : ''}</span>
+                <small class="bulk-order-addon-price">${Number(extra.price) > 0 ? '+' + fmt(extra.price) : 'Incluido'}</small>
+            </button>`).join('')}</section>`;
+        }
+        options.innerHTML = sheetHtml;
+        options.querySelectorAll('[data-addon]').forEach(button => button.addEventListener('click', () => {
+            const title = button.dataset.addon;
+            customizerExtras = customizerExtras.includes(title)
+                ? customizerExtras.filter(value => value !== title)
+                : [...customizerExtras, title];
+            const selected = customizerExtras.includes(title);
+            button.classList.toggle('is-selected', selected);
+            button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+            updateCustomizerSelectionSummary();
+            updateCustomizerTotal();
+            syncCustomizerActions();
+        }));
+        el('bulkAddonSheet').classList.add('is-open');
+        el('bulkAddonSheet').setAttribute('aria-hidden', 'false');
+        syncCustomizerActions();
+    }
+
+    function closeAddonSheet() {
+        el('bulkAddonSheet')?.classList.remove('is-open');
+        el('bulkAddonSheet')?.setAttribute('aria-hidden', 'true');
+    }
+
+    function updateCustomizerSelectionSummary() {
+        const summary = el('storefrontExtraSummary');
+        if (!summary) return;
+        const count = customizerExtras.length;
+        summary.textContent = count ? `${count} elegidos` : '›';
+    }
+
+    function syncCustomizerActions() {
+        if (!customizingProduct) return;
+
+        const mustStartOrder = isStorefront && !window.storefrontOrder?.confirmed;
+        const hasOptionalExtras = (customizingProduct.extras || []).length > 0;
+        const missingRequiredOption = !mustStartOrder
+            && (customizingProduct.variations || []).length > 0
+            && !customizerVariation;
+        const shouldReviewOptions = !mustStartOrder && hasOptionalExtras && !customizerOptionsReviewed;
+        const mainButton = el('bulkCustomizerAdd');
+        const addonButton = el('bulkAddonAdd');
+        const status = el('bulkAddonStatus');
+        const footer = document.querySelector('#bulkCustomizer .bulk-order-modal-footer');
+        const finalLabel = editingCartIndex !== null ? 'Guardar cambios' : 'Agregar al carrito';
+
+        if (mainButton && !customizerSubmitting) {
+            mainButton.textContent = mustStartOrder
+                ? 'Elegir entrega y comenzar'
+                : (missingRequiredOption
+                    ? 'Elige una opción para continuar'
+                    : (shouldReviewOptions ? 'Revisar adicionales' : finalLabel));
+            // Las variaciones obligatorias se eligen en el detalle. El botón
+            // interno de adicionales permanece bloqueado si aún falta una.
+            mainButton.disabled = false;
+            mainButton.setAttribute('aria-disabled', 'false');
+        }
+        if (addonButton && !customizerSubmitting) {
+            addonButton.textContent = finalLabel;
+            addonButton.disabled = missingRequiredOption;
+            addonButton.setAttribute('aria-disabled', missingRequiredOption ? 'true' : 'false');
+        }
+        if (footer) {
+            footer.dataset.guide = mustStartOrder
+                ? ''
+                : (missingRequiredOption
+                    ? 'Selecciona una opción obligatoria'
+                    : (shouldReviewOptions
+                        ? 'Revisa los adicionales opcionales'
+                        : 'Listo para agregar a tu pedido'));
+        }
+        if (status && !customizerSubmitting) {
+            status.textContent = missingRequiredOption
+                ? 'Selecciona la opción obligatoria para continuar.'
+                : 'Tu selección está lista.';
+        }
+    }
+    window.syncStorefrontCustomizerActions = syncCustomizerActions;
+
+    function updateCustomizerTotal() {
+        if (!customizingProduct || !el('storefrontDetailTotal')) return;
+        const variation = usesEnhancedCustomizer ? customizerVariation : (document.querySelector('input[name="bulkVariation"]:checked')?.value || '');
+        const variationObject = (customizingProduct.variations || []).find(item => item.title === variation);
+        const extrasTotal = (customizingProduct.extras || []).filter(item => customizerExtras.includes(item.title)).reduce((sum, item) => sum + Number(item.price), 0);
+        el('storefrontDetailTotal').textContent = fmt((Number(variationObject ? variationObject.price : customizingProduct.price) + extrasTotal) * customizerQuantity);
     }
 
     function addProduct(p, configuration = {}) {
@@ -2001,8 +2625,9 @@
         const id = p.id;
         const key = id + '|' + variation + '|' + extras.join('|');
         const existing = cart.find(x => x.key === key);
+        const requestedQuantity = Math.max(p.min_qty || 1, Number(configuration.quantity || p.min_qty || 1));
         if (existing) {
-            existing.quantity = Math.min(existing.max_qty, existing.quantity + 1);
+            existing.quantity = Math.min(existing.max_qty, existing.quantity + requestedQuantity);
         } else {
             cart.push({
                 key,
@@ -2017,7 +2642,7 @@
                 description: p.description || '',
                 measurements: p.measurements || '',
                 price: unitPrice,
-                quantity: p.min_qty || 1,
+                quantity: Math.min(p.max_qty || 99, requestedQuantity),
                 min_qty: p.min_qty || 1,
                 max_qty: p.max_qty || 99,
                 allow_quantity: p.allow_quantity,
@@ -2096,6 +2721,7 @@
         box.querySelectorAll('[data-note]').forEach(ta => {
             ta.addEventListener('input', () => {
                 cart[Number(ta.dataset.note)].note = ta.value;
+                persistCart();
             });
         });
         box.querySelectorAll('[data-note-toggle]').forEach(button => {
@@ -2137,12 +2763,71 @@
         if (cartFab) {
             cartFab.classList.toggle('is-visible', count > 0);
             el('bulkCartFabCount').textContent = count > 99 ? '99+' : count;
+            if (el('bulkCartFabTotal')) el('bulkCartFabTotal').textContent = fmt(total);
         }
+        if (el('storefrontCartTotal')) el('storefrontCartTotal').textContent = fmt(total);
+        persistCart();
         updateFormEnabled();
     }
 
     el('bulkCartFab')?.addEventListener('click', () => {
-        el('bulkCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (isStorefront) {
+            const panel = el('bulkCartPanel');
+            const desktopPreview = window.matchMedia('(min-width: 900px)').matches;
+            panel?.classList.add('is-storefront-open');
+            panel?.classList.toggle('is-cart-preview', desktopPreview);
+            if (el('storefrontCartNext')) el('storefrontCartNext').textContent = desktopPreview ? 'Ver carrito' : 'Siguiente';
+            document.body.style.overflow = desktopPreview ? '' : 'hidden';
+        } else if (isKiosk) {
+            el('bulkCartPanel')?.classList.add('is-storefront-open');
+        } else {
+            el('bulkCartPanel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    });
+
+    function closeStorefrontCart() {
+        el('bulkCartPanel')?.classList.remove('is-storefront-open', 'is-cart-preview', 'is-checkout-step');
+        if (el('storefrontCartNext')) el('storefrontCartNext').textContent = 'Siguiente';
+        if (isKiosk && el('bulkSubmitBtn')) el('bulkSubmitBtn').textContent = 'Revisar y ordenar';
+        document.body.style.overflow = '';
+    }
+    el('storefrontCartBack')?.addEventListener('click', closeStorefrontCart);
+    el('storefrontContinueShopping')?.addEventListener('click', closeStorefrontCart);
+    const openStorefrontFulfillmentSelector = () => {
+        if (typeof window.openStorefrontOrderMode === 'function') {
+            window.openStorefrontOrderMode();
+        } else {
+            window.dispatchEvent(new CustomEvent('storefront:start-order'));
+        }
+    };
+    el('storefrontFulfillmentBar')?.addEventListener('click', openStorefrontFulfillmentSelector);
+    el('storefrontCartDeliveryChange')?.addEventListener('click', openStorefrontFulfillmentSelector);
+    el('storefrontCartClear')?.addEventListener('click', () => { cart = []; renderCart(); closeStorefrontCart(); });
+    el('storefrontCartPromotions')?.addEventListener('click', async () => {
+        closeStorefrontCart();
+        showingPromotions = true;
+        el('bulkSearch').value = '';
+        el('bulkCategory').value = '';
+        await loadCatalog();
+        if (!products.length) toast('No hay promociones disponibles en este momento.');
+        moveCatalogHeaderOutOfView();
+    });
+    el('storefrontCartNext')?.addEventListener('click', () => {
+        const panel = el('bulkCartPanel');
+        if (panel.classList.contains('is-cart-preview')) {
+            panel.classList.remove('is-cart-preview');
+            el('storefrontCartNext').textContent = 'Siguiente';
+            document.body.style.overflow = 'hidden';
+            panel.scrollTo({ top: 0 });
+            return;
+        }
+        if (!panel.classList.contains('is-checkout-step')) {
+            panel.classList.add('is-checkout-step');
+            el('storefrontCartNext').textContent = 'Confirmar pedido';
+            panel.scrollTo({ top: panel.scrollHeight, behavior: 'smooth' });
+            return;
+        }
+        el('bulkSubmitBtn')?.click();
     });
 
     el('bulkProductsUp')?.addEventListener('click', () => {
@@ -2157,8 +2842,28 @@
     window.addEventListener('resize', debounce(updateProductScrollControls, 120));
 
     el('bulkSearch').addEventListener('input', debounce(loadCatalog, 300));
-    el('bulkCategory').addEventListener('change', loadCatalog);
+    el('bulkCategory').addEventListener('change', () => { showingPromotions = false; loadCatalog(); });
     el('bulkCustomizerClose').addEventListener('click', closeCustomizer);
+    el('bulkAddonClose')?.addEventListener('click', closeAddonSheet);
+    el('bulkAddonSheet')?.addEventListener('click', event => { if (event.target === el('bulkAddonSheet')) closeAddonSheet(); });
+    el('storefrontDetailMinus')?.addEventListener('click', () => {
+        customizerQuantity = Math.max(customizingProduct?.min_qty || 1, customizerQuantity - 1);
+        el('storefrontDetailQty').textContent = customizerQuantity;
+        updateCustomizerTotal();
+    });
+    el('storefrontDetailPlus')?.addEventListener('click', () => {
+        customizerQuantity = Math.min(customizingProduct?.max_qty || 99, customizerQuantity + 1);
+        el('storefrontDetailQty').textContent = customizerQuantity;
+        updateCustomizerTotal();
+    });
+    el('storefrontPayNow')?.addEventListener('click', () => {
+        el('bulkCustomizerAdd')?.click();
+        setTimeout(() => {
+            el('bulkCartPanel')?.classList.add('is-storefront-open', 'is-checkout-step');
+            if (el('storefrontCartNext')) el('storefrontCartNext').textContent = 'Confirmar pedido';
+            document.body.style.overflow = 'hidden';
+        }, 0);
+    });
     el('bulkCustomizer').addEventListener('click', (event) => {
         if (event.target === el('bulkCustomizer')) closeCustomizer();
     });
@@ -2166,33 +2871,95 @@
         if (event.key !== 'Escape') return;
         if (el('contactCreateModal')?.classList.contains('is-open')) {
             closeContactCreate();
+        } else if (el('bulkAddonSheet')?.classList.contains('is-open')) {
+            closeAddonSheet();
         } else if (el('bulkCustomizer').classList.contains('is-open')) {
             closeCustomizer();
         }
     });
+
+    async function commitCustomizerSelection() {
+        if (!customizingProduct || customizerSubmitting) return;
+
+        const variation = usesEnhancedCustomizer ? customizerVariation : (document.querySelector('input[name="bulkVariation"]:checked')?.value || '');
+        const extras = usesEnhancedCustomizer ? customizerExtras : Array.from(document.querySelectorAll('input[name="bulkExtra"]:checked')).map(input => input.value);
+        if ((customizingProduct.variations || []).length && !variation) {
+            toast('Selecciona la opción obligatoria');
+            openAddonSheet();
+            return;
+        }
+
+        customizerSubmitting = true;
+        [el('bulkCustomizerAdd'), el('bulkAddonAdd')].filter(Boolean).forEach(button => {
+            button.disabled = true;
+            button.setAttribute('aria-busy', 'true');
+            button.classList.add('is-loading');
+            button.textContent = 'Agregando...';
+        });
+        if (el('bulkAddonStatus')) el('bulkAddonStatus').textContent = 'Agregando tu producto al carrito...';
+
+        // Permitimos que el navegador pinte el estado de carga antes de actualizar
+        // el carrito, especialmente útil en teléfonos de menor rendimiento.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        try {
+            if (editingCartIndex !== null && cart[editingCartIndex]) {
+                const line = cart[editingCartIndex];
+                const variationObj = (customizingProduct.variations || []).find(v => v.title === variation);
+                const extrasObjs = (customizingProduct.extras || []).filter(e => extras.includes(e.title));
+                line.variation = variation;
+                line.extras = extras;
+                line.extras_options = customizingProduct.extras || [];
+                line.variations = customizingProduct.variations || [];
+                line.base_price = Number(customizingProduct.price);
+                line.price = Number(variationObj ? variationObj.price : line.base_price)
+                    + extrasObjs.reduce((sum, extra) => sum + Number(extra.price), 0);
+                line.key = line.product_id + '|' + variation + '|' + extras.join('|');
+                if (isStorefront || isKiosk) line.quantity = customizerQuantity;
+                renderCart();
+                toast('Selección actualizada');
+            } else {
+                addProduct(customizingProduct, { variation, extras, quantity: customizerQuantity });
+            }
+            closeAddonSheet();
+            closeCustomizer();
+        } catch (error) {
+            console.error(error);
+            toast('No se pudo agregar el producto. Inténtalo nuevamente.');
+        } finally {
+            customizerSubmitting = false;
+            [el('bulkCustomizerAdd'), el('bulkAddonAdd')].filter(Boolean).forEach(button => {
+                button.removeAttribute('aria-busy');
+                button.classList.remove('is-loading');
+            });
+            syncCustomizerActions();
+        }
+    }
+
     el('bulkCustomizerAdd').addEventListener('click', () => {
         if (!customizingProduct) return;
-        const variation = document.querySelector('input[name="bulkVariation"]:checked')?.value || '';
-        const extras = Array.from(document.querySelectorAll('input[name="bulkExtra"]:checked')).map(input => input.value);
-        if (editingCartIndex !== null && cart[editingCartIndex]) {
-            const line = cart[editingCartIndex];
-            const variationObj = (customizingProduct.variations || []).find(v => v.title === variation);
-            const extrasObjs = (customizingProduct.extras || []).filter(e => extras.includes(e.title));
-            line.variation = variation;
-            line.extras = extras;
-            line.extras_options = customizingProduct.extras || [];
-            line.variations = customizingProduct.variations || [];
-            line.base_price = Number(customizingProduct.price);
-            line.price = Number(variationObj ? variationObj.price : line.base_price)
-                + extrasObjs.reduce((sum, extra) => sum + Number(extra.price), 0);
-            line.key = line.product_id + '|' + variation + '|' + extras.join('|');
-            renderCart();
-            toast('Selección actualizada');
-        } else {
-            addProduct(customizingProduct, { variation, extras });
+        if (isStorefront && !window.storefrontOrder?.confirmed) {
+            if (typeof window.openStorefrontOrderMode === 'function') {
+                window.openStorefrontOrderMode();
+            } else {
+                window.dispatchEvent(new CustomEvent('storefront:start-order'));
+            }
+            return;
         }
-        closeCustomizer();
+        const missingRequiredOption = (customizingProduct.variations || []).length > 0
+            && !customizerVariation;
+        if (usesEnhancedCustomizer && missingRequiredOption) {
+            el('storefrontVariationSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            toast('Selecciona una opción obligatoria para continuar');
+            return;
+        }
+        if (usesEnhancedCustomizer && (customizingProduct.extras || []).length > 0 && !customizerOptionsReviewed) {
+            openAddonSheet();
+            return;
+        }
+        commitCustomizerSelection();
     });
+    el('bulkAddonAdd')?.addEventListener('click', commitCustomizerSelection);
 
     if (isAgent) {
         el('contactSearch').addEventListener('input', debounce((e) => searchContacts(e.target.value), 300));
@@ -2277,20 +3044,40 @@
 
         const setKioskService = (type) => {
             kioskServiceType = type;
-            el('kioskServiceLlevar').classList.toggle('bulk-order-btn-primary', type === 'llevar');
-            el('kioskServiceLlevar').classList.toggle('bulk-order-btn-ghost', type !== 'llevar');
-            el('kioskServiceServir').classList.toggle('bulk-order-btn-primary', type === 'servir');
-            el('kioskServiceServir').classList.toggle('bulk-order-btn-ghost', type !== 'servir');
+            el('kioskServiceLlevar').classList.toggle('is-selected', type === 'llevar');
+            el('kioskServiceLlevar').setAttribute('aria-pressed', type === 'llevar' ? 'true' : 'false');
+            el('kioskServiceServir').classList.toggle('is-selected', type === 'servir');
+            el('kioskServiceServir').setAttribute('aria-pressed', type === 'servir' ? 'true' : 'false');
             el('kioskTableWrap').style.display = type === 'servir' ? 'block' : 'none';
             updateFormEnabled();
         };
         el('kioskServiceLlevar').addEventListener('click', () => setKioskService('llevar'));
         el('kioskServiceServir').addEventListener('click', () => setKioskService('servir'));
+        el('kioskPaymentMethod').addEventListener('change', event => {
+            el('kioskPaymentIcon').textContent = {
+                efectivo: '💵',
+                transferencia: '🏦',
+                tarjeta: '💳',
+            }[event.target.value] || '💵';
+        });
         el('kioskNewOrderBtn')?.addEventListener('click', () => window.location.reload());
+    }
+
+    if (isStorefront) {
+        // goHome() vive en storefront/show.blade.php (expuesta como
+        // window.goHome) -- ya limpia el DOM del catálogo, restaura el
+        // scroll y vuelve a la portada. Sin este botón el cliente quedaba
+        // atrapado en la pantalla de éxito, sin ninguna forma de salir.
+        el('storefrontSuccessHomeBtn')?.addEventListener('click', () => window.goHome?.());
     }
 
     el('bulkSubmitBtn').addEventListener('click', async () => {
         if (isSubmitting) return;
+        if (isKiosk && !el('bulkCartPanel')?.classList.contains('is-storefront-open')) {
+            el('bulkCartPanel')?.classList.add('is-storefront-open');
+            el('bulkSubmitBtn').textContent = 'Confirmar pedido';
+            return;
+        }
         if (isAgent && !selectedContact) {
             toast('Selecciona un cliente');
             return;
@@ -2306,6 +3093,25 @@
         if (!isAgent && !isKiosk && !Number(el('bulkBranch')?.value)) {
             toast('Selecciona la sucursal que atenderá tu pedido');
             el('bulkBranch')?.focus();
+            return;
+        }
+        if (isStorefront && (!el('storefrontCustomerName')?.value.trim() || !el('storefrontCustomerPhone')?.value.trim())) {
+            toast('Ingresa tu nombre y teléfono para continuar');
+            (el('storefrontCustomerName')?.value.trim() ? el('storefrontCustomerPhone') : el('storefrontCustomerName'))?.focus();
+            return;
+        }
+        if (isStorefront && el('storefrontInvoicePreference')?.value === 'invoice') {
+            const requiredInvoiceFields = ['storefrontBillingId', 'storefrontBillingLegalName', 'storefrontBillingAddress', 'storefrontBillingEmail'];
+            const missingInvoiceField = requiredInvoiceFields.find(id => !el(id)?.value.trim());
+            if (missingInvoiceField) {
+                toast('Completa todos los datos requeridos para la factura');
+                el(missingInvoiceField)?.focus();
+                return;
+            }
+        }
+        const storefrontProofFile = isStorefront ? el('storefrontPaymentProof')?.files?.[0] : null;
+        if (storefrontProofFile && storefrontProofFile.size > 12 * 1024 * 1024) {
+            toast('El comprobante debe pesar máximo 12 MB');
             return;
         }
         setSubmitting(true);
@@ -2330,6 +3136,23 @@
             }
             if (!isAgent && !isKiosk) {
                 payload.branch_id = Number(el('bulkBranch')?.value) || null;
+            }
+            if (isStorefront) {
+                payload.name = el('storefrontCustomerName').value.trim();
+                payload.phone = el('storefrontCustomerPhone').value.trim();
+                payload.email = el('storefrontCustomerEmail').value.trim() || null;
+                payload.payment_method = el('storefrontPaymentMethod').value;
+                payload.requires_invoice = el('storefrontInvoicePreference').value === 'invoice';
+                payload.billing_type = el('storefrontBillingType').value;
+                payload.billing_id = el('storefrontBillingId').value.trim() || null;
+                payload.billing_legal_name = el('storefrontBillingLegalName').value.trim() || null;
+                payload.billing_address = el('storefrontBillingAddress').value.trim() || null;
+                payload.billing_email = el('storefrontBillingEmail').value.trim() || null;
+                payload.service_type = window.storefrontOrder?.service_type || 'pickup';
+                payload.address = window.storefrontOrder?.address || null;
+                payload.reference = window.storefrontOrder?.reference || null;
+                payload.latitude = window.storefrontOrder?.latitude ?? null;
+                payload.longitude = window.storefrontOrder?.longitude ?? null;
             }
             if (isKiosk) {
                 payload.contact_id = selectedContact.id;
@@ -2384,6 +3207,51 @@
             if (isKiosk) {
                 el('bulkSuccessHint').textContent = '🧾 Pasa a caja con tu número de pedido para cancelar. ¡Gracias, ' + (data.contact_name || selectedContact.name || '') + '!';
             }
+            if (isStorefront && data.card_payment_redirect) {
+                el('bulkSuccessHint').textContent = data.message || 'Por el momento no procesamos pagos con tarjeta aquí. Continúa tu compra en línea de forma segura.';
+                const cardWrap = el('storefrontCardPaymentWrap');
+                el('storefrontCardPaymentLink').href = data.payment_url;
+                cardWrap.style.display = 'block';
+            }
+            if (isStorefront) {
+                const paymentStatus = el('storefrontSuccessPaymentStatus');
+                if (payload.payment_method === 'transferencia') {
+                    paymentStatus.style.display = 'block';
+                    paymentStatus.textContent = storefrontProofFile
+                        ? 'Cargando tu comprobante…'
+                        : 'Transferencia pendiente: podrás cargar el comprobante desde Mi cuenta.';
+                }
+                if (storefrontProofFile && data.proof_upload_url && data.order_access_token) {
+                    try {
+                        const proofData = new FormData();
+                        proofData.append('proof', storefrontProofFile);
+                        proofData.append('token', data.order_access_token);
+                        const proofResponse = await fetch(data.proof_upload_url, {
+                            method: 'POST',
+                            headers: {'Accept': 'application/json', 'X-CSRF-TOKEN': csrf},
+                            body: proofData,
+                        });
+                        const proofResult = await proofResponse.json();
+                        if (!proofResponse.ok || !proofResult.ok) throw new Error(proofResult.message || 'No se pudo cargar el comprobante.');
+                        paymentStatus.textContent = '✓ Comprobante recibido. El equipo verificará tu pago.';
+                    } catch (proofError) {
+                        paymentStatus.textContent = 'El pedido fue creado, pero no se pudo cargar el comprobante. Inténtalo desde Mi cuenta.';
+                    }
+                }
+                cart = [];
+                // renderCart() ya hace persistCart() y ya oculta bulkCartFab
+                // (toggle 'is-visible' según count) -- antes se armaba el
+                // array vacío pero nunca se llamaba renderCart(), así que el
+                // botón flotante del carrito seguía mostrando lo de antes de
+                // pedir, encima de la pantalla de éxito.
+                renderCart();
+                if (persistenceKey) localStorage.removeItem(persistenceKey + '_checkout');
+                window.clearStorefrontOrderState?.();
+                // Quedaba con scroll bloqueado (se fija en 'hidden' al abrir
+                // el checkout) y sin ningún botón de navegación visible --
+                // el cliente literalmente no podía salir de esta pantalla.
+                document.body.style.overflow = '';
+            }
         } catch (e) {
             const msg = e.name === 'AbortError'
                 ? 'La operación tardó demasiado. Revisa el listado de pedidos por si ya se registró.'
@@ -2395,6 +3263,13 @@
         }
     });
 
+    restoreStorefrontDraft();
+    if (isStorefront) {
+        syncStorefrontCheckoutFields();
+        ['storefrontCustomerName', 'storefrontCustomerPhone', 'storefrontCustomerEmail', 'storefrontPaymentMethod', 'storefrontInvoicePreference', 'storefrontBillingType', 'storefrontBillingId', 'storefrontBillingLegalName', 'storefrontBillingAddress', 'storefrontBillingEmail', 'bulkOrderNote']
+            .forEach(id => el(id)?.addEventListener(['storefrontPaymentMethod', 'storefrontInvoicePreference', 'storefrontBillingType'].includes(id) ? 'change' : 'input', () => { syncStorefrontCheckoutFields(); persistStorefrontDraft(); }));
+    }
+    renderCart();
     loadCatalog();
 })();
 </script>

@@ -2,12 +2,21 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class WhatsappContact extends Model
+/**
+ * También sirve como identidad de login del cliente en el storefront (guard
+ * "storefront_customer", ver config/auth.php) -- un contacto puede existir
+ * sin password (creado solo por escribirle al bot o hacer un pedido); recién
+ * tiene cuenta real cuando "reclama" su registro con una contraseña desde
+ * StorefrontAccountController::register().
+ */
+class WhatsappContact extends Model implements AuthenticatableContract
 {
-    use HasFactory;
+    use Authenticatable, HasFactory;
 
     protected $fillable = [
         'business_profile_id',
@@ -24,7 +33,13 @@ class WhatsappContact extends Model
         'bot_enabled',
         'last_inbound_message_id',
         'last_inbound_at',
-        'metadata'
+        'metadata',
+        'password',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
     protected $casts = [
@@ -32,7 +47,13 @@ class WhatsappContact extends Model
         'bot_enabled' => 'boolean',
         'last_inbound_at' => 'datetime',
         'birth_date' => 'date',
+        'password' => 'hashed',
     ];
+
+    public function hasAccountPassword(): bool
+    {
+        return filled($this->password);
+    }
 
     public function businessProfile()
     {
@@ -66,7 +87,7 @@ class WhatsappContact extends Model
 
     public function needsAgent(): bool
     {
-        return !empty($this->metadata['needs_agent']);
+        return ! empty($this->metadata['needs_agent']);
     }
 
     public function requestAgentHandoff(string $source = 'unknown'): void
@@ -82,7 +103,7 @@ class WhatsappContact extends Model
     public function clearAgentRequest(?int $handledByUserId = null): void
     {
         $metadata = $this->metadata ?? [];
-        $hadRequest = !empty($metadata['needs_agent']);
+        $hadRequest = ! empty($metadata['needs_agent']);
 
         unset($metadata['needs_agent'], $metadata['agent_requested_at'], $metadata['agent_request_source']);
 
@@ -91,7 +112,7 @@ class WhatsappContact extends Model
             $metadata['agent_handled_at'] = now()->toIso8601String();
         }
 
-        if (!$hadRequest && !isset($metadata['agent_handled_by'])) {
+        if (! $hadRequest && ! isset($metadata['agent_handled_by'])) {
             return;
         }
 
@@ -139,7 +160,7 @@ class WhatsappContact extends Model
      */
     public function hasReceivedPrivacyNotice(): bool
     {
-        return !empty($this->metadata['privacy_notice_sent_at']);
+        return ! empty($this->metadata['privacy_notice_sent_at']);
     }
 
     public function markPrivacyNoticeSent(): void
@@ -153,7 +174,7 @@ class WhatsappContact extends Model
     public function forgetPrivacyNoticeSent(): void
     {
         $metadata = $this->metadata ?? [];
-        if (!array_key_exists('privacy_notice_sent_at', $metadata)) {
+        if (! array_key_exists('privacy_notice_sent_at', $metadata)) {
             return;
         }
 
@@ -171,7 +192,7 @@ class WhatsappContact extends Model
     public function forgetFlowPosition(): void
     {
         $metadata = $this->metadata ?? [];
-        if (!array_key_exists('current_graph_node', $metadata)) {
+        if (! array_key_exists('current_graph_node', $metadata)) {
             return;
         }
 

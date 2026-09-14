@@ -41,6 +41,7 @@ class ChatbotController extends Controller
     public function menus()
     {
         $businessProfileId = $this->businessProfileId();
+        $pricesMenu = $this->getPricesMenu();
 
         $categories = WhatsappMenuItem::catalogCategories($businessProfileId)
             ->with('franchise:id,name,slug')
@@ -68,7 +69,47 @@ class ChatbotController extends Controller
             'demoClienteOptions' => $this->demoCliente->options(),
             'activeDemoCliente' => $this->demoCliente->activeKey(),
             'franchises' => Franchise::query()->where('is_active', true)->where('business_profile_id', $businessProfileId)->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'slug']),
+            'allProductsCategoryImage' => $this->categoryImages->resolveUrl(
+                data_get($pricesMenu->metadata, 'storefront_all_category_image')
+            ),
         ]);
+    }
+
+    /**
+     * Guarda la imagen de la categoría virtual "Todos" por empresa.
+     * No creamos una categoría falsa porque no debe asociarse a productos.
+     */
+    public function updateAllProductsCategoryImage(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'remove_image' => 'nullable|boolean',
+        ]);
+
+        if (! $request->hasFile('image') && ! $request->boolean('remove_image')) {
+            throw ValidationException::withMessages([
+                'image' => 'Selecciona una imagen o marca la opción para quitar la actual.',
+            ]);
+        }
+
+        $pricesMenu = $this->getPricesMenu();
+        $metadata = $pricesMenu->metadata ?? [];
+        $currentPath = data_get($metadata, 'storefront_all_category_image');
+
+        if ($request->boolean('remove_image')) {
+            $this->categoryImages->delete($currentPath);
+            unset($metadata['storefront_all_category_image']);
+        } elseif ($request->hasFile('image')) {
+            $metadata['storefront_all_category_image'] = $this->categoryImages->store(
+                $request->file('image'),
+                $currentPath,
+                'category-images'
+            );
+        }
+
+        $pricesMenu->update(['metadata' => $metadata]);
+
+        return back()->with('success', 'Imagen de la categoría Todos actualizada correctamente.');
     }
 
     /**
@@ -120,6 +161,7 @@ class ChatbotController extends Controller
         if ($legacyCardMessage !== '' && empty($config?->metadata['payment_templates']['card_payment'])) {
             $paymentTemplateDefinitions['card_payment']['body'] = $legacyCardMessage;
         }
+        $storefrontEnabled = (bool) ($config?->businessProfile?->company?->storefrontSetting?->storefront_enabled ?? false);
 
         return view('admin.chatbot.config', compact(
             'config',
@@ -128,7 +170,8 @@ class ChatbotController extends Controller
             'statusNotificationStates',
             'paymentTemplateDefinitions',
             'landing',
-            'notificationStatuses'
+            'notificationStatuses',
+            'storefrontEnabled'
         ));
     }
 
@@ -183,6 +226,7 @@ class ChatbotController extends Controller
     public function updateConfig(Request $request)
     {
         $validated = $request->validate([
+            'bot_is_active' => 'nullable|boolean',
             'bot_name' => 'nullable|string|max:255',
             'welcome_message' => 'nullable|string',
             'fallback_message' => 'nullable|string',
@@ -190,6 +234,7 @@ class ChatbotController extends Controller
             'abandoned_cart_timeout_minutes' => 'nullable|integer|min:5|max:10080',
             'iva_enabled' => 'nullable|boolean',
             'iva_percentage' => 'nullable|numeric|min:0|max:100',
+            'ecommerce_mode_enabled' => 'nullable|boolean',
             'bank_transfer_instructions' => 'nullable|string|max:1500',
             'card_payment_message' => 'nullable|string|max:1000',
             'card_payment_url' => 'nullable|url|starts_with:https://|max:500',
@@ -273,6 +318,7 @@ class ChatbotController extends Controller
         $metadata['abandoned_cart_timeout_minutes'] = $validated['abandoned_cart_timeout_minutes'] ?? null;
         $metadata['iva_enabled'] = $request->boolean('iva_enabled');
         $metadata['iva_percentage'] = $validated['iva_percentage'] ?? 0;
+        $metadata['ecommerce_mode_enabled'] = $request->boolean('ecommerce_mode_enabled');
         $metadata['bank_transfer_instructions'] = trim((string) ($validated['bank_transfer_instructions'] ?? '')) ?: null;
         if (array_key_exists('card_payment_message', $validated)) {
             $metadata['card_payment_message'] = trim((string) $validated['card_payment_message']) ?: null;
@@ -342,6 +388,11 @@ class ChatbotController extends Controller
         $metadata['landing'] = $landing;
 
         $config->metadata = $metadata;
+        // Interruptor global: apaga el bot para TODOS los clientes de este
+        // número, útil mientras se maneja la coexistencia con la app de
+        // WhatsApp Business a mano. No toca el toggle bot_enabled por
+        // contacto (ese sigue existiendo aparte).
+        $config->is_active = $request->boolean('bot_is_active');
         $config->welcome_message = $validated['welcome_message'] ?? $config->welcome_message;
         $config->default_response = $validated['fallback_message'] ?? $config->default_response;
         $config->monitoring_phone_number = $validated['monitoring_phone_number'] ?? null;

@@ -100,6 +100,7 @@ class WhatsappWebhookController extends Controller
 
             $processedMessages = 0;
             $processedStatuses = 0;
+            $processedEchoes = 0;
 
             // Meta puede agrupar varias cuentas, cambios y mensajes en una
             // misma petición. Recorrer todos evita perder mensajes silenciosamente.
@@ -157,6 +158,27 @@ class WhatsappWebhookController extends Controller
                         $this->whatsappService->processMessageStatus($status);
                         $processedStatuses++;
                     }
+
+                    // Coexistencia con la app de WhatsApp Business: cuando un
+                    // asesor responde desde el celular (no desde este panel),
+                    // Meta lo manda acá como "eco" en vez de en "messages".
+                    // Se usa para pausar el bot con ese cliente puntual -- ver
+                    // WhatsappService::processAgentAppReply().
+                    foreach (($value['message_echoes'] ?? []) as $echo) {
+                        if (! is_array($echo)) {
+                            continue;
+                        }
+
+                        try {
+                            $this->whatsappService->processAgentAppReply($echo);
+                            $processedEchoes++;
+                        } catch (\Throwable $exception) {
+                            Log::error('Error procesando eco de la app de WhatsApp Business', [
+                                'echo_id' => $echo['id'] ?? null,
+                                'error' => $exception->getMessage(),
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -164,6 +186,7 @@ class WhatsappWebhookController extends Controller
                 'entries' => count($entries),
                 'messages' => $processedMessages,
                 'statuses' => $processedStatuses,
+                'app_echoes' => $processedEchoes,
             ]);
 
             return response()->json([

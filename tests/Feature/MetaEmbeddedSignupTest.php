@@ -99,7 +99,13 @@ class MetaEmbeddedSignupTest extends TestCase
             && ($request['messaging_product'] ?? null) === 'whatsapp');
     }
 
-    public function test_coexistence_mode_is_saved_with_its_own_connection_type_without_changing_the_graph_handshake(): void
+    /**
+     * Bug real encontrado en producción: Meta rechaza /register para
+     * números en coexistencia ("Register endpoint is not available for SMB
+     * businesses", code 100) -- ese paso debe omitirse por completo para
+     * este modo, no reintentarse con datos distintos.
+     */
+    public function test_coexistence_mode_skips_the_register_step_that_meta_rejects_for_smb_numbers(): void
     {
         Http::fake([
             'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'COEX-TOKEN'], 200),
@@ -121,23 +127,22 @@ class MetaEmbeddedSignupTest extends TestCase
         $this->assertSame('whatsapp_business_app_coexistence', $profile->connection_type);
         $this->assertSame(WhatsappBusinessProfile::STATUS_CONNECTED, $profile->status);
 
-        // El mismo handshake server-to-server que el modo estándar: 5
-        // llamadas a Graph API (exchange, getPhoneNumber, getWaba,
-        // subscribed_apps, register) -- el paso de registro ya no se omite.
-        Http::assertSentCount(5);
-        Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/register')
-            && $request->method() === 'POST');
-        $this->assertNotNull($profile->two_factor_pin);
+        // Handshake de coexistencia: exchange, getPhoneNumber, getWaba,
+        // subscribed_apps -- SIN /register, que Meta rechaza para este modo.
+        Http::assertSentCount(4);
+        Http::assertNotSent(fn ($request) => str_contains((string) $request->url(), '/register'));
+        $this->assertNull($profile->two_factor_pin);
     }
 
     /**
-     * Bug real encontrado en producción: un reintento de conexión sobre un
-     * número que YA tiene un PIN de dos pasos establecido (de un registro
-     * anterior exitoso) generaba un PIN nuevo al azar -- Meta lo rechaza con
-     * "Two step verification PIN Mismatch" (133005) porque no coincide con
-     * el que ya quedó puesto la primera vez.
+     * Bug real encontrado en producción: un reintento de conexión estándar
+     * sobre un número que YA tiene un PIN de dos pasos establecido (de un
+     * registro anterior exitoso) generaba un PIN nuevo al azar -- Meta lo
+     * rechaza con "Two step verification PIN Mismatch" (133005) porque no
+     * coincide con el que ya quedó puesto la primera vez. Esto solo aplica
+     * al modo estándar -- coexistencia nunca llama a /register.
      */
-    public function test_retrying_connect_on_an_already_registered_number_reuses_the_stored_pin_instead_of_generating_a_new_one(): void
+    public function test_retrying_standard_connect_on_an_already_registered_number_reuses_the_stored_pin_instead_of_generating_a_new_one(): void
     {
         $company = $this->makeCompany('Dpikeo Retry Test');
 
@@ -151,7 +156,7 @@ class MetaEmbeddedSignupTest extends TestCase
             'access_token' => 'old-token',
             'two_factor_pin' => '482913',
             'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
-            'connection_type' => 'whatsapp_business_app_coexistence',
+            'connection_type' => 'embedded_signup',
         ]);
 
         Http::fake([
@@ -166,12 +171,50 @@ class MetaEmbeddedSignupTest extends TestCase
         ]);
 
         $profile = app(MetaEmbeddedSignupService::class)->connect(
-            $company, 'auth-code-retry', 'RETRY-WABA', 'RETRY-PHONE-ID', 'coexistence'
+            $company, 'auth-code-retry', 'RETRY-WABA', 'RETRY-PHONE-ID', 'standard'
         );
 
         $this->assertSame('482913', $profile->two_factor_pin);
 
         Http::assertSent(fn ($request) => str_contains((string) $request->url(), '/register')
             && ($request['pin'] ?? null) === '482913');
+    }
+
+    /**
+     * Bug real en producción: cuando Graph API rechaza el paso final de
+     * /register (número ya obtenido, WABA ya obtenida), el catch guardaba un
+     * registro "error" sin la columna phone_number (NOT NULL + única, sin
+     * default) -- el INSERT crudo tiraba una SQLSTATE que tapaba por completo
+     * el mensaje real de Meta ("No se pudo completar el registro del número
+     * en Cloud API").
+     */
+    public function test_a_register_failure_saves_an_error_row_without_crashing_and_keeps_the_real_message(): void
+    {
+        Http::fake([
+            'graph.facebook.com/*/oauth/access_token*' => Http::response(['access_token' => 'FAILING-TOKEN'], 200),
+            'graph.facebook.com/*/FAIL-PHONE-ID/register*' => Http::response(['error' => ['message' => 'Two step verification PIN Mismatch']], 400),
+            'graph.facebook.com/*/FAIL-PHONE-ID*' => Http::response([
+                'id' => 'FAIL-PHONE-ID',
+                'display_phone_number' => "D'pikeos",
+                'verified_name' => "D'pikeos",
+            ], 200),
+            'graph.facebook.com/*/FAIL-WABA*' => Http::response(['id' => 'FAIL-WABA', 'name' => "D'pikeos WABA"], 200),
+            'graph.facebook.com/*/subscribed_apps*' => Http::response(['success' => true], 200),
+        ]);
+
+        $company = $this->makeCompany("D'pikeos Register Fail Test");
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('No se pudo completar el registro del número en Cloud API.');
+
+        try {
+            app(MetaEmbeddedSignupService::class)->connect($company, 'auth-code-fail', 'FAIL-WABA', 'FAIL-PHONE-ID', 'standard');
+        } finally {
+            $profile = WhatsappBusinessProfile::where('company_id', $company->id)->where('phone_number_id', 'FAIL-PHONE-ID')->first();
+            $this->assertNotNull($profile, 'Debe quedar un registro de error, no una excepción SQL cruda.');
+            $this->assertSame(WhatsappBusinessProfile::STATUS_ERROR, $profile->status);
+            $this->assertNotNull($profile->phone_number);
+            $this->assertStringContainsString('No se pudo completar el registro del número en Cloud API.', $profile->metadata['last_error'] ?? '');
+        }
     }
 }

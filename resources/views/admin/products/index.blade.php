@@ -667,13 +667,17 @@
                         </div>
                         <div class="col-md-6">
                             <label for="variations" class="form-label">Variaciones</label>
-                            <textarea id="variations" name="variations" rows="3" class="form-control form-control-sm" placeholder="Con gaseosa | 5.99&#10;Sin gaseosa | 5.40"></textarea>
-                            <div class="form-hint">Una por línea. Formato: nombre | precio.</div>
+                            <textarea id="variations" name="variations" rows="3" class="form-control form-control-sm" placeholder="Con gaseosa | Incluye bebida de 355 ml | 5.99&#10;Sin gaseosa | No incluye bebida | 5.40"></textarea>
+                            <div class="form-hint">Una por línea. Formato: nombre | descripción | precio.</div>
                         </div>
                         <div class="col-md-6">
                             <label for="extras" class="form-label">Extras</label>
-                            <textarea id="extras" name="extras" rows="3" class="form-control form-control-sm" placeholder="Salsa Spice Chicken | 0.50&#10;Papas extra | 1.00"></textarea>
-                            <div class="form-hint">Una por línea. El precio puede quedar vacío si se cotiza.</div>
+                            <textarea id="extras" name="extras" rows="3" class="form-control form-control-sm" placeholder="Salsa Spice Chicken | Porción individual | 0.50&#10;Papas extra | Porción adicional | 1.00"></textarea>
+                            <div class="form-hint">Una por línea: nombre | descripción | precio. La descripción y el precio pueden quedar vacíos.</div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="refreshExtraImages">
+                                <i class="fas fa-images me-1"></i> Administrar imágenes
+                            </button>
+                            <div id="extraImageManager" class="mt-2"></div>
                         </div>
                         <div class="col-md-6">
                             <label for="franchise_id" class="form-label">Franquicia</label>
@@ -798,6 +802,7 @@ let productModal = null;
 let productToast = null;
 let duplicateProductModal = null;
 let duplicateProductId = null;
+let currentExtraItems = [];
 
 function esc(s) {
     const d = document.createElement('div');
@@ -820,6 +825,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('importProductsForm')?.addEventListener('submit', submitImportForm);
     document.getElementById('importProductsModal')?.addEventListener('hidden.bs.modal', resetImportModal);
     document.getElementById('product_image')?.addEventListener('change', previewProductImage);
+    document.getElementById('refreshExtraImages')?.addEventListener('click', refreshExtraImageManager);
+    document.getElementById('extras')?.addEventListener('change', refreshExtraImageManager);
     document.getElementById('select-all-products')?.addEventListener('change', toggleSelectAllVisible);
     document.querySelectorAll('.product-select').forEach(cb => cb.addEventListener('change', updateBulkBar));
     document.getElementById('bulk-activate-btn')?.addEventListener('click', () => bulkUpdateStatus(true));
@@ -832,6 +839,8 @@ function openCreateModal() {
     currentProductId = null;
     document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Nuevo producto';
     document.getElementById('productForm').reset();
+    currentExtraItems = [];
+    renderExtraImageManager([]);
     document.getElementById('is_active').checked = true;
     document.getElementById('allow_quantity_selection').checked = true;
     document.getElementById('min_quantity').value = 1;
@@ -840,6 +849,49 @@ function openCreateModal() {
     resetProductImagePreview();
     hideFormErrors();
     productModal.show();
+}
+
+function extrasFromText() {
+    return (document.getElementById('extras')?.value || '').split(/\r?\n/).map(line => {
+        const parts = line.split('|').map(part => part.trim());
+        return {
+            title: parts[0] || '',
+            description: parts.length >= 3 ? parts[1] : '',
+            price: parts.length >= 3 ? parts[2] : (parts[1] || ''),
+        };
+    }).filter(item => item.title);
+}
+
+function refreshExtraImageManager() {
+    const existingByTitle = new Map(currentExtraItems.map(item => [String(item.title || '').toLowerCase(), item]));
+    const items = extrasFromText().map((item, index) => ({
+        ...(existingByTitle.get(item.title.toLowerCase()) || currentExtraItems[index] || {}),
+        ...item,
+    }));
+    currentExtraItems = items;
+    renderExtraImageManager(items);
+}
+
+function renderExtraImageManager(items) {
+    const manager = document.getElementById('extraImageManager');
+    if (!manager) return;
+    if (!items.length) {
+        manager.innerHTML = '<div class="small text-muted border rounded p-2">Escribe los adicionales arriba y pulsa “Administrar imágenes”.</div>';
+        return;
+    }
+
+    manager.innerHTML = items.map((item, index) => `
+        <div class="d-flex align-items-center gap-2 border rounded p-2 mb-2" data-extra-image-row="${index}">
+            <div class="rounded bg-light d-grid overflow-hidden" style="width:48px;height:48px;place-items:center;flex:0 0 48px">
+                ${item.image_url ? `<img src="${esc(item.image_url)}" alt="" style="width:42px;height:42px;object-fit:contain">` : '<i class="fas fa-plus text-secondary"></i>'}
+            </div>
+            <div class="flex-grow-1" style="min-width:0">
+                <strong class="d-block small text-truncate">${esc(item.title)}</strong>
+                <input type="file" class="form-control form-control-sm mt-1" data-extra-image accept="image/jpeg,image/png,image/webp">
+                ${item.image_url ? '<label class="small text-danger mt-1"><input type="checkbox" data-remove-extra-image> Quitar imagen</label>' : ''}
+            </div>
+        </div>
+    `).join('');
 }
 
 function resetProductImagePreview() {
@@ -965,6 +1017,8 @@ function openEditModal(id) {
         document.getElementById('franchise_id').value = data.franchise_id || '';
         document.getElementById('variations').value = data.variations || '';
         document.getElementById('extras').value = data.extras || '';
+        currentExtraItems = data.extra_items || [];
+        renderExtraImageManager(currentExtraItems);
         document.getElementById('is_active').checked = !!data.is_active;
         document.getElementById('allow_quantity_selection').checked = data.allow_quantity_selection !== false;
         setProductImagePreview(data.image_url || '');
@@ -993,6 +1047,14 @@ function submitProductForm(e) {
     formData.append('characteristics', document.getElementById('characteristics').value);
     formData.append('variations', document.getElementById('variations').value);
     formData.append('extras', document.getElementById('extras').value);
+    document.querySelectorAll('[data-extra-image-row]').forEach(row => {
+        const index = row.dataset.extraImageRow;
+        const file = row.querySelector('[data-extra-image]')?.files?.[0];
+        if (file) formData.append(`extra_images[${index}]`, file);
+        if (row.querySelector('[data-remove-extra-image]')?.checked) {
+            formData.append(`remove_extra_images[${index}]`, '1');
+        }
+    });
     formData.append('stock', document.getElementById('stock').value);
     formData.append('min_quantity', document.getElementById('min_quantity').value);
     formData.append('max_quantity', document.getElementById('max_quantity').value);

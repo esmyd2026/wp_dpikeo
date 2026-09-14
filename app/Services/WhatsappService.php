@@ -89,17 +89,31 @@ class WhatsappService
         ];
     }
 
+    /**
+     * Interruptor global (WhatsappChatbotConfig->is_active, por número/
+     * business_profile) por encima del toggle por contacto -- pensado para
+     * apagar el bot para TODOS los clientes de ese número, por ejemplo
+     * mientras se maneja a mano la coexistencia con la app de WhatsApp
+     * Business.
+     */
     protected function botMayRespondToContact($contact): bool
     {
+        if (! ($this->scopedChatbotConfig()?->is_active ?? true)) {
+            return false;
+        }
+
         return app(PlatformBillingService::class)->botMayRespondToContact($contact);
     }
 
     protected function logBotBlocked(string $context, $contact, array $extra = []): void
     {
         $billing = app(PlatformBillingService::class);
+        $reason = ! ($this->scopedChatbotConfig()?->is_active ?? true)
+            ? 'bot_globally_disabled'
+            : $billing->botBlockReason($contact);
 
         Log::info("[{$context}] 🛑 Bot no responde", array_merge([
-            'reason' => $billing->botBlockReason($contact),
+            'reason' => $reason,
             'contact_id' => $contact->id ?? null,
             'bot_enabled' => $contact->bot_enabled ?? null,
         ], $extra));
@@ -3701,6 +3715,48 @@ class WhatsappService
         ];
     }
 
+    /**
+     * Enlace al micrositio real (StorefrontController::show) -- no al
+     * formulario liviano de sendBulkWebOrderLink() (/pedido/{token}), que no
+     * cubre entrega, sucursal, pago, factura ni comprobante. Se usa cuando
+     * "ecommerce_mode_enabled" está activo (ver getProductsMenu()/
+     * getOrderMenu()). Devuelve null si no hay empresa resuelta o su tienda
+     * en línea todavía no está activada, para que el llamador caiga al flujo
+     * nativo de siempre en vez de mandar un enlace que da error 404.
+     */
+    private function sendStorefrontRedirectLink(WhatsappContact $contact, bool $forOrderTracking = false): ?array
+    {
+        $company = $this->businessProfile?->company;
+        if (! $company || ! $company->storefrontSetting?->storefront_enabled) {
+            return null;
+        }
+
+        $url = $forOrderTracking
+            ? route('storefront.show', ['company' => $company, 'cuenta' => 'pedidos'])
+            : route('storefront.show', $company);
+
+        $businessLabel = $this->scopedChatbotConfig()?->bot_name ?: ($this->businessProfile?->business_name ?: 'nuestra tienda');
+
+        $body = $forOrderTracking
+            ? "📦 *Consulta tu pedido en {$businessLabel}*\n\nEntra al link y toca *Mi cuenta* para ver el estado, tu comprobante y tu factura."
+            : "🛍️ *Pide en línea con {$businessLabel}*\n\nElige tus productos, entrega, pago y factura, todo en una sola pantalla.";
+
+        return [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'cta_url',
+                'body' => ['text' => $body],
+                'action' => [
+                    'name' => 'cta_url',
+                    'parameters' => [
+                        'display_text' => $forOrderTracking ? 'Ver mi pedido' : 'Ver tienda',
+                        'url' => $url,
+                    ],
+                ],
+            ],
+        ];
+    }
+
     public function finalizeBulkWebOrder(WhatsappCart $cart): string
     {
         $cart->status = WhatsappCart::STATUS_PENDING;
@@ -5187,6 +5243,21 @@ class WhatsappService
             ])
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * "En curso" en modo nativo = un carrito 'active' (todavía se está
+     * armando, no se envió) con al menos un item ya agregado. Se usa para no
+     * sacar a un cliente a mitad de camino hacia el micrositio si ya había
+     * empezado a pedir por WhatsApp antes de este punto (o antes de que se
+     * activara el modo tienda en línea). Ver getProductsMenu().
+     */
+    private function hasNativeCartInProgress(WhatsappContact $contact): bool
+    {
+        return WhatsappCart::where('contact_id', $contact->id)
+            ->where('status', 'active')
+            ->whereHas('items')
+            ->exists();
     }
 
     private function buildActiveOrderStatusResponse(WhatsappContact $contact): ?array
@@ -7163,6 +7234,13 @@ class WhatsappService
 
     private function getProductsMenu(?WhatsappContact $contact = null, ?int $categoryId = null)
     {
+        if ($contact
+            && ($this->scopedChatbotConfig()?->ecommerce_mode_enabled ?? false)
+            && ! $this->hasNativeCartInProgress($contact)
+            && ($redirect = $this->sendStorefrontRedirectLink($contact))) {
+            return $redirect;
+        }
+
         try {
             $builder = app(MarketingCatalogBuilder::class, ['businessProfile' => $this->businessProfile]);
 
@@ -7371,6 +7449,11 @@ class WhatsappService
                     'type' => 'text',
                     'text' => ['body' => 'Lo siento, no se pudo identificar tu contacto. Por favor, envía un mensaje primero.'],
                 ];
+            }
+
+            if (($this->scopedChatbotConfig()?->ecommerce_mode_enabled ?? false)
+                && ($redirect = $this->sendStorefrontRedirectLink($contact, true))) {
+                return $redirect;
             }
 
             $intro = '';
@@ -9958,6 +10041,72 @@ class WhatsappService
         foreach ($numbers as $number) {
             $this->sendStaffAlert($number, $body);
         }
+    }
+
+    /**
+     * Coexistencia con la app de WhatsApp Business: Meta manda un "eco" por
+     * este webhook (campo smb_message_echoes) cuando un asesor le contesta a
+     * un cliente desde el celular en vez de por este panel/bot. Se usa para
+     * pausar el bot con ESE cliente puntual (no globalmente) mientras el
+     * asesor sigue atendiéndolo a mano, para que el bot no se cruce a mitad
+     * de conversación. Requiere setWebhookPhoneNumberId() ya llamado antes
+     * (mismo requisito que processIncomingMessage()).
+     *
+     * Forma real del payload (confirmada con la documentación de Meta):
+     * {"from": "<número del negocio>", "to": "<número del cliente>",
+     *  "id": "<wamid>", "type": "text"|"image"|"revoke"|"edit"|..., ...}.
+     */
+    public function processAgentAppReply(array $echo): void
+    {
+        $customerPhone = $echo['to'] ?? null;
+        $messageId = $echo['id'] ?? null;
+        if (! $customerPhone || ! $messageId || ! $this->businessProfile) {
+            return;
+        }
+
+        $contact = WhatsappContact::firstOrCreate(
+            ['business_profile_id' => $this->businessProfile->id, 'phone_number' => $customerPhone],
+            // bot_enabled explícito: el default de columna (true) no queda
+            // reflejado en la instancia recién creada en memoria, así que
+            // sin esto el chequeo de abajo lo trataría como ya apagado.
+            ['name' => 'Contacto sin nombre', 'status' => 'active', 'bot_enabled' => true]
+        );
+
+        if ($contact->bot_enabled) {
+            $contact->update(['bot_enabled' => false]);
+
+            Log::info('[processAgentAppReply] Bot pausado para este cliente: un asesor le respondió desde la app de WhatsApp Business', [
+                'contact_id' => $contact->id,
+            ]);
+        }
+
+        $type = (string) ($echo['type'] ?? 'unknown');
+        $content = match ($type) {
+            'text' => (string) ($echo['text']['body'] ?? ''),
+            'revoke' => '(mensaje eliminado desde la app)',
+            'edit' => (string) ($echo['text']['body'] ?? $echo['edit']['body'] ?? '(mensaje editado desde la app)'),
+            default => "[{$type} enviado desde la app de WhatsApp Business]",
+        };
+
+        // firstOrCreate por message_id: si Meta reenvía el mismo webhook, no
+        // duplica la fila ni vuelve a tocar bot_enabled innecesariamente.
+        WhatsappMessage::firstOrCreate(
+            ['message_id' => $messageId],
+            [
+                'business_profile_id' => $this->businessProfile->id,
+                'contact_id' => $contact->id,
+                'sender_type' => 'humano',
+                'receiver_type' => 'client',
+                'content' => $content,
+                'type' => $type === 'text' ? 'text' : $type,
+                'status' => 'sent',
+                'metadata' => [
+                    'human_sent' => true,
+                    'human_sent_at' => now()->toIso8601String(),
+                    'sent_via' => 'whatsapp_business_app',
+                ],
+            ]
+        );
     }
 
     private function triggerAgentHandoff(WhatsappContact $contact, string $phone, string $source = 'unknown'): void

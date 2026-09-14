@@ -28,6 +28,7 @@ class AdminBulkOrderController extends Controller
 
     public function create(Request $request): View
     {
+        $company = CompanyContext::current()->company;
         $initialContact = null;
         if ($request->filled('contact')) {
             $contact = WhatsappContact::query()
@@ -51,6 +52,7 @@ class AdminBulkOrderController extends Controller
             'contactsCreateUrl' => route('admin.orders.bulk.contacts.store'),
             'ordersUrl' => route('admin.orders'),
             'branches' => BusinessBranch::query()->forUserAccess($request->user(), $this->businessProfileId())->availableForOrders()->orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'code', 'is_default']),
+            'storefrontSettings' => $company?->storefrontSetting,
         ]);
     }
 

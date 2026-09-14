@@ -14,6 +14,7 @@
         'branches' => $branches,
         'initialContact' => $initialContact,
         'headerTitle' => 'Nuevo pedido',
+        'storefrontSettings' => $storefrontSettings ?? null,
         'successWhatsappHint' => 'El pedido quedó registrado en el panel.',
     ])
 </div>

@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\User;
+use App\Models\WhatsappContact;
+
 return [
 
     /*
@@ -40,6 +43,11 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'storefront_customer' => [
+            'driver' => 'session',
+            'provider' => 'whatsapp_contacts',
+        ],
     ],
 
     /*
@@ -62,7 +70,12 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => User::class,
+        ],
+
+        'whatsapp_contacts' => [
+            'driver' => 'eloquent',
+            'model' => WhatsappContact::class,
         ],
 
         // 'users' => [

@@ -109,6 +109,19 @@ class WhatsappChatbotConfig extends Model
     }
 
     /**
+     * Cuando está activo, el bot no arma el pedido nativo por WhatsApp: al
+     * tocar "Productos" o "Ver Pedidos" manda un link al micrositio en vez
+     * de eso, para evitar el costo por conversación de Meta que genera el
+     * diálogo largo de catálogo. No interrumpe un carrito nativo que el
+     * cliente ya haya empezado antes de este punto (ver
+     * WhatsappService::hasNativeCartInProgress()).
+     */
+    public function getEcommerceModeEnabledAttribute(): bool
+    {
+        return (bool) ($this->metadata['ecommerce_mode_enabled'] ?? false);
+    }
+
+    /**
      * El mensaje de confirmación del pedido ya trae un enlace para ver/
      * descargar el PDF (ver OrderPdfService::signedDownloadUrl) -- esto
      * controla si, además, se le manda el archivo PDF como documento

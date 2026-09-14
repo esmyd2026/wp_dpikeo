@@ -25,7 +25,10 @@
             <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-green-600 text-white hover:bg-green-700">Guardar</button>
         </form>
         @error('name')<p class="text-xs text-red-600 mb-2">{{ $message }}</p>@enderror
-        <p class="text-sm text-gray-600 mb-6">Números de WhatsApp conectados a esta empresa.</p>
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <p class="text-sm text-gray-600">Números de WhatsApp conectados a esta empresa.</p>
+            <a href="{{ route('admin.empresas.storefront.edit', $company) }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-sm font-semibold"><i class="fas fa-store mr-2"></i>Diseño de tienda</a>
+        </div>
 
         @php
             $usableAccounts = $accounts->where('status', 'connected');
@@ -119,6 +122,15 @@
                                             <a href="#form-conexion-manual" class="block px-3 py-2 hover:bg-gray-50 text-gray-700">
                                                 <i class="fas fa-sliders mr-1 text-gray-400"></i> Configurar
                                             </a>
+                                        @endif
+                                        @if($accounts->count() > 1)
+                                            <button type="button"
+                                                class="js-clonar-config block w-full text-left px-3 py-2 hover:bg-blue-50 text-blue-700"
+                                                data-clone-url="{{ route('admin.empresas.whatsapp.profile.clone-config', [$company, $account]) }}"
+                                                data-profile-name="{{ $account->display_name ?: $account->business_name }}"
+                                                data-other-accounts="{{ $accounts->reject(fn ($a) => $a->id === $account->id)->map(fn ($a) => ['id' => $a->id, 'label' => ($a->display_name ?: $a->business_name).' · '.($a->phone_number ?: 'sin número')])->values()->toJson() }}">
+                                                <i class="fas fa-copy mr-1"></i> Copiar configuración desde otro número
+                                            </button>
                                         @endif
                                         @if($isConnected && !$account->is_primary)
                                             <form action="{{ route('admin.empresas.whatsapp.profile.set-primary', [$company, $account]) }}" method="POST">
@@ -388,6 +400,53 @@
     </div>
 </div>
 
+{{-- Modal compartido: copiar configuración desde otro número de la misma
+     empresa (ver CompanyWhatsappController::cloneConfig y
+     WhatsappProfileConfigCloner). Solo funciona si el número destino
+     todavía no tiene su propia configuración -- no hay merge parcial. --}}
+<div id="modal-clonar-config" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/40 p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+            <h3 class="text-base font-semibold text-gray-900">Copiar configuración</h3>
+            <button type="button" class="js-cerrar-modal-clonar text-gray-400 hover:text-gray-600">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        <form id="modal-clonar-form" method="POST">
+            @csrf
+            <div class="px-5 py-4 text-sm text-gray-700 space-y-3">
+                <p class="text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 text-xs">
+                    Copia categorías, productos e inventario, sucursales, franquicias, palabras clave,
+                    configuración del bot (incluye el flujo visual), FAQs, botones, repartidores y clientes
+                    hacia <strong id="modal-clonar-destino">este número</strong>. Las conversaciones y los
+                    pedidos <strong>no</strong> se copian: quedan ligados al número donde ocurrieron de verdad.
+                </p>
+                <div>
+                    <label for="modal-clonar-select" class="block text-xs font-medium text-gray-700 mb-1">
+                        Copiar la configuración de:
+                    </label>
+                    <select id="modal-clonar-select" name="source_profile_id" required
+                        class="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </select>
+                </div>
+                <p class="text-xs text-gray-500">
+                    Solo funciona si este número todavía no tiene su propia configuración (por ejemplo, recién
+                    lo conectaste). Si ya tiene categorías, productos o sucursales propias, esta acción se
+                    rechaza para no duplicar ni pisar nada.
+                </p>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+                <button type="button" class="js-cerrar-modal-clonar text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200">
+                    Cancelar
+                </button>
+                <button type="submit" class="text-xs px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700">
+                    Copiar configuración
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @push('scripts')
 <script>
     (function () {
@@ -613,6 +672,39 @@
             btn.addEventListener('click', () => {
                 eliminarModal.classList.add('hidden');
                 eliminarModal.classList.remove('flex');
+            });
+        });
+
+        // ---- Modal "Copiar configuración" ----
+        const clonarModal = document.getElementById('modal-clonar-config');
+        const clonarForm = document.getElementById('modal-clonar-form');
+        const clonarSelect = document.getElementById('modal-clonar-select');
+        const clonarDestino = document.getElementById('modal-clonar-destino');
+
+        document.querySelectorAll('.js-clonar-config').forEach((btn) => {
+            btn.addEventListener('click', function () {
+                clonarForm.action = btn.dataset.cloneUrl;
+                clonarDestino.textContent = btn.dataset.profileName || 'este número';
+
+                clonarSelect.innerHTML = '';
+                let others = [];
+                try { others = JSON.parse(btn.dataset.otherAccounts || '[]'); } catch (e) { others = []; }
+                others.forEach((account) => {
+                    const option = document.createElement('option');
+                    option.value = account.id;
+                    option.textContent = account.label;
+                    clonarSelect.appendChild(option);
+                });
+
+                clonarModal.classList.remove('hidden');
+                clonarModal.classList.add('flex');
+            });
+        });
+
+        document.querySelectorAll('.js-cerrar-modal-clonar').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                clonarModal.classList.add('hidden');
+                clonarModal.classList.remove('flex');
             });
         });
     })();

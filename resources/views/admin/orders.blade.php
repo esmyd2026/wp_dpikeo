@@ -1107,7 +1107,7 @@
                                 || $cancellationRequested
                                 || $showsInvoiceTag
                                 || $fulfillmentServiceType;
-                            $allowedStatusTransitions = $statusTransitions[$order->status] ?? [];
+                            $allowedStatusTransitions = OrderLifecycleService::allowedTransitionsFor($order->status, $order->payment_method);
                             // Si ya llegó el comprobante, "Esperando pago" es
                             // engañoso -- no se espera nada más del cliente,
                             // el pedido queda en cancha del operador.
@@ -1191,6 +1191,7 @@
                                         id="status-button-{{ $order->id }}"
                                         data-current-status="{{ $order->status }}"
                                         data-order-number="{{ $order->getOrderNumber() }}"
+                                        data-payment-method="{{ $order->payment_method }}"
                                         data-fulfillment-pickup-mode="{{ $fulfillmentPickupMode }}"
                                         onclick="openStatusModal({{ $order->id }}, this)"
                                         aria-haspopup="dialog" aria-label="Cambiar etapa de {{ $order->getOrderNumber() }}">
@@ -1968,12 +1969,18 @@ function addOrderNote(e, type) {
 
 function openStatusModal(orderId, triggerEl) {
     const currentStatus = triggerEl.getAttribute('data-current-status');
-    const allowedStatuses = STATUS_TRANSITIONS[currentStatus] || [];
+    let allowedStatuses = STATUS_TRANSITIONS[currentStatus] || [];
+    // En efectivo no hay comprobante que verificar -- el pago se confirma al
+    // entregar el pedido, no marcando "Pago recibido" desde el panel (ver el
+    // mismo guard en OrderLifecycleService::transition()).
+    if (triggerEl.dataset.paymentMethod === 'efectivo') {
+        allowedStatuses = allowedStatuses.filter(status => status !== 'paid');
+    }
     if (!allowedStatuses.length) {
         showToast('Este pedido ya está en un estado final y no admite más cambios.', 'error');
         return;
     }
-    pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null };
+    pendingStatusChange = { orderId, triggerEl, currentStatus, newStatus: null, paymentMethod: triggerEl.dataset.paymentMethod };
 
     // Pedido explícito: el atajo a repartidor solo tiene sentido cuando el
     // pedido ya está "Listo" -- antes de eso (recién pagado, en cocina...)
@@ -1986,7 +1993,7 @@ function openStatusModal(orderId, triggerEl) {
     document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);
     document.getElementById('statusModalCurrent').textContent = STATUS_LABELS[currentStatus] || currentStatus;
     document.getElementById('statusConfirmation').hidden = true;
-    updateStatusProgress(currentStatus);
+    updateStatusProgress(currentStatus, pendingStatusChange.paymentMethod);
 
     const confirmButton = document.getElementById('confirmStatusButton');
     confirmButton.disabled = true;
@@ -2023,7 +2030,7 @@ function selectOrderStatus(status, optionEl) {
     document.getElementById('statusFromLabel').textContent = STATUS_LABELS[pendingStatusChange.currentStatus] || pendingStatusChange.currentStatus;
     document.getElementById('statusToLabel').textContent = STATUS_LABELS[status] || status;
     document.getElementById('statusConfirmation').hidden = false;
-    updateStatusProgress(status);
+    updateStatusProgress(status, pendingStatusChange.paymentMethod);
 
     const confirmButton = document.getElementById('confirmStatusButton');
     confirmButton.disabled = false;
@@ -2031,18 +2038,29 @@ function selectOrderStatus(status, optionEl) {
     confirmButton.innerHTML = `<i class="fas ${status === 'cancelled' ? 'fa-ban' : 'fa-check'}"></i> Confirmar: ${esc(STATUS_LABELS[status] || status)}`;
 }
 
-function updateStatusProgress(status) {
+function updateStatusProgress(status, paymentMethod) {
     const progress = document.getElementById('statusProgress');
     if (!progress) return;
 
-    const normalizedStatus = ['payment_pending', 'paid'].includes(status) ? 'payment' : status;
-    const order = ['pending', 'payment', 'confirmed', 'preparing', 'ready', 'completed'];
+    // En efectivo no existe una etapa de pago independiente -- el pedido
+    // pasa de "pending" directo a "confirmed" y el dinero se recibe recién
+    // al entregar, así que no hay nada que marcar como "pago" completado
+    // antes de eso (mismo criterio que en el detalle del cliente y en
+    // OrderLifecycleService).
+    const isCash = paymentMethod === 'efectivo';
+    const normalizedStatus = !isCash && ['payment_pending', 'paid'].includes(status) ? 'payment' : status;
+    const order = isCash
+        ? ['pending', 'confirmed', 'preparing', 'ready', 'completed']
+        : ['pending', 'payment', 'confirmed', 'preparing', 'ready', 'completed'];
     const currentIndex = order.indexOf(normalizedStatus);
     progress.classList.toggle('is-cancelled', status === 'cancelled');
 
-    progress.querySelectorAll('.status-progress-step').forEach((step, index) => {
-        step.classList.toggle('is-complete', currentIndex >= 0 && index < currentIndex);
-        step.classList.toggle('is-current', currentIndex >= 0 && index === currentIndex);
+    progress.querySelectorAll('.status-progress-step').forEach(step => {
+        const flowStatus = step.dataset.flowStatus;
+        step.hidden = isCash && flowStatus === 'payment';
+        const stepIndex = order.indexOf(flowStatus);
+        step.classList.toggle('is-complete', currentIndex >= 0 && stepIndex >= 0 && stepIndex < currentIndex);
+        step.classList.toggle('is-current', currentIndex >= 0 && stepIndex === currentIndex);
     });
 }
 

@@ -9,6 +9,24 @@
             @csrf
             @method('PUT')
 
+            <div class="mb-6 rounded-lg border {{ ($config->is_active ?? true) ? 'border-gray-200 bg-gray-50' : 'border-red-300 bg-red-50' }} p-4">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="bot_is_active" name="bot_is_active" value="1"
+                        {{ old('bot_is_active', $config->is_active ?? true) ? 'checked' : '' }}
+                        class="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                    <label for="bot_is_active" class="text-sm font-semibold text-gray-900">
+                        🤖 Bot activado para este número
+                    </label>
+                </div>
+                <p class="mt-2 text-xs text-gray-600">
+                    Apágalo para que el bot deje de responderle a <strong>todos</strong> los clientes de este
+                    número, sin importar palabra clave, flujo o carrito en curso -- útil mientras manejas a mano
+                    la conversación desde la app de WhatsApp Business (coexistencia). No afecta a otros números
+                    conectados a la empresa. Esto es distinto del interruptor por cliente individual (el que se
+                    usa desde "Conversaciones").
+                </p>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="space-y-4">
                     <h3 class="text-lg font-medium text-gray-900">Configuración General</h3>
@@ -70,6 +88,29 @@
                             solo le muestra al cliente cuánto de lo que pagó corresponde a IVA. Si lo dejas
                             desactivado, el pedido no menciona el IVA por separado (como hasta ahora).
                         </p>
+                    </div>
+
+                    <div class="sm:col-span-2 bg-gray-50 p-4 rounded-lg">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="ecommerce_mode_enabled" name="ecommerce_mode_enabled" value="1"
+                                {{ old('ecommerce_mode_enabled', $config->metadata['ecommerce_mode_enabled'] ?? false) ? 'checked' : '' }}
+                                class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="ecommerce_mode_enabled" class="text-sm font-medium text-gray-700">
+                                🛒 Redirigir "Productos" y "Ver Pedidos" a la tienda en línea
+                            </label>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">
+                            En vez de armar el pedido dentro del chat (varios pasos = varias conversaciones
+                            facturables por Meta), el bot le manda al cliente el link de tu tienda en línea
+                            (micrositio) para que elija productos, entrega, pago y factura ahí mismo. Si el
+                            cliente ya tiene un pedido en curso empezado por WhatsApp, no se le interrumpe.
+                        </p>
+                        @unless($storefrontEnabled ?? false)
+                            <p class="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                                ⚠️ Tu tienda en línea todavía no está activada (Empresas → Micrositio). Actívala
+                                antes de usar esta opción, o el cliente recibirá un enlace que no funciona.
+                            </p>
+                        @endunless
                     </div>
 
                     <div class="sm:col-span-2">

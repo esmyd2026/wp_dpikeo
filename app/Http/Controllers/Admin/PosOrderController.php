@@ -40,6 +40,13 @@ class PosOrderController extends Controller
             ? $sessionBranchId
             : $branches->first()?->id;
 
+        $catalog = $this->bulkOrders->catalogPayload(
+            null,
+            null,
+            CompanyContext::current()->businessProfileId(),
+        );
+        $categories = collect($catalog['categories'] ?? []);
+
         return view('pos.kiosk', [
             'catalogUrl' => route('admin.orders.bulk.catalog'),
             'contactsCreateUrl' => route('admin.orders.bulk.contacts.store'),
@@ -47,6 +54,9 @@ class PosOrderController extends Controller
             'branches' => $branches,
             'defaultBranchId' => $defaultBranchId,
             'headerTitle' => $activeCompany?->name,
+            'storefrontSettings' => $activeCompany?->storefrontSetting,
+            'categories' => $categories,
+            'allCategory' => $catalog['all_category'] ?? ['title' => 'Todos', 'image' => null],
         ]);
     }
 

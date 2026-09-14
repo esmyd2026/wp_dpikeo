@@ -3,15 +3,19 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Franchise;
+use App\Models\WhatsappMenu;
 use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
-use App\Models\Franchise;
 use App\Services\DemoClienteService;
+use App\Services\OrderLifecycleService;
 use App\Services\ProductImageService;
 use App\Services\ProductImportExportService;
 use App\Support\CompanyContext;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -20,7 +24,7 @@ class ProductController extends Controller
         private readonly DemoClienteService $demoCliente,
         private readonly ProductImportExportService $productImportExport,
         private readonly ProductImageService $productImages,
-        private readonly \App\Services\OrderLifecycleService $orderLifecycle,
+        private readonly OrderLifecycleService $orderLifecycle,
     ) {}
 
     /**
@@ -71,7 +75,7 @@ class ProductController extends Controller
     {
         $data = $this->validateAndPrepare($request);
 
-        if ($data instanceof \Illuminate\Http\JsonResponse) {
+        if ($data instanceof JsonResponse) {
             return $data;
         }
 
@@ -118,7 +122,7 @@ class ProductController extends Controller
         $previousStock = (int) $product->stock;
         $data = $this->validateAndPrepare($request, $product);
 
-        if ($data instanceof \Illuminate\Http\JsonResponse) {
+        if ($data instanceof JsonResponse) {
             return $data;
         }
 
@@ -154,6 +158,11 @@ class ProductController extends Controller
         }
 
         $this->productImages->delete($product->image);
+        collect($product->metadata['extras'] ?? [])->each(function ($extra) {
+            if (is_array($extra)) {
+                $this->productImages->delete($extra['image'] ?? null);
+            }
+        });
         $product->delete();
 
         return response()->json(['message' => 'Producto eliminado correctamente']);
@@ -183,13 +192,15 @@ class ProductController extends Controller
                 ->where('is_active', true)
                 ->where('business_profile_id', $product->business_profile_id)
                 ->first();
-            if (!$franchise) {
+            if (! $franchise) {
                 $results[] = ['franchise' => null, 'status' => 'error', 'message' => 'Franquicia no encontrada, inactiva, o de otra empresa.'];
+
                 continue;
             }
 
             if ((int) $franchise->id === (int) $product->franchise_id) {
                 $results[] = ['franchise' => $franchise->name, 'status' => 'skipped', 'message' => 'Es la misma franquicia del producto original.'];
+
                 continue;
             }
 
@@ -199,12 +210,21 @@ class ProductController extends Controller
                 ->exists();
             if ($exists) {
                 $results[] = ['franchise' => $franchise->name, 'status' => 'skipped', 'message' => 'Ya existe un producto con ese nombre en esta franquicia.'];
+
                 continue;
             }
 
             $targetCategory = $this->findOrCreateEquivalentCategory($product->menuCategory, $sourceCategoryTitle, $franchise);
             $newSku = $this->generateUniqueSku($product->sku, $franchise);
             $imagePath = $product->image ? $this->productImages->copy($product->image) : null;
+            $metadata = $product->metadata ?? [];
+            $metadata['extras'] = collect($metadata['extras'] ?? [])->map(function ($extra) {
+                if (is_array($extra) && filled($extra['image'] ?? null)) {
+                    $extra['image'] = $this->productImages->copy($extra['image'], 'additional-images');
+                }
+
+                return $extra;
+            })->all();
 
             $copy = WhatsappPrice::create([
                 'menu_item_id' => $targetCategory->id,
@@ -230,7 +250,7 @@ class ProductController extends Controller
                 'min_quantity' => $product->min_quantity,
                 'max_quantity' => $product->max_quantity,
                 'image' => $imagePath,
-                'metadata' => $product->metadata,
+                'metadata' => $metadata,
             ]);
 
             $results[] = [
@@ -271,13 +291,13 @@ class ProductController extends Controller
         ]);
     }
 
-    private function getPricesMenu(?int $businessProfileId = null): \App\Models\WhatsappMenu
+    private function getPricesMenu(?int $businessProfileId = null): WhatsappMenu
     {
-        $menu = \App\Models\WhatsappMenu::where('action_id', 'prices_menu')
+        $menu = WhatsappMenu::where('action_id', 'prices_menu')
             ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
             ->first();
 
-        if (!$menu) {
+        if (! $menu) {
             abort(500, 'No está configurado el menú de catálogo (prices_menu).');
         }
 
@@ -286,13 +306,13 @@ class ProductController extends Controller
 
     private function makeUniqueActionId(int $menuId, string $title): string
     {
-        $base = \Illuminate\Support\Str::slug($title, '_') ?: 'categoria';
-        $base = \Illuminate\Support\Str::limit($base, 40, '');
+        $base = Str::slug($title, '_') ?: 'categoria';
+        $base = Str::limit($base, 40, '');
         $actionId = $base;
         $suffix = 1;
 
         while (WhatsappMenuItem::where('menu_id', $menuId)->where('action_id', $actionId)->exists()) {
-            $actionId = $base . '_' . $suffix;
+            $actionId = $base.'_'.$suffix;
             $suffix++;
         }
 
@@ -301,14 +321,14 @@ class ProductController extends Controller
 
     private function generateUniqueSku(string $baseSku, Franchise $franchise): string
     {
-        $suffix = '-' . mb_strtoupper(mb_substr(preg_replace('/[^A-Za-z0-9]/', '', $franchise->slug) ?: 'X', 0, 3));
-        $base = mb_strtoupper(mb_substr($baseSku, 0, 20 - mb_strlen($suffix)) . $suffix);
+        $suffix = '-'.mb_strtoupper(mb_substr(preg_replace('/[^A-Za-z0-9]/', '', $franchise->slug) ?: 'X', 0, 3));
+        $base = mb_strtoupper(mb_substr($baseSku, 0, 20 - mb_strlen($suffix)).$suffix);
 
         $candidate = $base;
         $i = 2;
         while (WhatsappPrice::where('sku', $candidate)->where('business_profile_id', $franchise->business_profile_id)->exists()) {
             $extra = (string) $i;
-            $candidate = mb_substr($base, 0, 20 - mb_strlen($extra)) . $extra;
+            $candidate = mb_substr($base, 0, 20 - mb_strlen($extra)).$extra;
             $i++;
         }
 
@@ -413,6 +433,10 @@ class ProductController extends Controller
             'characteristics' => 'nullable|string|max:5000',
             'variations' => 'nullable|string|max:5000',
             'extras' => 'nullable|string|max:5000',
+            'extra_images' => 'nullable|array',
+            'extra_images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'remove_extra_images' => 'nullable|array',
+            'remove_extra_images.*' => 'nullable|boolean',
             'stock' => 'nullable|integer|min:0',
             'allow_quantity_selection' => 'nullable|boolean',
             'min_quantity' => 'nullable|integer|min:1',
@@ -448,7 +472,7 @@ class ProductController extends Controller
         }
 
         $franchise = Franchise::query()->whereKey($validated['franchise_id'])->where('is_active', true)->first();
-        if (!$franchise) {
+        if (! $franchise) {
             return response()->json(['errors' => ['franchise_id' => ['Selecciona una franquicia activa.']]], 422);
         }
         if ($category->franchise_id && (int) $category->franchise_id !== (int) $franchise->id) {
@@ -457,7 +481,36 @@ class ProductController extends Controller
 
         $metadata = is_array($product?->metadata) ? $product->metadata : [];
         $metadata['variations'] = $this->parsePricedOptions($validated['variations'] ?? '');
-        $metadata['extras'] = $this->parsePricedOptions($validated['extras'] ?? '');
+
+        $previousExtras = collect($metadata['extras'] ?? [])
+            ->filter(fn ($extra) => is_array($extra) && filled($extra['title'] ?? null))
+            ->keyBy(fn ($extra) => mb_strtolower(trim((string) $extra['title'])));
+        $metadata['extras'] = collect($this->parsePricedOptions($validated['extras'] ?? ''))
+            ->map(function (array $extra, int $index) use ($request, $previousExtras) {
+                $previous = $previousExtras->get(mb_strtolower($extra['title']), $previousExtras->values()->get($index, []));
+                $previousImage = $previous['image'] ?? null;
+
+                if ($request->boolean("remove_extra_images.{$index}")) {
+                    $this->productImages->delete($previousImage);
+                    $previousImage = null;
+                }
+
+                if ($request->hasFile("extra_images.{$index}")) {
+                    $previousImage = $this->productImages->store(
+                        $request->file("extra_images.{$index}"),
+                        $previousImage,
+                        'additional-images'
+                    );
+                }
+
+                if ($previousImage) {
+                    $extra['image'] = $previousImage;
+                }
+
+                return $extra;
+            })
+            ->values()
+            ->all();
 
         return [
             'menu_item_id' => $category->id,
@@ -489,7 +542,9 @@ class ProductController extends Controller
 
     /**
      * Convierte las opciones del panel a una estructura reutilizable por los
-     * canales conversacionales. Una opción por línea: "Nombre | 4.50".
+     * canales conversacionales. Una opción por línea puede usar
+     * "Nombre | Descripción | 4.50". El formato anterior "Nombre | 4.50"
+     * continúa siendo válido.
      * El precio es opcional para extras que se cotizan en el local.
      */
     private function parsePricedOptions(?string $text): array
@@ -498,17 +553,19 @@ class ProductController extends Controller
         $options = [];
 
         foreach ($lines as $line) {
-            $parts = array_map('trim', explode('|', $line, 2));
+            $parts = array_map('trim', explode('|', $line, 3));
             $title = $parts[0] ?? '';
             if ($title === '') {
                 continue;
             }
 
-            $price = isset($parts[1]) && $parts[1] !== ''
-                ? (float) str_replace(',', '.', str_replace('$', '', $parts[1]))
+            $description = count($parts) >= 3 ? ($parts[1] ?: null) : null;
+            $pricePart = count($parts) >= 3 ? ($parts[2] ?? '') : ($parts[1] ?? '');
+            $price = $pricePart !== ''
+                ? (float) str_replace(',', '.', str_replace('$', '', $pricePart))
                 : null;
 
-            $options[] = ['title' => $title, 'price' => $price];
+            $options[] = ['title' => $title, 'description' => $description, 'price' => $price];
         }
 
         return $options;
@@ -520,19 +577,28 @@ class ProductController extends Controller
             $options = json_decode($options, true) ?: [];
         }
 
-        if (!is_array($options)) {
+        if (! is_array($options)) {
             return '';
         }
 
         return collect($options)
-            ->filter(fn ($option) => is_array($option) && !empty($option['title']))
-            ->map(fn ($option) => $option['title'] . (isset($option['price']) && $option['price'] !== null ? ' | ' . number_format((float) $option['price'], 2, '.', '') : ''))
+            ->filter(fn ($option) => is_array($option) && ! empty($option['title']))
+            ->map(function ($option) {
+                $price = isset($option['price']) && $option['price'] !== null
+                    ? number_format((float) $option['price'], 2, '.', '')
+                    : '';
+                $description = trim((string) ($option['description'] ?? ''));
+
+                return $description !== ''
+                    ? $option['title'].' | '.$description.' | '.$price
+                    : $option['title'].($price !== '' ? ' | '.$price : '');
+            })
             ->implode("\n");
     }
 
     private function parseCharacteristics(?string $text): array
     {
-        if (!$text) {
+        if (! $text) {
             return [];
         }
 
@@ -552,7 +618,7 @@ class ProductController extends Controller
             $characteristics = is_array($decoded) ? $decoded : [$characteristics];
         }
 
-        if (!is_array($characteristics)) {
+        if (! is_array($characteristics)) {
             return '';
         }
 
@@ -586,6 +652,19 @@ class ProductController extends Controller
             'image_url' => $product->image_url,
             'variations' => $this->pricedOptionsToText($product->metadata['variations'] ?? []),
             'extras' => $this->pricedOptionsToText($product->metadata['extras'] ?? []),
+            'extra_items' => collect($product->metadata['extras'] ?? [])->map(function ($extra) {
+                if (! is_array($extra)) {
+                    return null;
+                }
+
+                return [
+                    'title' => $extra['title'] ?? '',
+                    'description' => $extra['description'] ?? null,
+                    'price' => $extra['price'] ?? null,
+                    'image' => $extra['image'] ?? null,
+                    'image_url' => $this->productImages->resolveWebUrl($extra['image'] ?? null),
+                ];
+            })->filter()->values()->all(),
         ];
     }
 }
