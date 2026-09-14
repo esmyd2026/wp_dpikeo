@@ -88,7 +88,7 @@ class StorefrontTest extends TestCase
             ->assertSee("autocomplete.addEventListener('gmp-select'", false)
             ->assertSee("place.fetchFields({fields:['formattedAddress','location']})", false)
             ->assertSee('class="storefront-address-row"', false)
-            ->assertSee("if(mode==='delivery'&&window.storefrontOrder.latitude===null", false)
+            ->assertSee("if(mode==='delivery'){window.loadStorefrontMapsScript?.();if(window.storefrontOrder.latitude===null", false)
             ->assertSee("geolocateButton.addEventListener('click',()=>requestStorefrontLocation(true))", false)
             ->assertDontSee('new google.maps.Geocoder(', false)
             ->assertDontSee('new google.maps.places.Autocomplete(', false);

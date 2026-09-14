@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="{{ $settings->primary_color }}">
     <title>Pide en línea — {{ $profile->business_name ?: $company->name }}</title>
@@ -70,7 +70,7 @@
             <div class="storefront-actions"><button class="storefront-button" id="storefrontContinue">Comenzar</button></div>
         </div>
     </section>
-    <section class="storefront-preview"><div class="storefront-category-grid" id="storefrontCategoryPreview" aria-label="Categorías">@foreach($categories as $category)<button class="storefront-category" type="button" data-preview-category="{{ $category['id'] }}">@if(filled($category['image'] ?? null))<img src="{{ $category['image'] }}" alt="">@else<span class="storefront-category-icon">{{ $category['icon'] ?? '🍔' }}</span>@endif<span>{{ $category['title'] }}</span></button>@endforeach</div></section>
+    <section class="storefront-preview"><div class="storefront-category-grid" id="storefrontCategoryPreview" aria-label="Categorías">@foreach($categories as $category)<button class="storefront-category" type="button" data-preview-category="{{ $category['id'] }}">@if(filled($category['image'] ?? null))<img src="{{ $category['image'] }}" alt="{{ $category['title'] }}">@else<span class="storefront-category-icon">{{ $category['icon'] ?? '🍔' }}</span>@endif<span>{{ $category['title'] }}</span></button>@endforeach</div></section>
     <nav class="storefront-home-bottom" aria-label="Navegación principal">
         <button type="button" data-storefront-nav="home"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1v-9"/></svg></span>Inicio</button>
         <button type="button" data-storefront-nav="branches"><span><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.2a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.8" r="2.6"/></svg></span>Sucursales</button>
@@ -202,6 +202,24 @@
     ])
 </div>
 
+@if(filled($settings->google_maps_api_key))
+<script>
+// El script de Google Maps solo se necesita para "Delivery" -- cargarlo
+// siempre penaliza también a quien elige "Pide y retira" y nunca lo usa.
+// Se define aquí (temprano) porque el flujo de abajo puede necesitarlo de
+// inmediato al restaurar un pedido de delivery ya en curso; la lógica de
+// autocompletado (initStorefrontMaps) se define más abajo y solo se ejecuta
+// después, cuando este script realmente termine de cargar.
+window.loadStorefrontMapsScript=function(){
+    if(window.storefrontMapsScriptRequested)return;
+    window.storefrontMapsScriptRequested=true;
+    const script=document.createElement('script');
+    script.async=true;
+    script.src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&callback=initStorefrontMaps";
+    document.head.appendChild(script);
+};
+</script>
+@endif
 <script>
 const storefrontOrderStorageKey = @json('storefront_order_'.$company->id);
 const storefrontOrderDefaults = {confirmed:false,service_type:null,branch_id:null,address:'',reference:'',latitude:null,longitude:null,delivery_distance_km:null,delivery_fee:null,delivery_fee_pending_review:false,nearest_branch_name:''};
@@ -473,13 +491,18 @@ try {
      storefrontGeolocationRequested=true;
      setGeolocateBusy(true,'Ubicando…');
      navigator.geolocation.getCurrentPosition(async position=>{
-         const latitude=position.coords.latitude,longitude=position.coords.longitude,address=`Ubicación detectada: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+         const latitude=position.coords.latitude,longitude=position.coords.longitude;
          window.storefrontOrder.latitude=latitude;
          window.storefrontOrder.longitude=longitude;
-         window.storefrontOrder.address=address;
-         if(window.setStorefrontAddressValue){window.setStorefrontAddressValue(address,latitude,longitude);}else{document.getElementById('storefrontAddress').value=address;window.storefrontOrder.confirmed=false;persistOrder();}
-         const quoted=await requestDeliveryQuote(latitude,longitude,address);
-         if(quoted){error.textContent='Ubicación lista. Seleccionamos automáticamente la sucursal más cercana.';error.classList.add('is-success');error.style.display='block';}
+         // No se escribe la ubicación detectada dentro del campo de texto: si
+         // el cliente empieza a escribir su dirección justo cuando esto
+         // termina, el texto tecleado se pegaba sin separador al de las
+         // coordenadas (ej. "Ubicación detectada: -2.13...Malecon 2000"). La
+         // ubicación solo se usa para calcular sucursal/envío; si el cliente
+         // no escribe nada, se arma una dirección de respaldo recién al
+         // confirmar (mismo criterio que el bot cuando comparte ubicación).
+         const quoted=await requestDeliveryQuote(latitude,longitude);
+         if(quoted){error.textContent='Ubicación lista. Seleccionamos automáticamente la sucursal más cercana -- escribe tu dirección exacta para la entrega.';error.classList.add('is-success');error.style.display='block';}
          setGeolocateBusy(false,quoted?'Ubicación lista':'Reintentar');
      },geolocationError=>{
          storefrontGeolocationRequested=false;
@@ -490,13 +513,27 @@ try {
          setGeolocateBusy(false);
      },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
  };
- const selectMode=(mode,save=true)=>{document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));window.storefrontOrder.service_type=mode;delivery.style.display=mode==='delivery'?'block':'none';document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';if(save){window.storefrontOrder.confirmed=false;persistOrder();}if(mode==='delivery'&&window.storefrontOrder.latitude===null&&window.storefrontOrder.longitude===null)requestStorefrontLocation();};document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
+ const selectMode=(mode,save=true)=>{document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));window.storefrontOrder.service_type=mode;delivery.style.display=mode==='delivery'?'block':'none';document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';if(save){window.storefrontOrder.confirmed=false;persistOrder();}if(mode==='delivery'){window.loadStorefrontMapsScript?.();if(window.storefrontOrder.latitude===null&&window.storefrontOrder.longitude===null)requestStorefrontLocation();}};document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
  document.querySelectorAll('[data-branch-option]').forEach(button=>button.addEventListener('click',()=>{const branchId=button.dataset.branchOption;document.getElementById('storefrontBranch').value=branchId;document.getElementById('bulkBranch').value=branchId;window.storefrontOrder.confirmed=false;window.storefrontOrder.branch_id=Number(branchId)||null;persistOrder();document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item===button));}));document.getElementById('storefrontBranchSearch').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-branch-option]').forEach(item=>item.style.display=item.dataset.branchSearch.includes(query)?'grid':'none');});
  document.getElementById('storefrontAddress').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.address=event.target.value;if(event.target.dataset.preserveCoordinates==='1'){delete event.target.dataset.preserveCoordinates;}else{window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;clearDeliveryQuote();}persistOrder();});
  document.getElementById('storefrontReference').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.reference=event.target.value;persistOrder();});
  window.openStorefrontOrderMode=()=>{selectMode(window.storefrontOrder.service_type||'pickup');if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);locationBox.classList.add('is-open');};
  window.addEventListener('storefront:start-order',window.openStorefrontOrderMode);
- document.getElementById('storefrontContinue').addEventListener('click',()=>{const branch=document.getElementById('storefrontBranch').value,address=(window.storefrontPlaceAutocomplete?.value||document.getElementById('storefrontAddress').value).trim();if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.classList.remove('is-success');error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}error.style.display='none';if(address!==window.storefrontOrder.address){window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;}window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
+ document.getElementById('storefrontContinue').addEventListener('click',()=>{
+     const branch=document.getElementById('storefrontBranch').value;
+     const typedAddress=(window.storefrontPlaceAutocomplete?.value||document.getElementById('storefrontAddress').value).trim();
+     if(typedAddress!==window.storefrontOrder.address){window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;}
+     let address=typedAddress;
+     // Si compartió ubicación pero no escribió/eligió una dirección, se arma
+     // un respaldo con el link del mapa (mismo criterio que usa el bot
+     // cuando el cliente solo comparte ubicación por WhatsApp) en vez de
+     // bloquear el pedido.
+     if(!address&&window.storefrontOrder.service_type==='delivery'&&window.storefrontOrder.latitude!==null&&window.storefrontOrder.longitude!==null){
+         address=`Ubicación compartida: https://maps.google.com/?q=${window.storefrontOrder.latitude},${window.storefrontOrder.longitude}`;
+     }
+     if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.classList.remove('is-success');error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}
+     error.style.display='none';
+     window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
  document.getElementById('storefrontBack').addEventListener('click',()=>{document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';window.renderStorefrontCartFab?.();});
  geolocateButton.addEventListener('click',()=>requestStorefrontLocation(true));
  const restoredBranch=String(window.storefrontOrder.branch_id||'');
@@ -595,7 +632,6 @@ window.initStorefrontMaps=async function(){
     }
 };
 </script>
-<script async defer src="https://maps.googleapis.com/maps/api/js?key={{ urlencode($settings->google_maps_api_key) }}&libraries=places&loading=async&callback=initStorefrontMaps"></script>
 @endif
 </body>
 </html>

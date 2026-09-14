@@ -1233,6 +1233,8 @@
     .bulk-order-storefront-customer label { display:grid; gap:5px; color:#444; font-size:.76rem; font-weight:800; }
     .bulk-order-storefront-customer label span { color:#8a8a8a; font-weight:500; }
     .bulk-order-storefront-customer input,.bulk-order-storefront-customer select { width:100%; border:1px solid #d6d6d6; border-radius:8px; padding:10px 11px; background:#fff; font:inherit; }
+    .bulk-order-storefront-customer input.is-invalid { border-color:#b42318!important; background:#fff5f5; }
+    .bulk-order-field-error { display:none; margin-top:-2px; color:#b42318; font-size:.72rem; font-weight:700; }
     .storefront-checkout-block{display:grid;gap:10px;margin-top:6px;padding:14px;border:1px solid #e5e5e5;border-radius:12px;background:#fafafa}.storefront-checkout-block h4{margin:0;font-size:.9rem}.storefront-checkout-block p{margin:0;color:#666;font-size:.78rem;line-height:1.45}.storefront-bank-instructions{padding:12px;border-left:3px solid var(--brand);background:#fff8e7;white-space:normal}.storefront-invoice-fields{display:none;gap:10px}.storefront-invoice-fields.is-open{display:grid}.storefront-payment-fields,.storefront-card-fields{display:none}.storefront-payment-fields.is-open,.storefront-card-fields.is-open{display:grid;gap:10px}.storefront-card-fields{border-color:#f4c95d;background:#fff9e9}.storefront-card-link{display:flex;min-height:48px;align-items:center;justify-content:center;border-radius:8px;background:var(--brand);color:#fff;text-decoration:none;font-weight:850}.storefront-card-link:hover{filter:brightness(.94)}.storefront-proof-status{font-weight:750;color:#087f5b}.bulk-order-success .storefront-proof-status{margin:12px auto;max-width:520px}
     .storefront-invoice-required-note{margin:0 0 4px;padding:8px 10px;border-radius:8px;background:#fff4e6;color:#a34e00;font-size:.72rem;font-weight:700;line-height:1.4}
     .storefront-invoice-fields label span{color:#b42318!important;font-weight:800!important}
@@ -1625,8 +1627,8 @@
                     <div class="bulk-order-storefront-customer">
                         <h3>Datos para confirmar</h3>
                         <label>Nombre completo<input type="text" id="storefrontCustomerName" maxlength="120" autocomplete="name" placeholder="¿Quién recibe el pedido?"></label>
-                        <label>Teléfono<input type="tel" id="storefrontCustomerPhone" maxlength="30" autocomplete="tel" placeholder="Ej.: 099 123 4567"></label>
-                        <label>Correo de contacto <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"></label>
+                        <label>Teléfono<input type="tel" id="storefrontCustomerPhone" maxlength="30" autocomplete="tel" placeholder="Ej.: 099 123 4567"><small class="bulk-order-field-error" id="storefrontCustomerPhoneError"></small></label>
+                        <label>Correo de contacto <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"><small class="bulk-order-field-error" id="storefrontCustomerEmailError"></small></label>
                         <label>Forma de pago<select id="storefrontPaymentMethod"><option value="efectivo">Efectivo</option><option value="transferencia">Transferencia</option><option value="tarjeta">Tarjeta</option></select></label>
                         <section class="storefront-checkout-block storefront-payment-fields" id="storefrontTransferFields">
                             <h4>Datos para realizar la transferencia</h4>
@@ -3082,6 +3084,24 @@
         el('storefrontSuccessHomeBtn')?.addEventListener('click', () => window.goHome?.());
     }
 
+    const storefrontPhoneDigits = value => (value || '').replace(/\D+/g, '');
+    const isValidStorefrontPhone = value => { const digits = storefrontPhoneDigits(value); return digits.length >= 8 && digits.length <= 15; };
+    const isValidStorefrontEmail = value => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const setStorefrontFieldError = (inputId, errorId, message) => {
+        const input = el(inputId), errorBox = el(errorId);
+        if (input) input.classList.toggle('is-invalid', !!message);
+        if (errorBox) { errorBox.textContent = message || ''; errorBox.style.display = message ? 'block' : 'none'; }
+    };
+    if (isStorefront) {
+        el('storefrontCustomerPhone')?.addEventListener('blur', () => {
+            const value = el('storefrontCustomerPhone').value.trim();
+            setStorefrontFieldError('storefrontCustomerPhone', 'storefrontCustomerPhoneError', value && !isValidStorefrontPhone(value) ? 'Ingresa un teléfono válido (8 a 15 dígitos).' : '');
+        });
+        el('storefrontCustomerEmail')?.addEventListener('blur', () => {
+            const value = el('storefrontCustomerEmail').value.trim();
+            setStorefrontFieldError('storefrontCustomerEmail', 'storefrontCustomerEmailError', value && !isValidStorefrontEmail(value) ? 'Ingresa un correo con formato válido.' : '');
+        });
+    }
     el('bulkSubmitBtn').addEventListener('click', async () => {
         if (isSubmitting) return;
         if (isKiosk && !el('bulkCartPanel')?.classList.contains('is-storefront-open')) {
@@ -3110,6 +3130,19 @@
             toast('Ingresa tu nombre y teléfono para continuar');
             (el('storefrontCustomerName')?.value.trim() ? el('storefrontCustomerPhone') : el('storefrontCustomerName'))?.focus();
             return;
+        }
+        if (isStorefront) {
+            const phoneValue = el('storefrontCustomerPhone').value.trim();
+            const emailValue = el('storefrontCustomerEmail').value.trim();
+            const phoneInvalid = !isValidStorefrontPhone(phoneValue);
+            const emailInvalid = !!emailValue && !isValidStorefrontEmail(emailValue);
+            setStorefrontFieldError('storefrontCustomerPhone', 'storefrontCustomerPhoneError', phoneInvalid ? 'Ingresa un teléfono válido (8 a 15 dígitos).' : '');
+            setStorefrontFieldError('storefrontCustomerEmail', 'storefrontCustomerEmailError', emailInvalid ? 'Ingresa un correo con formato válido.' : '');
+            if (phoneInvalid || emailInvalid) {
+                toast('Revisa los datos resaltados en rojo');
+                (phoneInvalid ? el('storefrontCustomerPhone') : el('storefrontCustomerEmail'))?.focus();
+                return;
+            }
         }
         if (isStorefront && el('storefrontInvoicePreference')?.value === 'invoice') {
             const requiredInvoiceFields = ['storefrontBillingId', 'storefrontBillingLegalName', 'storefrontBillingAddress', 'storefrontBillingEmail'];
