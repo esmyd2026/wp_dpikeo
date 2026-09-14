@@ -38,8 +38,12 @@ class StorefrontOrderSelfService
                 'billing_legal_name' => trim($data['billing_legal_name']),
                 'billing_email' => strtolower(trim($data['billing_email'])),
                 'address' => trim($data['billing_address']),
-            ])->save();
+            ]);
         }
+        $contactMetadata = $contact->metadata ?? [];
+        $contactMetadata['invoice_preference'] = $requiresInvoice ? 'invoice' : 'consumer';
+        $contact->metadata = $contactMetadata;
+        $contact->save();
 
         OrderAlertEvent::create([
             'business_profile_id' => $contact->business_profile_id,

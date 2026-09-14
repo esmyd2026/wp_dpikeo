@@ -31,6 +31,7 @@ return [
                 'clients.detail' => ['label' => 'Ver detalle del cliente', 'type' => 'action'],
                 'clients.update' => ['label' => 'Editar datos del cliente', 'type' => 'action'],
                 'clients.notes' => ['label' => 'Agregar observaciones', 'type' => 'action'],
+                'clients.delete' => ['label' => 'Eliminar cliente y su historial definitivamente', 'type' => 'action'],
             ],
         ],
         'orders' => [

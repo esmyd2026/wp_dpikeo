@@ -51,16 +51,16 @@ class StorefrontAccountTest extends TestCase
 
         $response = $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
             'name' => 'Ana Torres',
-            'phone' => '0991112222',
+            'phone' => '593991112222',
             'password' => 'secreto1',
             'password_confirmation' => 'secreto1',
         ]);
 
         $response->assertOk()->assertJsonPath('ok', true)->assertJsonPath('customer.name', 'Ana Torres');
-        $this->assertDatabaseHas('whatsapp_contacts', ['phone_number' => '0991112222', 'name' => 'Ana Torres']);
+        $this->assertDatabaseHas('whatsapp_contacts', ['phone_number' => '593991112222', 'name' => 'Ana Torres']);
 
         $me = $this->getJson("/tienda/{$company->slug}/cuenta/yo");
-        $me->assertOk()->assertJsonPath('customer.phone', '0991112222');
+        $me->assertOk()->assertJsonPath('customer.phone', '593991112222');
     }
 
     public function test_registering_twice_with_the_same_phone_is_rejected(): void
@@ -68,43 +68,65 @@ class StorefrontAccountTest extends TestCase
         [$company] = $this->makeProfile('100002');
 
         $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Ana Torres', 'phone' => '0991112223', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Ana Torres', 'phone' => '593991112223', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ])->assertOk();
 
         $response = $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Otra Persona', 'phone' => '0991112223', 'password' => 'otraclave', 'password_confirmation' => 'otraclave',
+            'name' => 'Otra Persona', 'phone' => '593991112223', 'password' => 'otraclave', 'password_confirmation' => 'otraclave',
         ]);
 
         $response->assertStatus(422)->assertJsonPath('ok', false);
+    }
+
+    /**
+     * Pedido explícito en vivo: el mismo cliente aparecía repetido en
+     * "Clientes" porque cada canal guardaba el teléfono en un formato
+     * distinto -- acá se confirma que el registro ya reconoce que "0991..."
+     * y "593991..." son el mismo número real, no dos cuentas distintas.
+     */
+    public function test_registering_with_a_different_format_of_an_already_registered_phone_is_rejected(): void
+    {
+        [$company] = $this->makeProfile('100002b');
+
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Ana Torres', 'phone' => '0991112226', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
+
+        $response = $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Otra Persona', 'phone' => '593991112226', 'password' => 'otraclave', 'password_confirmation' => 'otraclave',
+        ]);
+
+        $response->assertStatus(422)->assertJsonPath('ok', false);
+        $this->assertSame(1, WhatsappContact::where('phone_number', '593991112226')->count());
     }
 
     public function test_a_contact_created_by_an_order_without_a_password_can_claim_its_account(): void
     {
         [$company, $profile] = $this->makeProfile('100003');
         WhatsappContact::create([
-            'business_profile_id' => $profile->id, 'phone_number' => '0991112224', 'name' => 'Cliente Bot',
+            'business_profile_id' => $profile->id, 'phone_number' => '593991112224', 'name' => 'Cliente Bot',
         ]);
 
         $response = $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Cliente Bot', 'phone' => '0991112224', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Cliente Bot', 'phone' => '593991112224', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ]);
 
         $response->assertOk()->assertJsonPath('ok', true);
-        $this->assertSame(1, WhatsappContact::where('phone_number', '0991112224')->count());
+        $this->assertSame(1, WhatsappContact::where('phone_number', '593991112224')->count());
     }
 
     public function test_login_with_correct_credentials_works_and_wrong_password_is_rejected(): void
     {
         [$company] = $this->makeProfile('100004');
         $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Ana Torres', 'phone' => '0991112225', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Ana Torres', 'phone' => '593991112225', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ])->assertOk();
         $this->postJson("/tienda/{$company->slug}/cuenta/salir")->assertOk();
 
-        $bad = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '0991112225', 'password' => 'incorrecta']);
+        $bad = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '593991112225', 'password' => 'incorrecta']);
         $bad->assertOk()->assertJsonPath('ok', false);
 
-        $good = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '0991112225', 'password' => 'secreto1']);
+        $good = $this->postJson("/tienda/{$company->slug}/cuenta/entrar", ['phone' => '593991112225', 'password' => 'secreto1']);
         $good->assertOk()->assertJsonPath('ok', true)->assertJsonPath('customer.name', 'Ana Torres');
     }
 
@@ -116,14 +138,14 @@ class StorefrontAccountTest extends TestCase
         [$company, $profile] = $this->makeProfile('100009');
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112231',
+            'phone_number' => '593991112231',
             'name' => 'Cliente Recuperación',
             'password' => Hash::make('clave-anterior'),
             'status' => 'active',
         ]);
 
         $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
-            'phone' => '0991112231',
+            'phone' => '593991112231',
         ]);
 
         $requested->assertOk()->assertJsonPath('ok', true);
@@ -136,7 +158,7 @@ class StorefrontAccountTest extends TestCase
         preg_match('/\b(\d{6})\b/', $sentText, $matches);
 
         $reset = $this->postJson("/tienda/{$company->slug}/cuenta/restablecer", [
-            'phone' => '0991112231',
+            'phone' => '593991112231',
             'code' => $matches[1],
             'password' => 'clave-nueva',
             'password_confirmation' => 'clave-nueva',
@@ -147,11 +169,11 @@ class StorefrontAccountTest extends TestCase
             ->assertJsonPath('customer.name', 'Cliente Recuperación');
         $this->assertTrue(Hash::check('clave-nueva', $contact->fresh()->password));
         $this->assertDatabaseMissing('password_reset_tokens', [
-            'email' => "storefront:{$profile->id}:0991112231",
+            'email' => "storefront:{$profile->id}:593991112231",
         ]);
         $this->getJson("/tienda/{$company->slug}/cuenta/yo")
             ->assertOk()
-            ->assertJsonPath('customer.phone', '0991112231');
+            ->assertJsonPath('customer.phone', '593991112231');
     }
 
     public function test_customer_can_request_the_recovery_code_by_email_and_it_is_saved(): void
@@ -160,14 +182,14 @@ class StorefrontAccountTest extends TestCase
         [$company, $profile] = $this->makeProfile('100011');
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112233',
+            'phone_number' => '593991112233',
             'name' => 'Cliente Correo',
             'password' => Hash::make('clave-anterior'),
             'status' => 'active',
         ]);
 
         $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
-            'phone' => '0991112233',
+            'phone' => '593991112233',
             'channel' => 'email',
             'email' => 'cliente@example.com',
         ]);
@@ -183,14 +205,14 @@ class StorefrontAccountTest extends TestCase
         [$company, $profile] = $this->makeProfile('100012');
         WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112234',
+            'phone_number' => '593991112234',
             'name' => 'Cliente Sin Correo',
             'password' => Hash::make('clave-anterior'),
             'status' => 'active',
         ]);
 
         $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
-            'phone' => '0991112234',
+            'phone' => '593991112234',
             'channel' => 'email',
         ]);
 
@@ -204,7 +226,7 @@ class StorefrontAccountTest extends TestCase
         [$company, $profile] = $this->makeProfile('100013');
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112235',
+            'phone_number' => '593991112235',
             'name' => 'Cliente Con Correo',
             'password' => Hash::make('clave-anterior'),
             'status' => 'active',
@@ -212,7 +234,7 @@ class StorefrontAccountTest extends TestCase
         ]);
 
         $requested = $this->postJson("/tienda/{$company->slug}/cuenta/recuperar", [
-            'phone' => '0991112235',
+            'phone' => '593991112235',
             'channel' => 'email',
         ]);
 
@@ -226,19 +248,19 @@ class StorefrontAccountTest extends TestCase
         [$company, $profile] = $this->makeProfile('100010');
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112232',
+            'phone_number' => '593991112232',
             'name' => 'Cliente Seguro',
             'password' => Hash::make('clave-original'),
             'status' => 'active',
         ]);
         DB::table('password_reset_tokens')->insert([
-            'email' => "storefront:{$profile->id}:0991112232",
+            'email' => "storefront:{$profile->id}:593991112232",
             'token' => Hash::make('123456'),
             'created_at' => now(),
         ]);
 
         $response = $this->postJson("/tienda/{$company->slug}/cuenta/restablecer", [
-            'phone' => '0991112232',
+            'phone' => '593991112232',
             'code' => '654321',
             'password' => 'clave-intrusa',
             'password_confirmation' => 'clave-intrusa',
@@ -247,7 +269,7 @@ class StorefrontAccountTest extends TestCase
         $response->assertOk()->assertJsonPath('ok', false);
         $this->assertTrue(Hash::check('clave-original', $contact->fresh()->password));
         $this->assertDatabaseHas('password_reset_tokens', [
-            'email' => "storefront:{$profile->id}:0991112232",
+            'email' => "storefront:{$profile->id}:593991112232",
         ]);
     }
 
@@ -255,11 +277,11 @@ class StorefrontAccountTest extends TestCase
     {
         [$company, $profile] = $this->makeProfile('100005');
         $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Ana Torres', 'phone' => '0991112226', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Ana Torres', 'phone' => '593991112226', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ])->assertOk();
 
-        $contact = WhatsappContact::where('phone_number', '0991112226')->firstOrFail();
-        $otherContact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '0991119999', 'name' => 'Otro Cliente']);
+        $contact = WhatsappContact::where('phone_number', '593991112226')->firstOrFail();
+        $otherContact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593991119999', 'name' => 'Otro Cliente']);
 
         $customerOrder = WhatsappCart::create([
             'contact_id' => $contact->id,
@@ -345,9 +367,9 @@ class StorefrontAccountTest extends TestCase
             'is_active' => true,
         ]);
         $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
-            'name' => 'Ana Torres', 'phone' => '0991112230', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Ana Torres', 'phone' => '593991112230', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ])->assertOk();
-        $contact = WhatsappContact::where('phone_number', '0991112230')->firstOrFail();
+        $contact = WhatsappContact::where('phone_number', '593991112230')->firstOrFail();
         $order = WhatsappCart::create([
             'contact_id' => $contact->id,
             'total' => 25,
@@ -399,7 +421,7 @@ class StorefrontAccountTest extends TestCase
         ]);
 
         $this->postJson("/tienda/{$companyA->slug}/cuenta/registro", [
-            'name' => 'Ana Torres', 'phone' => '0991112227', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+            'name' => 'Ana Torres', 'phone' => '593991112227', 'password' => 'secreto1', 'password_confirmation' => 'secreto1',
         ])->assertOk();
 
         $response = $this->getJson("/tienda/{$companyB->slug}/cuenta/yo");
@@ -436,10 +458,10 @@ class StorefrontAccountTest extends TestCase
         $callback = $this->get("/tienda/{$company->slug}/cuenta/google/callback?code=authorization-code&state=".urlencode($query['state']));
         $callback->assertRedirectContains('google=complete');
 
-        $completed = $this->postJson("/tienda/{$company->slug}/cuenta/google/completar", ['phone' => '0991112299']);
+        $completed = $this->postJson("/tienda/{$company->slug}/cuenta/google/completar", ['phone' => '593991112299']);
         $completed->assertOk()->assertJsonPath('ok', true)->assertJsonPath('customer.email', 'ana@example.com');
         $this->assertDatabaseHas('whatsapp_contacts', [
-            'phone_number' => '0991112299', 'google_id' => 'google-user-20', 'google_email' => 'ana@example.com',
+            'phone_number' => '593991112299', 'google_id' => 'google-user-20', 'google_email' => 'ana@example.com',
         ]);
         $this->getJson("/tienda/{$company->slug}/cuenta/yo")
             ->assertOk()->assertJsonPath('customer.name', 'Ana Google');
@@ -454,7 +476,7 @@ class StorefrontAccountTest extends TestCase
         ]);
         $contact = WhatsappContact::create([
             'business_profile_id' => $profile->id,
-            'phone_number' => '0991112288',
+            'phone_number' => '593991112288',
             'name' => 'Cliente existente',
             'billing_email' => 'cliente@example.com',
             'password' => Hash::make('secreto1'),
@@ -480,8 +502,55 @@ class StorefrontAccountTest extends TestCase
         $this->assertSame('google-user-21', $contact->fresh()->google_id);
         $this->getJson("/tienda/{$company->slug}/cuenta/yo")
             ->assertOk()
-            ->assertJsonPath('customer.phone', '0991112288')
+            ->assertJsonPath('customer.phone', '593991112288')
             ->assertJsonPath('customer.email', 'cliente@example.com')
             ->assertJsonPath('customer.purchases_count', 1);
+    }
+
+    public function test_customer_can_update_profile_invoice_defaults_and_saved_addresses(): void
+    {
+        [$company] = $this->makeProfile('100022');
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Nombre anterior', 'phone' => '593991112277',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
+
+        $this->putJson("/tienda/{$company->slug}/cuenta/perfil", [
+            'name' => 'Ana Actualizada',
+            'email' => 'ana.actualizada@example.com',
+            'invoice_preference' => 'invoice',
+            'billing_type' => 'ruc',
+            'billing_id' => '0999999999001',
+            'billing_legal_name' => 'Ana Actualizada S.A.S.',
+            'billing_address' => 'Av. Facturación 100',
+            'billing_email' => 'facturas@example.com',
+        ])->assertOk()
+            ->assertJsonPath('customer.name', 'Ana Actualizada')
+            ->assertJsonPath('customer.invoice_preference', 'invoice')
+            ->assertJsonPath('customer.billing.id', '0999999999001');
+
+        $first = $this->postJson("/tienda/{$company->slug}/cuenta/direcciones", [
+            'address' => 'Av. Principal 123, Guayaquil',
+            'reference' => 'Casa azul',
+            'latitude' => -2.170998,
+            'longitude' => -79.922359,
+        ])->assertOk()->json('addresses.0');
+        $this->assertTrue($first['is_default']);
+        $this->assertSame('Casa', $first['label']);
+
+        $this->postJson("/tienda/{$company->slug}/cuenta/direcciones", [
+            'label' => 'Oficina',
+            'address' => 'Av. Francisco de Orellana, Guayaquil',
+            'latitude' => -2.1601,
+            'longitude' => -79.8891,
+        ])->assertOk();
+
+        $me = $this->getJson("/tienda/{$company->slug}/cuenta/yo");
+        $me->assertOk()
+            ->assertJsonPath('customer.email', 'ana.actualizada@example.com')
+            ->assertJsonCount(2, 'customer.addresses');
+
+        $this->deleteJson("/tienda/{$company->slug}/cuenta/direcciones/{$first['id']}")
+            ->assertOk()->assertJsonCount(1, 'addresses')->assertJsonPath('addresses.0.is_default', true);
     }
 }

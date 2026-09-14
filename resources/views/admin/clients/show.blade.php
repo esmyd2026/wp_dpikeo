@@ -589,6 +589,29 @@
     </details>
     @endperm
 
+    {{-- Zona de peligro: borrado definitivo del cliente y su historial --}}
+    @perm('clients.delete')
+    <details class="client-collapse">
+        <summary><i class="fas fa-trash-alt me-1 text-danger"></i> <span class="text-danger">Eliminar cliente</span></summary>
+        <div class="inner">
+            <p class="text-muted small mb-3">
+                Esto borra al cliente y no se puede deshacer: se eliminan
+                <strong>{{ $deletionCounts['orders'] }}</strong> pedido(s),
+                <strong>{{ $deletionCounts['messages'] }}</strong> mensaje(s) del chat
+                y todas sus observaciones/notas.
+            </p>
+            <form method="POST" action="{{ route('admin.clients.destroy', $contact) }}"
+                  onsubmit="return confirm('¿Eliminar definitivamente a {{ $contact->name ?: $contact->phone_number }}?\n\nSe borrarán {{ $deletionCounts['orders'] }} pedido(s), {{ $deletionCounts['messages'] }} mensaje(s) del chat y sus notas. Esta acción no se puede deshacer.');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="fas fa-trash-alt me-1"></i>Eliminar cliente y su historial
+                </button>
+            </form>
+        </div>
+    </details>
+    @endperm
+
     {{-- 7. ANALÍTICA HISTÓRICA --}}
     <details class="client-collapse">
         <summary><i class="fas fa-chart-bar me-1 text-muted"></i> Actividad mensual (6 meses)</summary>

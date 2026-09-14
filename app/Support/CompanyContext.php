@@ -76,6 +76,21 @@ class CompanyContext
      */
     public static function current(): self
     {
+        return self::forCompany(self::currentCompany());
+    }
+
+    /**
+     * Solo la empresa activa de la sesión, sin intentar resolver además un
+     * WhatsappBusinessProfile -- current()/forCompany() fallan a propósito
+     * cuando la empresa tiene 2+ números conectados y ninguno marcado
+     * principal (ver forCompany()), pero hay pantallas (ej. el listado de
+     * "Clientes", que junta contactos de TODOS los números de la empresa)
+     * a las que no les importa esa ambigüedad porque no dependen de un
+     * único número. Usar esto ahí evita que dejen de funcionar solo porque
+     * la empresa tiene varios números sin uno marcado como principal.
+     */
+    public static function currentCompany(): Company
+    {
         $user = auth()->user();
 
         if (!$user) {
@@ -95,7 +110,7 @@ class CompanyContext
             session(['active_company_id' => $company->id]);
         }
 
-        return self::forCompany($company);
+        return $company;
     }
 
     /**

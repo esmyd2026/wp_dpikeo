@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\StorefrontPasswordResetCode;
 use App\Models\Company;
+use App\Models\StorefrontCustomerAddress;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
@@ -442,6 +443,113 @@ class StorefrontAccountController extends Controller
         return response()->json(['ok' => true, 'customer' => $contact ? $this->customerPayload($contact) : null]);
     }
 
+    public function updateProfile(Request $request, Company $company): JsonResponse
+    {
+        $contact = $this->authenticatedContactFor($company);
+        if (! $contact) {
+            return response()->json(['ok' => false, 'message' => 'Debes iniciar sesión.'], 401);
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:120'],
+            'email' => ['nullable', 'email:rfc', 'max:255'],
+            'invoice_preference' => ['required', Rule::in(['consumer', 'invoice'])],
+            'billing_type' => ['nullable', 'required_if:invoice_preference,invoice', Rule::in(['cedula', 'ruc', 'pasaporte'])],
+            'billing_id' => ['nullable', 'required_if:invoice_preference,invoice', 'string', 'max:20'],
+            'billing_legal_name' => ['nullable', 'required_if:invoice_preference,invoice', 'string', 'max:255'],
+            'billing_address' => ['nullable', 'required_if:invoice_preference,invoice', 'string', 'max:500'],
+            'billing_email' => ['nullable', 'required_if:invoice_preference,invoice', 'email:rfc', 'max:255'],
+        ]);
+
+        $metadata = $contact->metadata ?? [];
+        $metadata['invoice_preference'] = $validated['invoice_preference'];
+        if (filled($validated['email'] ?? null)) {
+            $metadata['email'] = Str::lower(trim($validated['email']));
+        } else {
+            unset($metadata['email']);
+        }
+
+        $contact->name = trim($validated['name']);
+        $contact->metadata = $metadata;
+        if ($validated['invoice_preference'] === 'invoice') {
+            $contact->fill([
+                'billing_type' => $validated['billing_type'],
+                'billing_id' => trim($validated['billing_id']),
+                'billing_legal_name' => trim($validated['billing_legal_name']),
+                'billing_email' => Str::lower(trim($validated['billing_email'])),
+                'address' => trim($validated['billing_address']),
+            ]);
+        }
+        $contact->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Tus datos quedaron guardados para tus próximos pedidos.',
+            'customer' => $this->customerPayload($contact->fresh()),
+        ]);
+    }
+
+    public function storeAddress(Request $request, Company $company): JsonResponse
+    {
+        $contact = $this->authenticatedContactFor($company);
+        if (! $contact) {
+            return response()->json(['ok' => false, 'message' => 'Debes iniciar sesión.'], 401);
+        }
+
+        $validated = $request->validate([
+            'label' => ['nullable', 'string', 'max:60'],
+            'address' => ['required', 'string', 'max:500'],
+            'reference' => ['nullable', 'string', 'max:500'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'is_default' => ['nullable', 'boolean'],
+        ]);
+
+        $addressText = trim($validated['address']);
+        $address = $contact->storefrontAddresses()
+            ->whereRaw('LOWER(address) = ?', [Str::lower($addressText)])
+            ->first();
+        $addressCount = $contact->storefrontAddresses()->count();
+        if (! $address && $addressCount >= 8) {
+            return response()->json(['ok' => false, 'message' => 'Puedes guardar hasta 8 direcciones. Elimina una para agregar otra.'], 422);
+        }
+
+        $makeDefault = (bool) ($validated['is_default'] ?? false) || ! $contact->storefrontAddresses()->exists();
+        DB::transaction(function () use ($contact, &$address, $validated, $addressText, $makeDefault, $addressCount) {
+            if ($makeDefault) {
+                $contact->storefrontAddresses()->update(['is_default' => false]);
+            }
+            $address ??= new StorefrontCustomerAddress(['contact_id' => $contact->id]);
+            $address->fill([
+                'label' => trim($validated['label'] ?? '') ?: ($address->label ?: ($addressCount === 0 ? 'Casa' : 'Dirección '.($addressCount + 1))),
+                'address' => $addressText,
+                'reference' => trim($validated['reference'] ?? '') ?: null,
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
+                'is_default' => $makeDefault || $address->is_default,
+            ])->save();
+        });
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Dirección guardada para futuros pedidos.',
+            'addresses' => $this->addressPayloads($contact),
+        ]);
+    }
+
+    public function deleteAddress(Company $company, StorefrontCustomerAddress $address): JsonResponse
+    {
+        $contact = $this->authenticatedContactFor($company);
+        abort_unless($contact && $address->contact_id === $contact->id, 404);
+        $wasDefault = $address->is_default;
+        $address->delete();
+        if ($wasDefault) {
+            $contact->storefrontAddresses()->oldest()->first()?->update(['is_default' => true]);
+        }
+
+        return response()->json(['ok' => true, 'addresses' => $this->addressPayloads($contact)]);
+    }
+
     public function orders(Request $request, Company $company): JsonResponse
     {
         $contact = $this->authenticatedContactFor($company);
@@ -655,7 +763,16 @@ class StorefrontAccountController extends Controller
         return [
             'name' => $contact->name,
             'phone' => $contact->phone_number,
-            'email' => $contact->google_email ?? ($contact->metadata['email'] ?? $contact->billing_email),
+            'email' => $contact->metadata['email'] ?? ($contact->google_email ?? $contact->billing_email),
+            'invoice_preference' => data_get($contact->metadata, 'invoice_preference', filled($contact->billing_id) ? 'invoice' : 'consumer'),
+            'billing' => [
+                'type' => $contact->billing_type,
+                'id' => $contact->billing_id,
+                'legal_name' => $contact->billing_legal_name,
+                'address' => $contact->address,
+                'email' => $contact->billing_email,
+            ],
+            'addresses' => $this->addressPayloads($contact),
             // Una compra cuenta cuando el pedido ya fue entregado/completado;
             // los carritos activos, abandonados o cancelados no inflan este
             // indicador que ve el cliente en "Mi cuenta".
@@ -664,6 +781,21 @@ class StorefrontAccountController extends Controller
                 ->where('status', WhatsappCart::STATUS_COMPLETED)
                 ->count(),
         ];
+    }
+
+    private function addressPayloads(WhatsappContact $contact): array
+    {
+        return $contact->storefrontAddresses()
+            ->orderByDesc('is_default')->latest('updated_at')->get()
+            ->map(fn (StorefrontCustomerAddress $address) => [
+                'id' => $address->id,
+                'label' => $address->label,
+                'address' => $address->address,
+                'reference' => $address->reference,
+                'latitude' => $address->latitude,
+                'longitude' => $address->longitude,
+                'is_default' => $address->is_default,
+            ])->all();
     }
 
     private function statusLabel(WhatsappCart $cart): string
@@ -683,9 +815,7 @@ class StorefrontAccountController extends Controller
 
     private function normalizePhone(string $raw): ?string
     {
-        $phone = preg_replace('/\D+/', '', $raw) ?? '';
-
-        return (strlen($phone) >= 8 && strlen($phone) <= 15) ? $phone : null;
+        return WhatsappContact::normalizePhone($raw);
     }
 
     private function passwordResetKey(int $profileId, string $phone): string

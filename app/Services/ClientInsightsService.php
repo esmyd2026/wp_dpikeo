@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappMessage;
+use App\Support\CompanyContext;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -455,8 +456,15 @@ class ClientInsightsService
     private function baseQuery(Request $request): Builder
     {
         $ninetyDaysAgo = now()->subDays(90);
+        // Una empresa puede tener varios números de WhatsApp (manual,
+        // embedded signup, coexistencia) -- se ven los clientes de TODOS los
+        // números de la empresa activa, nunca de otra empresa. Sin este
+        // filtro, el listado mostraba contactos de cualquier empresa del
+        // sistema mezclados en una sola tabla.
+        $profileIds = CompanyContext::currentCompany()->whatsappAccounts()->pluck('id');
 
         return WhatsappContact::query()
+            ->whereIn('business_profile_id', $profileIds)
             ->where(function (Builder $q) {
                 $q->whereHas('messages')
                     ->orWhereHas('carts', fn (Builder $c) => $c->reportable());

@@ -155,8 +155,8 @@ class StorefrontController extends Controller
             'order_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $phone = preg_replace('/\D+/', '', $validated['phone']) ?? '';
-        if (strlen($phone) < 8 || strlen($phone) > 15) {
+        $phone = WhatsappContact::normalizePhone($validated['phone']);
+        if (! $phone) {
             return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.'], 422);
         }
 

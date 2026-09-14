@@ -127,7 +127,7 @@ class MarketingCampaignController extends Controller
         $selectedContacts = $validated['selected_contacts'] ?? [];
         if (! empty($validated['manual_numbers'])) {
             foreach ($validated['manual_numbers'] as $phoneNumber) {
-                $phoneNumber = trim($phoneNumber);
+                $phoneNumber = WhatsappContact::normalizePhone($phoneNumber) ?? '';
                 if ($phoneNumber) {
                     // Buscar si el contacto ya existe
                     $existingContact = WhatsappContact::where('phone_number', $phoneNumber)

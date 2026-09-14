@@ -6,6 +6,7 @@ use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * También sirve como identidad de login del cliente en el storefront (guard
@@ -57,6 +58,34 @@ class WhatsappContact extends Model implements AuthenticatableContract
         return filled($this->password);
     }
 
+    /**
+     * Un mismo número real llegaba con formatos distintos según el canal
+     * (WhatsApp/Meta siempre manda "593988492339"; el micrositio, el pedido
+     * por admin o el POS podían recibir "0988492339" o "988492339" tal como
+     * lo escribió el cliente) -- eso creaba un WhatsappContact nuevo por
+     * cada formato en vez de reconocer al mismo cliente. Se normaliza todo
+     * al formato que ya usa Meta (código de país 593 sin '+', sin el 0
+     * inicial) antes de buscar o crear un contacto por teléfono.
+     *
+     * Devuelve null si no parece un número válido (8 a 15 dígitos).
+     */
+    public static function normalizePhone(?string $raw): ?string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $raw) ?? '';
+
+        if ($digits === '') {
+            return null;
+        }
+
+        if (strlen($digits) === 10 && str_starts_with($digits, '0')) {
+            $digits = '593'.substr($digits, 1);
+        } elseif (strlen($digits) === 9 && ! str_starts_with($digits, '0')) {
+            $digits = '593'.$digits;
+        }
+
+        return (strlen($digits) >= 8 && strlen($digits) <= 15) ? $digits : null;
+    }
+
     public function businessProfile()
     {
         return $this->belongsTo(WhatsappBusinessProfile::class);
@@ -85,6 +114,11 @@ class WhatsappContact extends Model implements AuthenticatableContract
     public function notes()
     {
         return $this->hasMany(WhatsappContactNote::class, 'contact_id');
+    }
+
+    public function storefrontAddresses(): HasMany
+    {
+        return $this->hasMany(StorefrontCustomerAddress::class, 'contact_id');
     }
 
     public function needsAgent(): bool

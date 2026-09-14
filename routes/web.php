@@ -57,6 +57,9 @@ Route::post('/tienda/{company:slug}/cuenta/recuperar', [StorefrontAccountControl
 Route::post('/tienda/{company:slug}/cuenta/restablecer', [StorefrontAccountController::class, 'resetPassword'])->name('storefront.account.password.reset');
 Route::post('/tienda/{company:slug}/cuenta/salir', [StorefrontAccountController::class, 'logout'])->name('storefront.account.logout');
 Route::get('/tienda/{company:slug}/cuenta/yo', [StorefrontAccountController::class, 'me'])->name('storefront.account.me');
+Route::put('/tienda/{company:slug}/cuenta/perfil', [StorefrontAccountController::class, 'updateProfile'])->name('storefront.account.profile.update');
+Route::post('/tienda/{company:slug}/cuenta/direcciones', [StorefrontAccountController::class, 'storeAddress'])->name('storefront.account.addresses.store');
+Route::delete('/tienda/{company:slug}/cuenta/direcciones/{address}', [StorefrontAccountController::class, 'deleteAddress'])->name('storefront.account.addresses.delete');
 Route::get('/tienda/{company:slug}/cuenta/pedidos', [StorefrontAccountController::class, 'orders'])->name('storefront.account.orders');
 Route::put('/tienda/{company:slug}/cuenta/pedidos/{cart}/facturacion', [StorefrontAccountController::class, 'updateInvoice'])->name('storefront.account.orders.invoice');
 Route::post('/tienda/{company:slug}/cuenta/pedidos/{cart}/comprobante', [StorefrontAccountController::class, 'uploadPaymentProof'])->name('storefront.account.orders.payment-proof');
@@ -260,6 +263,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/clients/{client}/reset-password', [ClientController::class, 'resetPassword'])
         ->middleware('permission:clients.update')
         ->name('clients.reset-password');
+    Route::delete('/clients/{client}', [ClientController::class, 'destroy'])
+        ->middleware('permission:clients.delete')
+        ->name('clients.destroy');
 
     Route::get('/chats/{contact}', [AdminController::class, 'chat'])
         ->middleware(['permission:chats.open,chats.view', 'platform.feature:chat'])

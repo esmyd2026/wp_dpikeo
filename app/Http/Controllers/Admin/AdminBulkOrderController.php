@@ -84,8 +84,9 @@ class AdminBulkOrderController extends Controller
             'billing_email' => ['required_if:requires_invoice,1', 'nullable', 'email:rfc', 'max:255'],
         ]);
 
-        $phone = preg_replace('/\D+/', '', (string) ($validated['phone'] ?? '')) ?? '';
-        if ($phone !== '' && (strlen($phone) < 8 || strlen($phone) > 15)) {
+        $rawPhone = trim((string) ($validated['phone'] ?? ''));
+        $phone = $rawPhone === '' ? '' : (WhatsappContact::normalizePhone($rawPhone) ?? '');
+        if ($rawPhone !== '' && $phone === '') {
             return response()->json([
                 'ok' => false,
                 'message' => 'El número de WhatsApp debe tener entre 8 y 15 dígitos.',

@@ -3,12 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\WhatsappCart;
 use App\Models\WhatsappContact;
 use App\Models\WhatsappContactNote;
+use App\Models\WhatsappConversation;
+use App\Models\WhatsappMessage;
 use App\Services\ClientInsightsService;
 use App\Services\WhatsappService;
+use App\Support\CompanyContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -37,15 +42,24 @@ class ClientController extends Controller
 
     public function show(WhatsappContact $client, ClientInsightsService $insights): View
     {
+        $this->authorizeClient($client);
         $detail = $insights->contactDetail($client);
 
         return view('admin.clients.show', array_merge($detail, [
             'insights' => $insights,
+            // Totales reales (no solo "reportables") para el aviso de
+            // confirmación antes de eliminar -- deben reflejar exactamente
+            // lo que destroy() va a borrar.
+            'deletionCounts' => [
+                'orders' => WhatsappCart::where('contact_id', $client->id)->count(),
+                'messages' => WhatsappMessage::where('contact_id', $client->id)->count(),
+            ],
         ]));
     }
 
     public function update(Request $request, WhatsappContact $client): RedirectResponse
     {
+        $this->authorizeClient($client);
         $validated = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
             'national_id' => [
@@ -86,6 +100,7 @@ class ClientController extends Controller
      */
     public function resetPassword(WhatsappContact $client, WhatsappService $whatsapp): RedirectResponse
     {
+        $this->authorizeClient($client);
         $newPassword = Str::password(8, symbols: false);
         $client->password = Hash::make($newPassword);
         $client->save();
@@ -108,6 +123,7 @@ class ClientController extends Controller
 
     public function storeNote(Request $request, WhatsappContact $client): RedirectResponse
     {
+        $this->authorizeClient($client);
         $validated = $request->validate([
             'body' => ['required', 'string', 'min:2', 'max:5000'],
         ]);
@@ -121,6 +137,50 @@ class ClientController extends Controller
         return redirect()
             ->route('admin.clients.show', $client)
             ->with('success', 'Observación registrada.');
+    }
+
+    /**
+     * Borrado definitivo del cliente y todo su historial (mensajes, pedidos,
+     * notas) -- pedido explícito en vivo para poder limpiar fichas de
+     * prueba. Requiere permiso aparte (clients.delete, no incluido en
+     * ningún rol por defecto salvo super_admin) precisamente porque no hay
+     * vuelta atrás. El contacto en sí y sus relaciones con cascadeOnDelete
+     * a nivel de base de datos (carritos, notas, direcciones guardadas,
+     * tokens de pedido) se van con $client->delete(); los mensajes y
+     * conversaciones se borran aparte porque esas dos tablas nunca tuvieron
+     * cascade configurado en su migración original.
+     */
+    public function destroy(WhatsappContact $client): RedirectResponse
+    {
+        $this->authorizeClient($client);
+
+        DB::transaction(function () use ($client) {
+            WhatsappMessage::where('contact_id', $client->id)->delete();
+            WhatsappConversation::where('contact_id', $client->id)->delete();
+            $client->delete();
+        });
+
+        return redirect()
+            ->route('admin.clients.index')
+            ->with('success', 'Cliente y todo su historial (pedidos, mensajes y notas) fueron eliminados definitivamente.');
+    }
+
+    /**
+     * Un contacto cuelga de un WhatsappBusinessProfile, que a su vez es de
+     * una sola empresa -- sin esto, cualquier admin podía ver/editar la
+     * ficha de un cliente de OTRA empresa con solo cambiar el id en la URL
+     * (el listado ya filtraba por empresa, pero estas rutas no).
+     */
+    private function authorizeClient(WhatsappContact $client): void
+    {
+        // currentCompany() (no current()): una empresa con 2+ números y
+        // ninguno marcado principal no debe romper esta pantalla solo por
+        // esa ambigüedad -- aquí no hace falta resolver un número puntual.
+        abort_unless(
+            $client->business_profile_id
+                && $client->businessProfile?->company_id === CompanyContext::currentCompany()->id,
+            404
+        );
     }
 
     private function normalizeNationalId(?string $value): ?string
