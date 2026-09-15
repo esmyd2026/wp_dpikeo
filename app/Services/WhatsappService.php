@@ -62,6 +62,17 @@ class WhatsappService
     protected bool $inboundMarkedRead = false;
 
     /**
+     * Id del contacto al que hay que apagarle el bot DESPUÉS de mandar la
+     * respuesta que se está generando ahora mismo (ver generateChatbotResponse()
+     * / ChatbotKeywordReply->disable_bot_after_reply). No se apaga de una vez
+     * ahí mismo porque handleTextMessage()/handleChatbotResponse() refrescan
+     * el contacto y revisan bot_enabled justo antes de enviar -- si ya
+     * estuviera apagado en ese instante, terminarían bloqueando la propia
+     * respuesta que explica que un asesor va a tomar la conversación.
+     */
+    protected ?int $pendingBotDisableAfterReplyContactId = null;
+
+    /**
      * true en cuanto alguien intentó explícitamente resolver un tenant para
      * esta instancia (useBusinessProfile() o setWebhookPhoneNumberId()), sin
      * importar si el intento tuvo éxito. Distingue "nadie pidió un tenant
@@ -109,6 +120,22 @@ class WhatsappService
         }
 
         return app(PlatformBillingService::class)->botMayRespondToContact($contact);
+    }
+
+    /**
+     * Aplica el apagado de bot que quedó pendiente de generateChatbotResponse()
+     * (ver pendingBotDisableAfterReplyContactId) -- se llama después de que
+     * el llamador ya decidió si esta respuesta puntual se manda o no, para
+     * no bloquearla a sí misma.
+     */
+    private function applyPendingBotDisableAfterReply(): void
+    {
+        if ($this->pendingBotDisableAfterReplyContactId === null) {
+            return;
+        }
+        $contactId = $this->pendingBotDisableAfterReplyContactId;
+        $this->pendingBotDisableAfterReplyContactId = null;
+        WhatsappContact::whereKey($contactId)->update(['bot_enabled' => false]);
     }
 
     protected function logBotBlocked(string $context, $contact, array $extra = []): void
@@ -1656,6 +1683,7 @@ class WhatsappService
             }
 
             $response = $this->generateChatbotResponse($message->content, $message->contact->phone_number);
+            $this->applyPendingBotDisableAfterReply();
 
             if ($response && ! empty($message->message_id)) {
                 $this->prepareBotReply($contact, $message->message_id);
@@ -2084,10 +2112,13 @@ class WhatsappService
                     // este texto fijo y se apaga el bot para ESE cliente
                     // (mismo campo que el toggle individual de
                     // "Conversaciones") para que el equipo lo revise a mano
-                    // en vez de que el bot le siga contestando.
+                    // en vez de que el bot le siga contestando. Se DIFIERE
+                    // (no se guarda acá mismo): el llamador refresca el
+                    // contacto y revisa bot_enabled justo antes de enviar, y
+                    // si ya estuviera apagado en ese instante bloquearía esta
+                    // misma respuesta.
                     if ($keywordMatch->disable_bot_after_reply && $contact && $contact->bot_enabled) {
-                        $contact->bot_enabled = false;
-                        $contact->save();
+                        $this->pendingBotDisableAfterReplyContactId = $contact->id;
                     }
 
                     return [
@@ -2645,6 +2676,15 @@ class WhatsappService
     protected function markMessageAsRead($messageId, $to)
     {
         try {
+            // Mensajes sintéticos del reintento manual/automático (ver
+            // PendingReplyRecoveryService::buildSyntheticMessage()) no tienen
+            // un wamid real de Meta -- intentar marcarlos como leídos siempre
+            // falla ("Please check the message ID you have provided"), puro
+            // ruido en el log sin ningún efecto real que perder al omitirlo.
+            if (is_string($messageId) && str_starts_with($messageId, 'recovery-')) {
+                return false;
+            }
+
             if (! $messageId || ! $to) {
                 Log::warning('⚠️ No se puede marcar como leído', [
                     'tiene_id' => ! empty($messageId),
@@ -6206,6 +6246,7 @@ class WhatsappService
                 $willAutoReply = false;
                 $response = null;
             }
+            $this->applyPendingBotDisableAfterReply();
 
             if ($willAutoReply && $response) {
                 // Typing justo antes de enviar (tras generar la respuesta), igual que el panel humano

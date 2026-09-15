@@ -275,10 +275,20 @@ class ChatbotKeywordReplyTest extends TestCase
         ]);
         $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593990000096', 'name' => 'Cliente Web', 'bot_enabled' => true]);
 
-        app(WhatsappService::class)->useBusinessProfile($profile);
-        $reply = $this->invokeGenerateChatbotResponse('hice mi pedido en dpikeos.ec y no me ha llegado', '593990000096');
+        // Bug real en vivo: generateChatbotResponse() apagaba bot_enabled ahí
+        // mismo, pero handleTextMessage() refresca el contacto y revisa
+        // bot_enabled justo antes de mandar -- terminaba bloqueando la propia
+        // respuesta que le explicaba al cliente que un asesor lo iba a
+        // atender. Por eso esta prueba pasa por el flujo completo
+        // (handleTextMessage), no por generateChatbotResponse() directo.
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId($profile->phone_number_id);
+        (new \ReflectionMethod($service, 'handleTextMessage'))->invokeArgs($service, [[
+            'from' => $contact->phone_number, 'id' => 'wamid.'.uniqid(),
+            'text' => ['body' => 'hice mi pedido en dpikeos.ec y no me ha llegado'],
+        ]]);
 
-        $this->assertStringContainsString('revisará tu orden', $reply['text']['body']);
+        Http::assertSent(fn ($request) => str_contains((string) ($request['text']['body'] ?? ''), 'revisará tu orden'));
         $this->assertFalse($contact->fresh()->bot_enabled);
     }
 
