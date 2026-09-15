@@ -1478,7 +1478,13 @@
     .storefront-variation-section{display:none}.bulk-order-app[data-channel="storefront"] .storefront-variation-section,.bulk-order-app[data-channel="agent"] .storefront-variation-section{display:block;margin:22px 0}.storefront-variation-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.storefront-variation-head h3{margin:0;font-size:1.05rem}.storefront-variation-list{display:grid;gap:10px}.storefront-variation-option{display:grid;width:100%;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:13px;padding:14px;border:1px solid #e2e2e2;border-radius:10px;background:#fff;color:#222;text-align:left;font:inherit;cursor:pointer}.storefront-variation-option:hover{border-color:#c9c9c9}.storefront-variation-option.is-selected{border-color:var(--lime);background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}.storefront-variation-check{display:grid;width:36px;height:36px;place-items:center;border:2px solid #ddd;border-radius:50%;font-weight:900}.storefront-variation-option.is-selected .storefront-variation-check{border-color:var(--lime);background:var(--lime)}.storefront-variation-copy{display:grid;gap:3px;min-width:0}.storefront-variation-copy strong{font-size:.94rem}.storefront-variation-copy small{overflow:hidden;color:#747474;font-size:.78rem;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}.storefront-variation-price{font-size:.9rem;font-weight:850;white-space:nowrap}
     .storefront-cart-products-title{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-products-title{display:block;max-width:900px;margin:34px auto 18px;font-size:2rem}
     .storefront-product-info{display:none}
-    .bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-options>h4,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-options>.bulk-order-choice,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-variation-section,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-extra-trigger,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-product-base-price,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-qty,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-total,.bulk-order-app[data-channel="storefront"]:not(.is-order-started) #storefrontPayNow{display:none}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .storefront-detail-actions{grid-template-columns:1fr}.bulk-order-app[data-channel="storefront"]:not(.is-order-started) .bulk-order-modal-add{width:100%;min-height:72px;background:var(--lime)}
+    /* Precio, variaciones, cantidad y "Pagar ahora" se ven siempre al abrir
+       un producto -- antes se ocultaban hasta tocar "Elegir entrega y
+       comenzar", pero eso no dejaba ni ver cuánto costaba antes de
+       comprometerse a empezar el pedido. El botón principal sigue abriendo
+       primero el selector de pago/entrega si todavía no se eligió (ver
+       storefrontMustStartOrder()); esto solo afecta qué se ve, no cuándo se
+       puede confirmar. */
     @media(min-width:720px){.bulk-order-app[data-channel="storefront"] .bulk-order-category-rail{position:sticky;z-index:70;top:0;margin:-18px -28px 0;padding:12px 28px 10px;background:rgba(255,255,255,.98);box-shadow:0 10px 22px rgba(0,0,0,.07);backdrop-filter:blur(10px)}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{position:static!important;margin:0;padding-bottom:7px}.bulk-order-app[data-channel="storefront"] .bulk-order-products-stage{padding-top:34px}}
     @media(min-width:720px){
         .bulk-order-app[data-channel="storefront"]{min-height:0;padding-bottom:0}
@@ -2437,6 +2443,14 @@
         }
     }
 
+    // El texto buscado no debe seguir aplicando cuando el cliente cambia de
+    // categoría -- si no, la categoría nueva se filtra con una búsqueda que
+    // ya no tiene sentido ahí y puede parecer que no tiene productos.
+    function clearCatalogSearch() {
+        if (el('bulkSearch')) el('bulkSearch').value = '';
+        if (el('storefrontCatalogSearch')) el('storefrontCatalogSearch').value = '';
+    }
+
     async function loadCatalog() {
         const q = el('bulkSearch').value.trim();
         const cat = el('bulkCategory').value;
@@ -2476,6 +2490,10 @@
         box.querySelectorAll('[data-category]').forEach(btn => btn.addEventListener('click', async () => {
             showingPromotions = false;
             el('bulkCategory').value = btn.dataset.category;
+            // Si quedaba texto buscado de la categoría anterior, se sigue
+            // aplicando sobre la categoría nueva y puede filtrar hasta dejarla
+            // vacía en pantalla aunque sí tenga productos.
+            clearCatalogSearch();
             await loadCatalog();
             moveCatalogHeaderOutOfView();
         }));
@@ -3029,7 +3047,7 @@
         el('bulkSearch').value = event.target.value;
         loadCatalog();
     }, 300));
-    el('bulkCategory').addEventListener('change', () => { showingPromotions = false; loadCatalog(); });
+    el('bulkCategory').addEventListener('change', () => { showingPromotions = false; clearCatalogSearch(); loadCatalog(); });
     el('bulkCustomizerClose').addEventListener('click', closeCustomizer);
     el('bulkAddonClose')?.addEventListener('click', closeAddonSheet);
     el('bulkAddonSheet')?.addEventListener('click', event => { if (event.target === el('bulkAddonSheet')) closeAddonSheet(); });
@@ -3045,6 +3063,13 @@
     });
     el('storefrontPayNow')?.addEventListener('click', () => {
         el('bulkCustomizerAdd')?.click();
+        // Ahora que precio/variaciones se ven sin haber elegido entrega y
+        // pago todavía, "Pagar ahora" puede tocarse antes de eso -- el clic
+        // de arriba ya abre ese selector; no hay que forzar el checkout
+        // detrás mientras el cliente todavía no resolvió eso.
+        if (isStorefront && storefrontMustStartOrder()) {
+            return;
+        }
         if (isStorefront && window.storefrontOrder?.payment_method === 'tarjeta') {
             setTimeout(goToCardPayment, 0);
             return;

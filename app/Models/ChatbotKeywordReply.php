@@ -22,12 +22,14 @@ class ChatbotKeywordReply extends Model
         'response_text',
         'is_active',
         'sort_order',
+        'disable_bot_after_reply',
     ];
 
     protected $casts = [
         'keywords' => 'array',
         'all_branches' => 'boolean',
         'is_active' => 'boolean',
+        'disable_bot_after_reply' => 'boolean',
     ];
 
     public function businessProfile(): BelongsTo

@@ -254,6 +254,73 @@ class ChatbotKeywordReplyTest extends TestCase
         $page->assertSee('Intento fallido para B');
     }
 
+    /**
+     * Pedido explícito en vivo: clientes que compraron en la plataforma web
+     * externa (dpikeos.ec, aparte del bot/micrositio) escriben pidiendo
+     * ayuda con esa orden -- se les responde el texto fijo (sin el menú, ya
+     * cubierto arriba) y ADEMÁS se apaga el bot para ese cliente, para que
+     * el equipo lo revise a mano en vez de que el bot le siga contestando.
+     */
+    public function test_a_keyword_marked_to_disable_the_bot_turns_it_off_for_that_contact(): void
+    {
+        Http::fake(['graph.facebook.com/*' => fn () => Http::response(['messages' => [['id' => 'wamid.'.uniqid()]]], 200)]);
+        [, $profile] = $this->adminFixture('empresa-kw-disable');
+        ChatbotKeywordReply::create([
+            'business_profile_id' => $profile->id,
+            'keywords' => ['dpikeos.ec', 'pedido web'],
+            'all_branches' => true,
+            'response_text' => 'Nuestro equipo revisará tu orden generada por nuestra plataforma web y te contactaremos pronto.',
+            'is_active' => true,
+            'disable_bot_after_reply' => true,
+        ]);
+        $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593990000096', 'name' => 'Cliente Web', 'bot_enabled' => true]);
+
+        app(WhatsappService::class)->useBusinessProfile($profile);
+        $reply = $this->invokeGenerateChatbotResponse('hice mi pedido en dpikeos.ec y no me ha llegado', '593990000096');
+
+        $this->assertStringContainsString('revisará tu orden', $reply['text']['body']);
+        $this->assertFalse($contact->fresh()->bot_enabled);
+    }
+
+    public function test_a_keyword_without_the_disable_flag_leaves_the_contacts_bot_untouched(): void
+    {
+        Http::fake(['graph.facebook.com/*' => fn () => Http::response(['messages' => [['id' => 'wamid.'.uniqid()]]], 200)]);
+        [, $profile] = $this->adminFixture('empresa-kw-no-disable');
+        ChatbotKeywordReply::create([
+            'business_profile_id' => $profile->id,
+            'keywords' => ['horarios'],
+            'all_branches' => true,
+            'response_text' => 'Atendemos de 9am a 9pm.',
+            'is_active' => true,
+            'disable_bot_after_reply' => false,
+        ]);
+        $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593990000095', 'name' => 'Cliente', 'bot_enabled' => true]);
+
+        app(WhatsappService::class)->useBusinessProfile($profile);
+        $this->invokeGenerateChatbotResponse('¿cuáles son sus horarios?', '593990000095');
+
+        $this->assertTrue($contact->fresh()->bot_enabled);
+    }
+
+    public function test_admin_can_save_the_disable_bot_after_reply_flag_from_the_panel(): void
+    {
+        [$company, $profile, $admin] = $this->adminFixture('empresa-kw-panel-disable');
+
+        $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->post(route('admin.chatbot-keywords.store'), [
+                'keywords' => 'dpikeos.ec, pedido web',
+                'response_text' => 'Nuestro equipo revisará tu orden generada por nuestra plataforma web...',
+                'is_active' => '1',
+                'all_branches' => '1',
+                'disable_bot_after_reply' => '1',
+            ])
+            ->assertRedirect();
+
+        $entry = ChatbotKeywordReply::where('business_profile_id', $profile->id)->firstOrFail();
+        $this->assertTrue($entry->disable_bot_after_reply);
+    }
+
     /** Invoca el método privado generateChatbotResponse() vía reflexión, como el resto de la suite. */
     private function invokeGenerateChatbotResponse(string $message, string $from): array
     {

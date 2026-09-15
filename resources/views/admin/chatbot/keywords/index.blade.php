@@ -47,6 +47,7 @@
     .kw-save { border:0; border-radius:9px; padding:10px 13px; color:#fff; background:#128c7e; font:inherit; font-weight:800; cursor:pointer; }
     .kw-delete { border:0; border-radius:9px; padding:10px 13px; color:#fff; background:#b91c1c; font:inherit; font-weight:800; cursor:pointer; margin:0 18px 18px; }
     .kw-error { color:#b91c1c; font-size:.74rem; font-weight:700; margin-top:-4px; }
+    .kw-hint { margin:-4px 0 0; color:#64748b; font-size:.74rem; line-height:1.4; }
     .kw-empty { text-align:center; padding:2rem; background:#fff; border:1px dashed #e2e8f0; border-radius:14px; color:#64748b; }
     .kw-modal { border:0; border-radius:16px; padding:0; width:min(560px, 92vw); box-shadow:0 20px 50px rgba(15,23,42,.25); }
     .kw-modal::backdrop { background:rgba(15,23,42,.45); }
@@ -86,6 +87,7 @@
                     <div class="kw-summary-meta">
                         <span class="kw-chip {{ $entry->is_active ? 'is-on' : 'is-off' }}">{{ $entry->is_active ? 'Activa' : 'Inactiva' }}</span>
                         <span class="kw-chip">{{ $entry->all_branches ? 'Todas las sucursales' : ($entry->branches->pluck('name')->join(', ') ?: 'Sin sucursal') }}</span>
+                        @if($entry->disable_bot_after_reply)<span class="kw-chip is-off">Apaga el bot</span>@endif
                         <i class="fas fa-chevron-down kw-chevron"></i>
                     </div>
                 </summary>
@@ -104,6 +106,8 @@
                         <label class="kw-check"><input type="checkbox" name="is_active" value="1" @checked($isFailedEdit ? old('is_active') : $entry->is_active)> Activa</label>
                         <label>Orden<input type="number" name="sort_order" min="0" value="{{ $isFailedEdit ? old('sort_order') : $entry->sort_order }}"></label>
                     </div>
+                    <label class="kw-check"><input type="checkbox" name="disable_bot_after_reply" value="1" @checked($isFailedEdit ? old('disable_bot_after_reply') : $entry->disable_bot_after_reply)> Apagar el bot para este cliente después de responder</label>
+                    <p class="kw-hint">Úsalo para clientes que escriben por un pedido hecho en otra plataforma (ej. la tienda web dpikeos.ec) -- se les responde este texto, sin mandarles el menú, y el bot deja de contestarle a ese cliente hasta que alguien del equipo lo reactive en Conversaciones.</p>
                     @if($branches->isNotEmpty())
                         <label class="kw-check">
                             <input type="checkbox" class="kw-all-toggle" name="all_branches" value="1" @checked($isFailedEdit ? old('all_branches') : $entry->all_branches)>
@@ -156,6 +160,8 @@
             <label class="kw-check"><input type="checkbox" name="is_active" value="1" @checked($failedFormId === 'new' ? old('is_active') : true)> Activa</label>
             <label>Orden<input type="number" name="sort_order" min="0" value="{{ $failedFormId === 'new' ? old('sort_order', 0) : 0 }}"></label>
         </div>
+        <label class="kw-check"><input type="checkbox" name="disable_bot_after_reply" value="1" @checked($failedFormId === 'new' && old('disable_bot_after_reply'))> Apagar el bot para este cliente después de responder</label>
+        <p class="kw-hint">Úsalo para clientes que escriben por un pedido hecho en otra plataforma (ej. la tienda web dpikeos.ec) -- se les responde este texto, sin mandarles el menú, y el bot deja de contestarle a ese cliente hasta que alguien del equipo lo reactive en Conversaciones.</p>
         @if($branches->isNotEmpty())
             <label class="kw-check">
                 <input type="checkbox" class="kw-all-toggle" name="all_branches" value="1" @checked($failedFormId === 'new' ? old('all_branches') : true)>

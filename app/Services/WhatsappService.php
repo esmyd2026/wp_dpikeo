@@ -2075,7 +2075,20 @@ class WhatsappService
                 if ($keywordMatch) {
                     Log::info('[generateChatbotResponse] 🔑 Palabra clave configurada encontrada', [
                         'keywords' => $keywordMatch->keywords,
+                        'disable_bot_after_reply' => $keywordMatch->disable_bot_after_reply,
                     ]);
+
+                    // Pedido explícito: clientes que escriben por un pedido
+                    // hecho en otra plataforma (ej. la tienda web dpikeos.ec,
+                    // ecommerce aparte del bot/micrositio) -- se les responde
+                    // este texto fijo y se apaga el bot para ESE cliente
+                    // (mismo campo que el toggle individual de
+                    // "Conversaciones") para que el equipo lo revise a mano
+                    // en vez de que el bot le siga contestando.
+                    if ($keywordMatch->disable_bot_after_reply && $contact && $contact->bot_enabled) {
+                        $contact->bot_enabled = false;
+                        $contact->save();
+                    }
 
                     return [
                         'type' => 'text',

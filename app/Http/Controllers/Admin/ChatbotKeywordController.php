@@ -51,6 +51,7 @@ class ChatbotKeywordController extends Controller
             'response_text' => $data['response_text'],
             'is_active' => $data['is_active'],
             'sort_order' => $data['sort_order'],
+            'disable_bot_after_reply' => $data['disable_bot_after_reply'],
         ]);
 
         $this->syncBranches($entry, $data['branch_ids']);
@@ -69,6 +70,7 @@ class ChatbotKeywordController extends Controller
             'response_text' => $data['response_text'],
             'is_active' => $data['is_active'],
             'sort_order' => $data['sort_order'],
+            'disable_bot_after_reply' => $data['disable_bot_after_reply'],
         ]);
 
         $this->syncBranches($keyword, $data['branch_ids']);
@@ -101,6 +103,7 @@ class ChatbotKeywordController extends Controller
             'all_branches' => ['nullable', 'boolean'],
             'branch_ids' => ['nullable', 'array'],
             'branch_ids.*' => ['integer'],
+            'disable_bot_after_reply' => ['nullable', 'boolean'],
         ]);
 
         $keywords = collect(explode(',', $data['keywords']))
@@ -145,6 +148,7 @@ class ChatbotKeywordController extends Controller
             'sort_order' => $data['sort_order'] ?? 0,
             'all_branches' => $allBranches,
             'branch_ids' => $selectedBranchIds->all(),
+            'disable_bot_after_reply' => $request->boolean('disable_bot_after_reply'),
         ];
     }
 

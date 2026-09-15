@@ -153,6 +153,48 @@ class StorefrontQaFixesTest extends TestCase
         $response->assertSee('.bulk-order-app[data-channel="storefront"] .bulk-order-filters{display:block!important;', false);
     }
 
+    /**
+     * Pedido explícito en vivo: si el cliente había buscado algo y después
+     * toca una categoría distinta, ese texto seguía aplicándose como filtro
+     * sobre la categoría nueva -- podía parecer que esa categoría no tenía
+     * productos, cuando en realidad la búsqueda vieja los estaba tapando.
+     */
+    public function test_switching_category_clears_any_leftover_search_text(): void
+    {
+        $this->fixture('08');
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('function clearCatalogSearch()', false);
+        $response->assertSee("el('bulkCategory').value = btn.dataset.category;", false);
+        $response->assertSee("clearCatalogSearch();\n            await loadCatalog();", false);
+        $response->assertSee("() => { showingPromotions = false; clearCatalogSearch(); loadCatalog(); }", false);
+    }
+
+    /**
+     * Pedido explícito en vivo: antes de tocar "Elegir entrega y comenzar"
+     * se ocultaban precio, variaciones, cantidad y "Pagar ahora" en la ficha
+     * del producto -- el cliente no podía ni ver cuánto costaba sin
+     * comprometerse primero a empezar el pedido. Ahora se ven siempre; el
+     * botón principal sigue abriendo el selector de pago/entrega primero si
+     * todavía no se eligió.
+     */
+    public function test_product_price_and_variations_are_visible_before_starting_an_order(): void
+    {
+        $source = file_get_contents(resource_path('views/bulk-order/partials/form-app.blade.php'));
+
+        $this->assertStringNotContainsString(
+            ':not(.is-order-started) .storefront-product-base-price',
+            $source
+        );
+        $this->assertStringNotContainsString(
+            ':not(.is-order-started) .storefront-variation-section',
+            $source
+        );
+        $this->assertStringContainsString('storefrontMustStartOrder()', $source);
+    }
+
     public function test_saved_addresses_are_normalized_before_using_array_methods(): void
     {
         $this->fixture('09');
