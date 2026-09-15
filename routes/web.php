@@ -408,6 +408,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
         Route::put('/{company:slug}', [CompanyWhatsappController::class, 'updateCompany'])
             ->middleware('permission:chatbot.update')
             ->name('update');
+        Route::post('/{company:slug}/bot', [CompanyWhatsappController::class, 'toggleBot'])
+            ->middleware('permission:chatbot.update')
+            ->name('bot.toggle');
         Route::get('/{company:slug}/tienda', [CompanyStorefrontController::class, 'edit'])
             ->middleware('permission:chatbot.view,chatbot.menu,companies.menu')
             ->name('storefront.edit');

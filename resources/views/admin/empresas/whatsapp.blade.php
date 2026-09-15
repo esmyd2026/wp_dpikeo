@@ -30,6 +30,25 @@
             <a href="{{ route('admin.empresas.storefront.edit', $company) }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-sm font-semibold"><i class="fas fa-store mr-2"></i>Diseño de tienda</a>
         </div>
 
+        <div class="mb-6 rounded-lg border {{ $company->bot_enabled ? 'border-gray-200 bg-gray-50' : 'border-red-300 bg-red-50' }} p-4">
+            <form action="{{ route('admin.empresas.bot.toggle', $company) }}" method="POST" class="flex items-center gap-3">
+                @csrf
+                <input type="hidden" name="bot_enabled" value="0">
+                <input type="checkbox" id="company_bot_enabled" name="bot_enabled" value="1"
+                    {{ $company->bot_enabled ? 'checked' : '' }}
+                    onchange="this.form.submit()"
+                    class="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500">
+                <label for="company_bot_enabled" class="text-sm font-semibold text-gray-900">
+                    🤖 Bot activado para esta empresa
+                </label>
+            </form>
+            <p class="mt-2 text-xs text-gray-600">
+                Apágalo para pausar el bot en <strong>todos</strong> los números de esta empresa a la vez.
+                No toca el interruptor individual de cada número (el de "Configuración del bot") -- al
+                reactivar la empresa, cada número vuelve exactamente a como estaba antes de apagarla.
+            </p>
+        </div>
+
         @php
             $usableAccounts = $accounts->where('status', 'connected');
             $hasPrimary = $usableAccounts->contains('is_primary', true);

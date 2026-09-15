@@ -160,6 +160,9 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
         $this->assertSame('cta_url', $response['interactive']['type']);
         $this->assertStringContainsString('/pedido/', $url);
         $this->assertStringNotContainsString($contact->phone_number, $url);
+        // Ya eligió efectivo en el chat -- el micrositio no debe preguntarlo
+        // de nuevo apenas llegue.
+        $this->assertStringContainsString('payment_method=efectivo', $url);
         $this->assertDatabaseCount('bulk_order_tokens', 1);
     }
 
@@ -180,6 +183,38 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
         $this->assertSame('cta_url', $response['interactive']['type']);
         $this->assertSame('tarjeta', $cart->fresh()->payment_method);
         $this->assertArrayNotHasKey('card_payment_link_sent', $cart->fresh()->metadata ?? []);
+        $url = $response['interactive']['action']['parameters']['url'] ?? '';
+        $this->assertStringContainsString('payment_method=tarjeta', $url);
+    }
+
+    /**
+     * El enlace que manda el bot cuando el cliente ya eligió cómo pagar debe
+     * llegar hasta la página del micrositio sin que le vuelva a preguntar --
+     * cadena completa: WhatsappService arma la URL -> BulkOrderController la
+     * reenvía en el redirect -> StorefrontController la deja lista para el
+     * JS de la página (ver storefrontOrderDefaults en storefront/show.blade.php).
+     */
+    public function test_the_payment_method_already_chosen_in_the_chat_reaches_the_storefront_page(): void
+    {
+        [$company, $profile, $contact] = $this->fixture('100011', ecommerceMode: true);
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId($profile->phone_number_id);
+
+        $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
+        $response = $this->invoke($service, 'procesarPagoEfectivo', [$contact, $cart->id]);
+        $url = $response['interactive']['action']['parameters']['url'] ?? '';
+        $path = parse_url($url, PHP_URL_PATH).'?'.parse_url($url, PHP_URL_QUERY);
+
+        $page = $this->get($path);
+        $page->assertStatus(302);
+        $location = $page->headers->get('Location');
+        $this->assertStringStartsWith(route('storefront.show', $company), $location);
+        $this->assertStringContainsString('payment_method=efectivo', $location);
+        $page = $this->get($location);
+
+        $page->assertOk();
+        $page->assertSee('window.storefrontOrder.payment_method="efectivo"', false);
     }
 
     public function test_an_old_bulk_order_link_redirects_to_the_published_storefront(): void

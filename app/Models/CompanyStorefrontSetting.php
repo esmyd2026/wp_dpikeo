@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CompanyStorefrontSetting extends Model
 {
     protected $fillable = [
-        'company_id', 'logo_path', 'hero_image_path', 'primary_color',
+        'company_id', 'logo_path', 'favicon_path', 'hero_image_path', 'primary_color',
         'secondary_color', 'accent_color', 'custom_domain',
         'google_maps_api_key', 'google_maps_map_id', 'google_oauth_client_id',
         'google_oauth_client_secret', 'storefront_enabled',
@@ -49,6 +49,11 @@ class CompanyStorefrontSetting extends Model
     public function logoUrl(): ?string
     {
         return $this->assetUrl($this->logo_path);
+    }
+
+    public function faviconUrl(): ?string
+    {
+        return $this->assetUrl($this->favicon_path);
     }
 
     public function heroImageUrl(): ?string

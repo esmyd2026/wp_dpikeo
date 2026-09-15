@@ -23,6 +23,24 @@
                 @endforeach
                 <label class="block"><span class="text-sm font-medium text-gray-700">Logo</span><input type="file" name="logo" accept="image/*,.svg" class="mt-1 block w-full text-sm"></label>
                 @if($settings->logoUrl())<img src="{{ $settings->logoUrl() }}" alt="Logo actual" class="h-24 w-24 object-contain rounded-xl border bg-white p-2">@endif
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <label class="block">
+                        <span class="text-sm font-medium text-gray-700">Favicon de la tienda</span>
+                        <input type="file" name="favicon" accept=".ico,image/png,image/jpeg,image/webp" class="mt-2 block w-full text-sm">
+                        <small class="mt-2 block text-gray-500">Es el ícono que aparece en la pestaña del navegador. Usa una imagen cuadrada; recomendado: PNG de 512 × 512 px. Máximo 1 MB.</small>
+                    </label>
+                    @if($settings->faviconUrl())
+                        <div class="mt-3 flex items-center gap-3">
+                            <span class="grid h-14 w-14 place-items-center rounded-xl border bg-white">
+                                <img src="{{ $settings->faviconUrl() }}" alt="Favicon actual" class="h-9 w-9 object-contain">
+                            </span>
+                            <label class="flex items-center gap-2 text-sm text-gray-600">
+                                <input type="checkbox" name="remove_favicon" value="1">
+                                Quitar favicon actual
+                            </label>
+                        </div>
+                    @endif
+                </div>
                 <label class="block"><span class="text-sm font-medium text-gray-700">Imagen principal</span><input type="file" name="hero_image" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full text-sm"></label>
                 @if($settings->heroImageUrl())<img src="{{ $settings->heroImageUrl() }}" alt="Portada actual" class="h-36 w-full object-cover rounded-xl border">@endif
             </section>

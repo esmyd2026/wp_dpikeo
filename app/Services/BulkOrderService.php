@@ -138,7 +138,8 @@ class BulkOrderService
             $query->where(function ($q) use ($term) {
                 $q->where('name', 'like', $term)
                     ->orWhere('sku', 'like', $term)
-                    ->orWhere('description', 'like', $term);
+                    ->orWhere('description', 'like', $term)
+                    ->orWhereHas('menuCategory', fn ($category) => $category->where('title', 'like', $term));
             });
         }
 
@@ -159,7 +160,10 @@ class BulkOrderService
                     'id' => $p->id,
                     'sku' => $p->sku,
                     'name' => $p->name,
-                    'description' => $this->cleanText($p->description),
+                    // La descripción del administrador puede estar escrita
+                    // como lista. Conservamos sus saltos de línea para que el
+                    // detalle público no la convierta en un solo párrafo.
+                    'description' => $this->cleanMultilineText($p->description),
                     'measurements' => $this->productMeasurements($p),
                     'characteristics' => $this->productCharacteristics($p),
                     'category_id' => $p->menu_item_id,
@@ -628,6 +632,20 @@ class BulkOrderService
         }
 
         $text = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+
+        return $text !== '' ? $text : null;
+    }
+
+    private function cleanMultilineText(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $text = str_replace(["\r\n", "\r"], "\n", $value);
+        $text = preg_replace('/[^\S\r\n]+/u', ' ', $text) ?? '';
+        $text = preg_replace('/ *\n */u', "\n", $text) ?? '';
+        $text = trim(preg_replace('/\n{3,}/u', "\n\n", $text) ?? '');
 
         return $text !== '' ? $text : null;
     }

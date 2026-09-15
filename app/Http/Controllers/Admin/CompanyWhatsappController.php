@@ -117,6 +117,28 @@ class CompanyWhatsappController extends Controller
             ->with('success', 'Nombre de la empresa actualizado.');
     }
 
+    /**
+     * Interruptor general del bot para TODOS los números de la empresa a la
+     * vez -- independiente del interruptor por número (WhatsappChatbotConfig
+     * ->is_active, en Configuración del bot). No toca ese valor: al volver a
+     * activar la empresa, cada número queda exactamente como estaba antes.
+     */
+    public function toggleBot(Request $request, Company $company)
+    {
+        $this->authorizeCompany($company);
+
+        $validated = $request->validate([
+            'bot_enabled' => 'required|boolean',
+        ]);
+
+        $company->update(['bot_enabled' => $validated['bot_enabled']]);
+
+        return redirect()->route('admin.empresas.whatsapp', $company)
+            ->with('success', $validated['bot_enabled']
+                ? 'Bot reactivado para todos los números de esta empresa.'
+                : 'Bot desactivado para todos los números de esta empresa.');
+    }
+
     public function show(Company $company)
     {
         $this->authorizeCompany($company);

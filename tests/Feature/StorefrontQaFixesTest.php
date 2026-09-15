@@ -5,6 +5,10 @@ namespace Tests\Feature;
 use App\Models\Company;
 use App\Models\CompanyStorefrontSetting;
 use App\Models\WhatsappBusinessProfile;
+use App\Models\WhatsappMenu;
+use App\Models\WhatsappMenuItem;
+use App\Models\WhatsappPrice;
+use App\Services\BulkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -119,6 +123,7 @@ class StorefrontQaFixesTest extends TestCase
     public function test_loaded_category_image_containers_are_white_without_gray_bands(): void
     {
         $source = file_get_contents(resource_path('views/storefront/show.blade.php'));
+        $catalogSource = file_get_contents(resource_path('views/bulk-order/partials/form-app.blade.php'));
 
         $this->assertStringContainsString(
             '.storefront-category>.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;background:#fff!important;',
@@ -128,6 +133,74 @@ class StorefrontQaFixesTest extends TestCase
             '.bulk-order-app[data-channel="storefront"] .bulk-order-category-icon.catalog-image-shell{background:#fff!important}',
             $source
         );
+        $this->assertStringContainsString(
+            '.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button:hover{background:#fff;transform:none}',
+            $catalogSource
+        );
+    }
+
+    public function test_storefront_catalog_has_a_responsive_product_search(): void
+    {
+        $this->fixture('07');
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('id="storefrontCatalogSearch"', false);
+        $response->assertSee('placeholder="Busca tu producto favorito"', false);
+        $response->assertSee("el('storefrontCatalogSearch')?.addEventListener('input'", false);
+        $response->assertSee("el('bulkSearch').value = event.target.value", false);
+        $response->assertSee('.bulk-order-app[data-channel="storefront"] .bulk-order-filters{display:block!important;', false);
+    }
+
+    public function test_saved_addresses_are_normalized_before_using_array_methods(): void
+    {
+        $this->fixture('09');
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('window.getStorefrontSavedAddresses=()=>normalizeSavedAddresses(window.storefrontSavedAddresses);', false);
+        $response->assertSee('window.getStorefrontSavedAddresses().find(item=>item.is_default)', false);
+        $response->assertDontSee('(window.storefrontSavedAddresses || []).find', false);
+        $response->assertDontSee('(window.storefrontSavedAddresses||[]).find', false);
+    }
+
+    public function test_product_search_also_matches_the_category_name(): void
+    {
+        $company = $this->fixture('08');
+        $profile = WhatsappBusinessProfile::query()->where('company_id', $company->id)->where('phone_number_id', 'DPIKEOS-QA-08')->firstOrFail();
+        $menu = WhatsappMenu::create([
+            'business_profile_id' => $profile->id,
+            'title' => 'Menú',
+            'type' => 'list',
+            'content' => 'Catálogo',
+            'action_id' => 'prices_menu',
+        ]);
+        $category = WhatsappMenuItem::create([
+            'menu_id' => $menu->id,
+            'business_profile_id' => $profile->id,
+            'title' => 'Postres especiales',
+            'action_id' => 'postres-especiales',
+            'is_active' => true,
+        ]);
+        $product = WhatsappPrice::create([
+            'menu_item_id' => $category->id,
+            'business_profile_id' => $profile->id,
+            'category' => 'Postres especiales',
+            'sku' => 'HELADO-01',
+            'name' => 'Helado de vainilla',
+            'description' => "• Incluye helado\n• Incluye cobertura",
+            'price' => 2.50,
+            'currency' => 'USD',
+            'is_active' => true,
+            'stock' => 10,
+        ]);
+
+        $payload = app(BulkOrderService::class)->catalogPayload(null, 'Postres especiales', $profile->id);
+
+        $this->assertSame([$product->id], collect($payload['products'])->pluck('id')->all());
+        $this->assertSame("• Incluye helado\n• Incluye cobertura", $payload['products'][0]['description']);
     }
 
     public function test_security_headers_are_present_on_the_storefront_response(): void

@@ -1433,6 +1433,7 @@
     .bulk-order-app[data-channel="storefront"] .storefront-fulfillment{display:none!important}
     .bulk-order-app[data-channel="storefront"] .bulk-order-header,.bulk-order-app[data-channel="storefront"] .bulk-order-footer{display:none}
     .storefront-catalog-header{display:none}.bulk-order-app[data-channel="storefront"] .storefront-catalog-header{display:block;background:#fff;box-shadow:0 12px 26px rgba(0,0,0,.05)}.storefront-catalog-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-catalog-menu{width:36px;height:36px;padding:3px;border:0;background:transparent;cursor:pointer}.storefront-catalog-menu span{display:block;height:3px;margin:6px 0;border-radius:4px;background:#2d2d2d}.storefront-catalog-logo{width:58px;height:58px;margin-left:20px;object-fit:contain}.storefront-catalog-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end}.storefront-catalog-tabs span{position:relative;padding-bottom:17px}.storefront-catalog-tabs span:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--lime)}
+    .storefront-catalog-search{display:none}.bulk-order-app[data-channel="storefront"] .storefront-catalog-search{display:flex;flex:1;max-width:680px;height:52px;margin:0 auto;align-items:center;gap:10px;padding:0 17px;border:1px solid #dedede;border-radius:12px;background:#f8f8f8;color:#6f6f6f;transition:border-color .18s,box-shadow .18s,background .18s}.bulk-order-app[data-channel="storefront"] .storefront-catalog-search:focus-within{border-color:var(--lime);background:#fff;box-shadow:0 0 0 4px color-mix(in srgb,var(--lime) 22%,transparent)}.storefront-catalog-search svg{flex:0 0 auto;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.storefront-catalog-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#242424;font:inherit;font-size:.95rem}.storefront-catalog-search input::placeholder{color:#8a8a8a}
     .bulk-order-app[data-channel="storefront"] .bulk-order-wrap{max-width:1800px;padding:18px 28px 110px}
     .bulk-order-app[data-channel="storefront"] #bulkOrderFormBody{display:block}
     .bulk-order-app[data-channel="storefront"] .storefront-fulfillment{display:flex;width:min(720px,calc(100% - 30px));margin:0 auto 44px;padding:15px 22px;gap:14px;align-items:center;border:0;border-radius:999px;background:#f7f7f7;text-align:left;font:inherit}.storefront-fulfillment-icon{font-size:1.8rem}.storefront-fulfillment span{display:block}.storefront-fulfillment strong{font-size:1rem}.storefront-fulfillment small{margin-top:2px;color:#696969;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1444,6 +1445,7 @@
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{display:flex;flex-direction:row;align-items:flex-start;justify-content:center;gap:26px;max-height:none;margin:0 0 42px;padding:0 10px 7px;overflow-x:auto;overflow-y:hidden;-ms-overflow-style:none;scrollbar-width:none}
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips::-webkit-scrollbar{display:none}
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button{position:relative;flex:0 0 118px;width:118px;min-width:118px;min-height:128px;padding:2px 5px 18px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;border:0;border-radius:0;background:#fff;color:#333;box-shadow:none;text-align:center;white-space:normal}
+    .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button:hover{background:#fff;transform:none}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button:focus-visible{background:#fff;transform:none;outline:2px solid var(--brand);outline-offset:2px}
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active{border:0;background:#fff;box-shadow:none}
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button.is-active:after{content:'';position:absolute;left:0;right:0;bottom:0;height:5px;background:var(--lime)}
     .bulk-order-app[data-channel="storefront"] .bulk-order-category-icon{width:80px;height:74px;padding:0;background:transparent!important;color:inherit!important;font-size:3rem}
@@ -1458,6 +1460,7 @@
     .storefront-cart-header,.storefront-cart-delivery,.storefront-cart-promo,.storefront-cart-summary{display:none}
     .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-header{display:flex;position:sticky;z-index:3;top:0;margin:0 -28px 28px;padding:24px 28px;align-items:center;justify-content:space-between;background:#fff}.storefront-cart-header h2{margin:0;font-size:1.5rem}.storefront-cart-back,.storefront-cart-clear{border:0;background:none;font:inherit;cursor:pointer}.storefront-cart-back{font-size:2rem}.storefront-cart-clear{text-decoration:underline;color:#075985}
     .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>.bulk-order-section-head{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-delivery,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-promo{display:flex;max-width:900px;margin:0 auto 28px;padding:22px;gap:14px;align-items:center;border-radius:22px;background:#f8f8f8}.storefront-cart-delivery{width:100%;border:0;color:#151515;text-align:left;font:inherit;cursor:pointer}.storefront-cart-delivery:hover,.storefront-cart-delivery:focus-visible{background:#fff8e7!important;outline:2px solid var(--brand);outline-offset:2px}.storefront-cart-delivery div{display:grid;min-width:0}.storefront-cart-delivery small{overflow:hidden;color:#666;text-overflow:ellipsis;white-space:nowrap}.storefront-cart-change{margin-left:auto;color:var(--brand);font-size:.82rem;font-weight:850;white-space:nowrap}.storefront-cart-promo{width:100%;justify-content:space-between;border:0;color:#151515;font:inherit;font-weight:800;text-align:left;cursor:pointer}.storefront-cart-promo:hover,.storefront-cart-promo:focus-visible{background:#fff8e7!important;outline:2px solid var(--brand);outline-offset:2px}
+    .storefront-cart-order-context{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-order-context{display:grid;max-width:900px;margin:22px auto;grid-template-columns:1fr 1fr auto;border:1px solid #e8e8e8;border-radius:14px;background:#fff;overflow:hidden}.storefront-cart-order-context-item{display:grid;gap:4px;padding:14px 16px;border-right:1px solid #ececec}.storefront-cart-order-context-item small{color:#777;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.storefront-cart-order-context-item strong{font-size:.88rem}.storefront-cart-order-context-action{padding:0 18px;border:0;background:#fffaf0;color:var(--brand-dark);font:inherit;font-size:.78rem;font-weight:850;text-decoration:underline;cursor:pointer}.storefront-cart-order-context-action:hover{background:#fff3d3}.storefront-cart-order-context.is-complete{border-left:4px solid var(--lime)}
     .bulk-order-app[data-channel="storefront"] #bulkCartItems{max-width:900px;margin:auto}.bulk-order-app[data-channel="storefront"] .bulk-order-cart-item{border:0;border-bottom:1px solid #eee;border-radius:0;box-shadow:none}
     .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .bulk-order-storefront-customer,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>label,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open>#bulkOrderNote{display:none;max-width:900px;margin-left:auto;margin-right:auto}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step .bulk-order-storefront-customer,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step>label,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-checkout-step>#bulkOrderNote{display:grid}
     .bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-summary{display:block;position:fixed;z-index:4;left:0;right:0;bottom:0;padding:24px 28px 0;border-radius:36px 36px 0 0;background:#fff;box-shadow:0 -10px 35px rgba(0,0,0,.14)}.storefront-cart-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;font-size:1.4rem}.storefront-cart-total-row strong{font-size:1.8rem}.storefront-cart-actions{display:grid;grid-template-columns:1fr 1fr;margin:0 -28px}.storefront-cart-actions button{min-height:76px;border:1px solid #bbb;background:#fff;font:inherit;font-weight:750}.storefront-cart-actions button:last-child{border-color:var(--lime);background:var(--lime)}
@@ -1465,7 +1468,7 @@
     .storefront-bottom-nav,.bulk-order-app[data-channel="storefront"] .storefront-bottom-nav{display:none}.storefront-bottom-nav button{border:0;background:transparent;color:#777;font:inherit}.storefront-bottom-nav button:first-child{color:var(--wa);font-weight:800}.storefront-bottom-nav span{display:flex;justify-content:center;margin-bottom:3px}.storefront-bottom-nav span svg{display:block}
     .bulk-order-app[data-channel="storefront"] .bulk-order-modal{align-items:stretch;padding:0;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-card{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-head{flex-direction:row-reverse;justify-content:flex-end;gap:14px;padding:20px 28px;border:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-head h3{display:block;margin:0;font-size:1rem}.bulk-order-app[data-channel="storefront"] #bulkCustomizerPrice{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-close{font-size:0}.bulk-order-app[data-channel="storefront"] .bulk-order-close:after{content:'‹';font-size:2.2rem}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options{width:min(850px,100%);margin:auto;padding:0 28px 180px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{height:360px;border:0;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero img{object-fit:contain}.storefront-product-title{display:none}.bulk-order-app[data-channel="storefront"] .storefront-product-title{display:block;margin:22px 0 10px;font-size:2rem;line-height:1.15}.storefront-product-base-price{display:none}.bulk-order-app[data-channel="storefront"] .storefront-product-base-price{display:block;margin:8px 0 20px;font-size:1.25rem;font-weight:850}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-description{font-size:1rem;line-height:1.55;color:#686868}.bulk-order-app[data-channel="storefront"] .bulk-order-choice{border:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-footer{position:fixed;z-index:2;left:0;right:0;bottom:0;display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:18px 28px 0;background:#fff;box-shadow:0 -8px 30px rgba(0,0,0,.12)}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-add{margin:0;min-height:62px;border-radius:0;background:var(--lime);color:#222}.storefront-detail-qty{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-qty{display:flex;align-items:center;border:1px solid #aaa;border-radius:999px;overflow:hidden}.storefront-detail-qty button{width:44px;height:42px;border:0;background:#fff;font-size:1.5rem}.storefront-detail-qty span{min-width:36px;text-align:center}.storefront-detail-total{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-total{display:block;margin-left:auto;font-size:1.7rem}.storefront-detail-actions{display:none}.bulk-order-app[data-channel="storefront"] .storefront-detail-actions{display:grid;width:calc(100% + 56px);margin:0 -28px;grid-template-columns:1fr 1fr}.storefront-detail-actions>button{min-height:62px;border:1px solid #bbb;background:#fff;font:inherit}.storefront-detail-actions .bulk-order-modal-add{width:100%}
     .bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>h4{font-size:1.2rem!important;margin-top:28px!important}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice{display:inline-flex;width:auto;margin:10px 14px 10px 0;padding:0}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice label{display:flex;width:76px;height:76px;align-items:center;justify-content:center;border:1px solid #bbb;border-radius:50%;font-size:1.1rem}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice:has(input:checked) label{border:3px solid var(--lime)}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-options>.bulk-order-choice small{display:none}
-    .bulk-order-addon-sheet{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-sheet.is-open{display:flex;position:fixed;z-index:1400;inset:0;align-items:flex-end;background:rgba(0,0,0,.55)}.bulk-order-addon-sheet-card{display:flex;width:100%;max-height:82dvh;padding:0;border-radius:34px 34px 0 0;background:#fff;overflow:hidden;flex-direction:column}.bulk-order-addon-head{display:flex;flex:0 0 auto;align-items:center;gap:18px;margin:0;padding:26px 28px 12px}.bulk-order-addon-head button{border:0;background:none;font-size:2rem}.bulk-order-addon-head h3{margin:0;font-size:1.45rem}.bulk-order-addon-options{min-height:0;padding:0 28px 18px;overflow:auto}.bulk-order-addon-section{margin-top:22px}.bulk-order-addon-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.bulk-order-addon-section-head h4{margin:0;font-size:1.05rem}.bulk-order-required-badge{padding:5px 9px;border-radius:999px;background:#fff2bf;color:#6b4b00;font-size:.7rem;font-weight:850}.bulk-order-addon-option{display:flex;width:100%;min-height:76px;align-items:center;gap:15px;border:0;background:#fff;text-align:left;font:inherit;font-weight:750}.bulk-order-addon-option.is-selected{background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}.bulk-order-addon-option-icon{display:flex;width:54px;height:54px;flex:0 0 54px;align-items:center;justify-content:center;border-radius:50%;background:#fafafa}.bulk-order-addon-option-icon.is-choice{border:2px solid #dedede;background:#fff;color:transparent}.bulk-order-addon-option-icon.is-choice:after{content:''}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice{border-color:var(--lime);background:var(--lime);color:#222}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice:after{content:'✓';font-size:1.25rem;font-weight:900}.bulk-order-addon-option small{margin-left:auto;color:#666;font-weight:500}.bulk-order-addon-actions{flex:0 0 auto;padding:14px 28px 22px;border-top:1px solid #ececec;background:#fff}.bulk-order-addon-status{min-height:20px;margin:0 0 8px;color:#8a5a00;font-size:.78rem;font-weight:750}.bulk-order-addon-add{position:relative;width:100%;min-height:56px;border:0;border-radius:6px;background:var(--lime);color:#222;font:inherit;font-weight:850;cursor:pointer}.bulk-order-addon-add:disabled{cursor:not-allowed;opacity:.5}.bulk-order-addon-add.is-loading{color:transparent}.bulk-order-addon-add.is-loading:after{content:'';position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border:3px solid rgba(34,34,34,.28);border-top-color:#222;border-radius:50%;animation:bulk-order-spin .7s linear infinite}@keyframes bulk-order-spin{to{transform:rotate(360deg)}}.storefront-extra-trigger{display:none}.bulk-order-app[data-channel="storefront"] .storefront-extra-trigger{display:flex;width:100%;margin:22px 0;padding:20px 0;justify-content:space-between;border:0;border-top:1px solid #eee;border-bottom:1px solid #eee;background:#fff;font:inherit;font-weight:800;cursor:pointer}
+    .bulk-order-addon-sheet{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-addon-sheet.is-open{display:flex;position:fixed;z-index:1400;inset:0;align-items:flex-end;background:rgba(0,0,0,.55)}.bulk-order-addon-sheet-card{display:flex;width:100%;max-height:82dvh;padding:0;border-radius:34px 34px 0 0;background:#fff;overflow:hidden;flex-direction:column}.bulk-order-addon-head{display:flex;flex:0 0 auto;align-items:center;gap:18px;margin:0;padding:26px 28px 12px}.bulk-order-addon-head button{border:0;background:none;font-size:2rem}.bulk-order-addon-head h3{margin:0;font-size:1.45rem}.bulk-order-addon-options{min-height:0;padding:0 28px 18px;overflow:auto}.bulk-order-addon-section{margin-top:22px}.bulk-order-addon-section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}.bulk-order-addon-section-head h4{margin:0;font-size:1.05rem}.bulk-order-required-badge{padding:5px 9px;border-radius:999px;background:#fff2bf;color:#6b4b00;font-size:.7rem;font-weight:850}.bulk-order-addon-option{display:flex;width:100%;min-height:76px;align-items:center;gap:15px;border:0;background:#fff;text-align:left;font:inherit;font-weight:750}.bulk-order-addon-option.is-selected{background:#fff9e8;box-shadow:inset 4px 0 var(--lime)}.bulk-order-addon-option-icon{display:flex;width:54px;height:54px;flex:0 0 54px;align-items:center;justify-content:center;border-radius:50%;background:#fafafa}.bulk-order-addon-option-icon.is-choice{border:2px solid #dedede;background:#fff;color:transparent}.bulk-order-addon-option-icon.is-choice:after{content:''}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice{border-color:var(--lime);background:var(--lime);color:#222}.bulk-order-addon-option.is-selected .bulk-order-addon-option-icon.is-choice:after{content:'✓';font-size:1.25rem;font-weight:900}.bulk-order-addon-option small{margin-left:auto;color:#666;font-weight:500}.bulk-order-addon-actions{display:grid;flex:0 0 auto;gap:9px;padding:14px 28px 22px;border-top:1px solid #ececec;background:#fff}.bulk-order-addon-status{min-height:20px;margin:0;color:#8a5a00;font-size:.78rem;font-weight:750}.bulk-order-addon-skip{width:100%;min-height:48px;border:1px solid #d8d8d8;border-radius:6px;background:#fff;color:#333;font:inherit;font-weight:800;cursor:pointer}.bulk-order-addon-skip:hover{border-color:var(--lime);background:#fffaf0}.bulk-order-addon-skip:disabled{cursor:not-allowed;opacity:.5}.bulk-order-addon-skip[hidden]{display:none}.bulk-order-addon-add{position:relative;width:100%;min-height:56px;border:0;border-radius:6px;background:var(--lime);color:#222;font:inherit;font-weight:850;cursor:pointer}.bulk-order-addon-add:disabled{cursor:not-allowed;opacity:.5}.bulk-order-addon-add.is-loading{color:transparent}.bulk-order-addon-add.is-loading:after{content:'';position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px;border:3px solid rgba(34,34,34,.28);border-top-color:#222;border-radius:50%;animation:bulk-order-spin .7s linear infinite}@keyframes bulk-order-spin{to{transform:rotate(360deg)}}.storefront-extra-trigger{display:none}.bulk-order-app[data-channel="storefront"] .storefront-extra-trigger{display:flex;width:100%;margin:22px 0;padding:20px 0;justify-content:space-between;border:0;border-top:1px solid #eee;border-bottom:1px solid #eee;background:#fff;font:inherit;font-weight:800;cursor:pointer}
     .bulk-order-addon-option-icon{color:#555;font-size:1.65rem;font-weight:400}.bulk-order-addon-option-icon img{width:42px;height:42px;object-fit:contain}
     .bulk-order-addon-option.is-selected .bulk-order-addon-option-icon:not(.is-choice){background:var(--lime);color:#222}
     .bulk-order-addon-option.is-selected .bulk-order-addon-option-icon:not(.is-choice)>*{display:none}
@@ -1502,8 +1505,8 @@
     @media(min-width:900px) and (max-width:1199.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}}
     @media(min-width:720px) and (max-width:899.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}}
     @media(min-width:900px){.bulk-order-app[data-channel="agent"] .bulk-order-addon-sheet.is-open{align-items:center;justify-content:center;padding:30px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-sheet-card{width:min(820px,100%);max-height:86dvh;border-radius:22px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-head{padding:32px 42px 12px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-options{padding:0 42px 20px}.bulk-order-app[data-channel="agent"] .bulk-order-addon-actions{padding:16px 42px 28px}}
-    @media(min-width:900px){.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open.is-cart-preview{inset:74px 116px auto auto;width:min(416px,calc(100% - 48px));max-height:calc(100dvh - 98px);padding:0;border-radius:0;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.18);overflow:auto}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header{position:static;margin:0;padding:18px 24px 10px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header h2{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back{font-size:0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back:after{content:'×';font-size:1.7rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-delivery,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-promo{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-products-title{margin:8px 24px 14px;font-size:1.15rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #bulkCartItems{margin:0;padding:0 24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-item{padding:14px 0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-toggle,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-editor{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-summary{position:sticky;left:auto;right:auto;bottom:0;margin-top:18px;padding:18px 24px 0;border-radius:0;background:#f7f7f7;box-shadow:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-total-row{margin-bottom:16px;font-size:1.25rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-actions{display:block;margin:0 -24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontContinueShopping{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontCartNext{width:100%;min-height:56px}}
-    @media(max-width:719.98px){.bulk-order-app[data-channel="storefront"] .storefront-catalog-header{display:none}.bulk-order-app[data-channel="storefront"] .storefront-bottom-nav{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;justify-content:space-around;align-items:center;border-top:1px solid #ddd;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-wrap{padding:14px 16px 110px}.bulk-order-app[data-channel="storefront"] .storefront-fulfillment{margin-bottom:32px}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{justify-content:flex-start;gap:8px;margin:0 0 26px;padding:2px 4px 10px;border:0;background:#fff;scroll-snap-type:x mandatory}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button{flex:0 0 102px;width:102px;min-width:102px;height:142px;min-height:142px;padding:2px 4px 12px;justify-content:flex-start;gap:8px;overflow:hidden;scroll-snap-align:start}.bulk-order-app[data-channel="storefront"] .bulk-order-category-icon{width:72px;height:78px;min-height:78px;padding:0}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button span:last-child{display:-webkit-box;min-height:34px;max-width:94px;overflow:hidden;white-space:normal;line-height:1.2;-webkit-line-clamp:2;-webkit-box-orient:vertical}.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:285px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-media{height:160px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content{padding:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{height:300px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open{padding-left:18px;padding-right:18px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-header{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}}
+    @media(min-width:900px){.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open.is-cart-preview{inset:74px 116px auto auto;width:min(416px,calc(100% - 48px));max-height:calc(100dvh - 98px);padding:0;border-radius:0;background:#fff;box-shadow:0 10px 32px rgba(0,0,0,.18);overflow:auto}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header{position:static;margin:0;padding:18px 24px 10px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-header h2{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back{font-size:0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-back:after{content:'×';font-size:1.7rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-delivery,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-promo{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-products-title{margin:8px 24px 14px;font-size:1.15rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #bulkCartItems{margin:0;padding:0 24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-item{padding:14px 0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-toggle,.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .bulk-order-cart-note-editor{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-order-context{margin:14px 24px;grid-template-columns:1fr 1fr}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-order-context-item:nth-child(2){border-right:0}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-order-context-action{grid-column:1/-1;min-height:42px;border-top:1px solid #ececec}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-summary{position:sticky;left:auto;right:auto;bottom:0;margin-top:18px;padding:18px 24px 0;border-radius:0;background:#f7f7f7;box-shadow:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-total-row{margin-bottom:16px;font-size:1.25rem}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview .storefront-cart-actions{display:block;margin:0 -24px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontContinueShopping{display:none}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-cart-preview #storefrontCartNext{width:100%;min-height:56px}}
+    @media(max-width:719.98px){.bulk-order-app[data-channel="storefront"] .storefront-catalog-header{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-filters{display:block!important;margin:0 0 18px}.bulk-order-app[data-channel="storefront"] .bulk-order-filters::before{top:7px}.bulk-order-app[data-channel="storefront"] .bulk-order-filter-label{display:none}.bulk-order-app[data-channel="storefront"] .bulk-order-filters input{width:100%;height:48px}.bulk-order-app[data-channel="storefront"] .storefront-bottom-nav{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;justify-content:space-around;align-items:center;border-top:1px solid #ddd;background:#fff}.bulk-order-app[data-channel="storefront"] .bulk-order-wrap{padding:14px 16px 110px}.bulk-order-app[data-channel="storefront"] .storefront-fulfillment{margin-bottom:32px}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips{justify-content:flex-start;gap:8px;margin:0 0 26px;padding:2px 4px 10px;border:0;background:#fff;scroll-snap-type:x mandatory}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button{flex:0 0 102px;width:102px;min-width:102px;height:142px;min-height:142px;padding:2px 4px 12px;justify-content:flex-start;gap:8px;overflow:hidden;scroll-snap-align:start}.bulk-order-app[data-channel="storefront"] .bulk-order-category-icon{width:72px;height:78px;min-height:78px;padding:0}.bulk-order-app[data-channel="storefront"] .bulk-order-category-chips button span:last-child{display:-webkit-box;min-height:34px;max-width:94px;overflow:hidden;white-space:normal;line-height:1.2;-webkit-line-clamp:2;-webkit-box-orient:vertical}.bulk-order-app[data-channel="storefront"] .bulk-order-product-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:285px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-media{height:160px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content{padding:14px}.bulk-order-app[data-channel="storefront"] .bulk-order-modal-hero{height:300px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open{padding-left:18px;padding-right:18px}.bulk-order-app[data-channel="storefront"] #bulkCartPanel.is-storefront-open .storefront-cart-header{margin-left:-18px;margin-right:-18px;padding-left:18px;padding-right:18px}}
     .bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:365px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-desc,.bulk-order-app[data-channel="agent"] .bulk-order-product-desc,.bulk-order-app[data-channel="kiosk"] .bulk-order-product-desc{display:-webkit-box;min-height:2.8em;max-height:2.8em;margin:7px 0 8px;overflow:hidden;color:#666;font-size:.82rem;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}.bulk-order-app[data-channel="storefront"] .bulk-order-product-content>strong,.bulk-order-app[data-channel="agent"] .bulk-order-product-content>strong,.bulk-order-app[data-channel="kiosk"] .bulk-order-product-content>strong{-webkit-line-clamp:2}.bulk-order-app[data-channel="storefront"] .bulk-order-product-price{padding-top:8px}
     @media(max-width:719.98px){.bulk-order-app[data-channel="storefront"] .bulk-order-product-row{min-height:320px}.bulk-order-app[data-channel="storefront"] .bulk-order-product-desc{display:-webkit-box;min-height:2.7em;max-height:2.7em;font-size:.76rem;line-height:1.35}}
 </style>
@@ -1525,7 +1528,20 @@
         <p>{{ $headerSubtitle }}</p>
     </header>
     @if($isStorefront || $isKiosk)
-    <div class="storefront-catalog-header"><div class="storefront-catalog-nav"><button type="button" class="storefront-catalog-menu" id="storefrontCatalogMenu" aria-label="Abrir menú"><span></span><span></span><span></span></button>@if(!empty($logoUrl))<img src="{{ $logoUrl }}" class="storefront-catalog-logo" alt="Logo">@endif @if($isKiosk && !empty($adminUrl))<a href="{{ $adminUrl }}" class="storefront-catalog-admin" aria-label="Ir al panel administrativo"><span aria-hidden="true">⚙</span><span class="storefront-catalog-admin-label">Panel administrativo</span></a>@endif</div><div class="storefront-catalog-tabs"><span>Productos</span></div></div>
+    <div class="storefront-catalog-header">
+        <div class="storefront-catalog-nav">
+            <button type="button" class="storefront-catalog-menu" id="storefrontCatalogMenu" aria-label="Abrir menú"><span></span><span></span><span></span></button>
+            @if(!empty($logoUrl))<img src="{{ $logoUrl }}" class="storefront-catalog-logo" alt="Logo">@endif
+            @if($isStorefront)
+                <label class="storefront-catalog-search" for="storefrontCatalogSearch">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+                    <input type="search" id="storefrontCatalogSearch" placeholder="Busca tu producto favorito" autocomplete="off">
+                </label>
+            @endif
+            @if($isKiosk && !empty($adminUrl))<a href="{{ $adminUrl }}" class="storefront-catalog-admin" aria-label="Ir al panel administrativo"><span aria-hidden="true">⚙</span><span class="storefront-catalog-admin-label">Panel administrativo</span></a>@endif
+        </div>
+        <div class="storefront-catalog-tabs"><span>Productos</span></div>
+    </div>
     @endif
 
     @if(!$isAgent && !$isKiosk && !empty($existingCartItems))
@@ -1660,6 +1676,11 @@
                     <div id="bulkCartItems"></div>
                     <p class="bulk-order-cart-empty" id="bulkCartEmpty">Aún no agregaste productos.</p>
                     @if($isStorefront)
+                    <section class="storefront-cart-order-context" id="storefrontCartOrderContext" aria-live="polite">
+                        <div class="storefront-cart-order-context-item"><small>Tipo de pedido</small><strong id="storefrontCartServiceType">Por seleccionar</strong></div>
+                        <div class="storefront-cart-order-context-item"><small>Forma de pago</small><strong id="storefrontCartPaymentMethod">Por seleccionar</strong></div>
+                        <button type="button" class="storefront-cart-order-context-action" id="storefrontCartOrderContextAction">Agregar entrega y pago ›</button>
+                    </section>
                     <div class="bulk-order-storefront-customer">
                         <h3>Datos para confirmar</h3>
                         <aside class="storefront-account-benefit is-required" id="storefrontCheckoutAccountBenefit">
@@ -1808,7 +1829,7 @@
     </div>
 
     @if($usesEnhancedCustomizer)
-    <div class="bulk-order-addon-sheet" id="bulkAddonSheet" aria-hidden="true"><div class="bulk-order-addon-sheet-card" role="dialog" aria-modal="true"><div class="bulk-order-addon-head"><button type="button" id="bulkAddonClose" aria-label="Cerrar">×</button><h3 id="bulkAddonTitle">Selecciona tus adicionales</h3></div><div id="bulkAddonOptions" class="bulk-order-addon-options"></div><div class="bulk-order-addon-actions"><p class="bulk-order-addon-status" id="bulkAddonStatus" aria-live="polite"></p><button type="button" class="bulk-order-addon-add" id="bulkAddonAdd">Agregar al carrito</button></div></div></div>
+    <div class="bulk-order-addon-sheet" id="bulkAddonSheet" aria-hidden="true"><div class="bulk-order-addon-sheet-card" role="dialog" aria-modal="true"><div class="bulk-order-addon-head"><button type="button" id="bulkAddonClose" aria-label="Cerrar">×</button><h3 id="bulkAddonTitle">Selecciona tus adicionales</h3></div><div id="bulkAddonOptions" class="bulk-order-addon-options"></div><div class="bulk-order-addon-actions"><p class="bulk-order-addon-status" id="bulkAddonStatus" aria-live="polite"></p><button type="button" class="bulk-order-addon-skip" id="bulkAddonSkip">Continuar sin adicionales</button><button type="button" class="bulk-order-addon-add" id="bulkAddonAdd">Agregar al carrito</button></div></div></div>
     @endif
     @if($isStorefront)
     <nav class="storefront-bottom-nav" aria-label="Navegación principal">
@@ -1859,6 +1880,7 @@
     const usesEnhancedCustomizer = @json($usesEnhancedCustomizer);
     const catalogUrl = @json($catalogUrl);
     const submitUrl = @json($submitUrl);
+    const cardPaymentUrl = @json($cardPaymentUrl ?? null);
     const contactsSearchUrl = @json($contactsSearchUrl ?? null);
     const contactsCreateUrl = @json($contactsCreateUrl ?? null);
     const initialContact = @json($initialContact ?? null);
@@ -2640,10 +2662,19 @@
         summary.textContent = count ? `${count} elegidos` : '›';
     }
 
+    // Antes de agregar el primer producto hay que saber cómo va a pagar (para
+    // no dejarlo elegir "pide y retira" con efectivo, por ejemplo) y cómo va
+    // a recibirlo. Si falta cualquiera de las dos cosas se le pregunta de
+    // una vez, apenas intenta agregar algo -- no al final, después de haber
+    // configurado todo el producto.
+    function storefrontMustStartOrder() {
+        return isStorefront && (!window.storefrontOrder?.confirmed || !window.storefrontOrder?.payment_method);
+    }
+
     function syncCustomizerActions() {
         if (!customizingProduct) return;
 
-        const mustStartOrder = isStorefront && !window.storefrontOrder?.confirmed;
+        const mustStartOrder = storefrontMustStartOrder();
         const hasOptionalExtras = (customizingProduct.extras || []).length > 0;
         const missingRequiredOption = !mustStartOrder
             && (customizingProduct.variations || []).length > 0
@@ -2651,6 +2682,7 @@
         const shouldReviewOptions = !mustStartOrder && hasOptionalExtras && !customizerOptionsReviewed;
         const mainButton = el('bulkCustomizerAdd');
         const addonButton = el('bulkAddonAdd');
+        const skipAddonButton = el('bulkAddonSkip');
         const status = el('bulkAddonStatus');
         const footer = document.querySelector('#bulkCustomizer .bulk-order-modal-footer');
         const finalLabel = editingCartIndex !== null ? 'Guardar cambios' : 'Agregar al carrito';
@@ -2671,6 +2703,13 @@
             addonButton.disabled = missingRequiredOption;
             addonButton.setAttribute('aria-disabled', missingRequiredOption ? 'true' : 'false');
         }
+        if (skipAddonButton && !customizerSubmitting) {
+            skipAddonButton.textContent = editingCartIndex !== null
+                ? 'Guardar sin adicionales'
+                : 'Continuar sin adicionales';
+            skipAddonButton.disabled = missingRequiredOption;
+            skipAddonButton.setAttribute('aria-disabled', missingRequiredOption ? 'true' : 'false');
+        }
         if (footer) {
             footer.dataset.guide = mustStartOrder
                 ? ''
@@ -2683,7 +2722,9 @@
         if (status && !customizerSubmitting) {
             status.textContent = missingRequiredOption
                 ? 'Selecciona la opción obligatoria para continuar.'
-                : 'Tu selección está lista.';
+                : (customizerExtras.length
+                    ? 'Tu selección está lista.'
+                    : 'Los adicionales son opcionales. Puedes continuar sin elegirlos.');
         }
     }
     window.syncStorefrontCustomizerActions = syncCustomizerActions;
@@ -2856,6 +2897,7 @@
         if (el('storefrontCartTotal')) el('storefrontCartTotal').textContent = fmt(total);
         persistCart();
         updateFormEnabled();
+        applyCardPaymentButtonLabel();
     }
     if (isStorefront) window.renderStorefrontCartFab = renderCart;
 
@@ -2866,6 +2908,7 @@
             panel?.classList.add('is-storefront-open');
             panel?.classList.toggle('is-cart-preview', desktopPreview);
             if (el('storefrontCartNext')) el('storefrontCartNext').textContent = desktopPreview ? 'Ver carrito' : 'Siguiente';
+            applyCardPaymentButtonLabel();
             document.body.style.overflow = desktopPreview ? '' : 'hidden';
         } else if (isKiosk) {
             el('bulkCartPanel')?.classList.add('is-storefront-open');
@@ -2891,18 +2934,53 @@
     };
     el('storefrontFulfillmentBar')?.addEventListener('click', openStorefrontFulfillmentSelector);
     el('storefrontCartDeliveryChange')?.addEventListener('click', openStorefrontFulfillmentSelector);
+    el('storefrontCartOrderContextAction')?.addEventListener('click', openStorefrontFulfillmentSelector);
     el('storefrontCartClear')?.addEventListener('click', () => { cart = []; renderCart(); closeStorefrontCart(); });
     el('storefrontCartPromotions')?.addEventListener('click', async () => {
         closeStorefrontCart();
         showingPromotions = true;
         el('bulkSearch').value = '';
+        if (el('storefrontCatalogSearch')) el('storefrontCatalogSearch').value = '';
         el('bulkCategory').value = '';
         await loadCatalog();
         if (!products.length) toast('No hay promociones disponibles en este momento.');
         moveCatalogHeaderOutOfView();
     });
+    // Con tarjeta no procesamos el pago aquí -- no tiene sentido hacerle
+    // llenar todo el formulario de entrega/facturación para terminar
+    // mandándolo afuera. El botón del carrito lo lleva directo al enlace
+    // externo en vez de avanzar al checkout.
+    function goToCardPayment() {
+        if (cardPaymentUrl) {
+            window.open(cardPaymentUrl, '_blank', 'noopener');
+        } else {
+            toast('El pago con tarjeta no está disponible en este momento.');
+        }
+    }
+    const cardPaymentButtonLabel = @json(filled($cardPaymentUrl ?? null)
+        ? 'Continuar en '.(parse_url($cardPaymentUrl, PHP_URL_HOST) ?: 'la página de pago')
+        : 'Continuar en la página de pago');
+    // Se reaplica encima de cualquier otro texto que ya le haya puesto el
+    // resto del código a este botón (cambia bastante según el paso del
+    // carrito) -- así nunca queda diciendo "Siguiente"/"Confirmar pedido"
+    // mientras la forma de pago elegida es tarjeta.
+    function applyCardPaymentButtonLabel() {
+        if (!isStorefront) return;
+        const nextButton = el('storefrontCartNext');
+        if (!nextButton) return;
+        const isCardPayment = window.storefrontOrder?.payment_method === 'tarjeta';
+        nextButton.classList.toggle('is-card-payment', isCardPayment);
+        if (isCardPayment && !nextButton.classList.contains('is-loading')) {
+            nextButton.textContent = cardPaymentButtonLabel;
+        }
+    }
+    window.applyCardPaymentButtonLabel = applyCardPaymentButtonLabel;
     el('storefrontCartNext')?.addEventListener('click', async () => {
         if (cartTransitioning || isSubmitting) return;
+        if (isStorefront && window.storefrontOrder?.payment_method === 'tarjeta') {
+            goToCardPayment();
+            return;
+        }
         const panel = el('bulkCartPanel');
         if (panel.classList.contains('is-cart-preview')) {
             panel.classList.remove('is-cart-preview');
@@ -2942,7 +3020,15 @@
     el('bulkProductList')?.addEventListener('scroll', updateProductScrollControls, { passive: true });
     window.addEventListener('resize', debounce(updateProductScrollControls, 120));
 
-    el('bulkSearch').addEventListener('input', debounce(loadCatalog, 300));
+    el('bulkSearch').addEventListener('input', debounce((event) => {
+        const headerSearch = el('storefrontCatalogSearch');
+        if (headerSearch && headerSearch.value !== event.target.value) headerSearch.value = event.target.value;
+        loadCatalog();
+    }, 300));
+    el('storefrontCatalogSearch')?.addEventListener('input', debounce((event) => {
+        el('bulkSearch').value = event.target.value;
+        loadCatalog();
+    }, 300));
     el('bulkCategory').addEventListener('change', () => { showingPromotions = false; loadCatalog(); });
     el('bulkCustomizerClose').addEventListener('click', closeCustomizer);
     el('bulkAddonClose')?.addEventListener('click', closeAddonSheet);
@@ -2959,6 +3045,10 @@
     });
     el('storefrontPayNow')?.addEventListener('click', () => {
         el('bulkCustomizerAdd')?.click();
+        if (isStorefront && window.storefrontOrder?.payment_method === 'tarjeta') {
+            setTimeout(goToCardPayment, 0);
+            return;
+        }
         setTimeout(() => {
             el('bulkCartPanel')?.classList.add('is-storefront-open', 'is-checkout-step');
             if (el('storefrontCartNext')) el('storefrontCartNext').textContent = 'Confirmar pedido';
@@ -2991,10 +3081,10 @@
         }
 
         customizerSubmitting = true;
-        [el('bulkCustomizerAdd'), el('bulkAddonAdd')].filter(Boolean).forEach(button => {
+        [el('bulkCustomizerAdd'), el('bulkAddonAdd'), el('bulkAddonSkip')].filter(Boolean).forEach(button => {
             button.disabled = true;
             button.setAttribute('aria-busy', 'true');
-            button.classList.add('is-loading');
+            if (button.id !== 'bulkAddonSkip') button.classList.add('is-loading');
             button.textContent = 'Agregando...';
         });
         if (el('bulkAddonStatus')) el('bulkAddonStatus').textContent = 'Agregando tu producto al carrito...';
@@ -3029,7 +3119,7 @@
             toast('No se pudo agregar el producto. Inténtalo nuevamente.');
         } finally {
             customizerSubmitting = false;
-            [el('bulkCustomizerAdd'), el('bulkAddonAdd')].filter(Boolean).forEach(button => {
+            [el('bulkCustomizerAdd'), el('bulkAddonAdd'), el('bulkAddonSkip')].filter(Boolean).forEach(button => {
                 button.removeAttribute('aria-busy');
                 button.classList.remove('is-loading');
             });
@@ -3039,7 +3129,7 @@
 
     el('bulkCustomizerAdd').addEventListener('click', () => {
         if (!customizingProduct) return;
-        if (isStorefront && !window.storefrontOrder?.confirmed) {
+        if (storefrontMustStartOrder()) {
             if (typeof window.openStorefrontOrderMode === 'function') {
                 window.openStorefrontOrderMode();
             } else {
@@ -3061,6 +3151,12 @@
         commitCustomizerSelection();
     });
     el('bulkAddonAdd')?.addEventListener('click', commitCustomizerSelection);
+    el('bulkAddonSkip')?.addEventListener('click', () => {
+        customizerExtras = [];
+        updateCustomizerSelectionSummary();
+        updateCustomizerTotal();
+        commitCustomizerSelection();
+    });
 
     if (isAgent) {
         el('contactSearch').addEventListener('input', debounce((e) => searchContacts(e.target.value), 300));

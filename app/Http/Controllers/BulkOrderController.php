@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BusinessBranch;
+use App\Models\WhatsappCart;
 use App\Services\BulkOrderService;
 use App\Services\OrderPdfService;
 use Illuminate\Http\JsonResponse;
@@ -35,9 +36,26 @@ class BulkOrderController extends Controller
             $request->session()->regenerate();
             $record->markUsed();
 
+            // El carrito activo del bot puede contener estos datos antes de
+            // abrir el micrositio. Se conservan para no volver a preguntarlos.
+            $activeCart = WhatsappCart::query()
+                ->where('contact_id', $contact->id)
+                ->where('status', 'active')
+                ->latest('id')
+                ->first(['payment_method', 'metadata']);
+            $paymentMethod = $request->query('payment_method') ?: $activeCart?->payment_method;
+            $pickupMode = data_get($activeCart?->metadata, 'pickup_mode');
+            $serviceType = $request->query('service_type') ?: match ($pickupMode) {
+                'delivery' => 'delivery',
+                'retiro' => 'pickup',
+                default => null,
+            };
+
             return redirect()->route('storefront.show', array_filter([
                 'company' => $company,
                 'cuenta' => $request->query('cuenta') === 'pedidos' ? 'pedidos' : null,
+                'payment_method' => in_array($paymentMethod, ['efectivo', 'transferencia', 'tarjeta'], true) ? $paymentMethod : null,
+                'service_type' => in_array($serviceType, ['pickup', 'delivery'], true) ? $serviceType : null,
             ]));
         }
 
@@ -55,6 +73,7 @@ class BulkOrderController extends Controller
             'expiresAt' => $record->expires_at,
             'existingCartItems' => $bulkOrders->existingCartItems($contact),
             'branches' => $branches,
+            'storefrontSettings' => $company?->storefrontSetting,
             // Keep the API calls on the exact host where the storefront was opened.
             // This avoids a public ngrok page trying to fetch its catalog from localhost.
             'catalogUrl' => route('bulk-order.catalog', ['token' => $token], false),

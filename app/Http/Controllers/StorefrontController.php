@@ -57,8 +57,17 @@ class StorefrontController extends Controller
             ->first();
         $bankTransferInstructions = $paymentConfig?->bank_transfer_instructions;
         $cardPaymentUrl = trim((string) data_get($paymentConfig?->metadata, 'card_payment_url')) ?: null;
+        // El bot ya le preguntó la forma de pago antes de mandarlo acá
+        // (tarjeta nunca llega -- se resuelve con el enlace de cobro directo
+        // desde el chat), así que el micrositio no debe volver a preguntarla.
+        $prefillPaymentMethod = in_array($request->query('payment_method'), ['efectivo', 'transferencia', 'tarjeta'], true)
+            ? $request->query('payment_method')
+            : null;
+        $prefillServiceType = in_array($request->query('service_type'), ['pickup', 'delivery'], true)
+            ? $request->query('service_type')
+            : null;
 
-        return view('storefront.show', compact('company', 'profile', 'settings', 'branches', 'closedMessage', 'infoBranches', 'categories', 'bankTransferInstructions', 'cardPaymentUrl'));
+        return view('storefront.show', compact('company', 'profile', 'settings', 'branches', 'closedMessage', 'infoBranches', 'categories', 'bankTransferInstructions', 'cardPaymentUrl', 'prefillPaymentMethod', 'prefillServiceType'));
     }
 
     public function catalog(Request $request, Company $company): JsonResponse

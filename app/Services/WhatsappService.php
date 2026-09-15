@@ -90,14 +90,20 @@ class WhatsappService
     }
 
     /**
-     * Interruptor global (WhatsappChatbotConfig->is_active, por número/
-     * business_profile) por encima del toggle por contacto -- pensado para
-     * apagar el bot para TODOS los clientes de ese número, por ejemplo
-     * mientras se maneja a mano la coexistencia con la app de WhatsApp
-     * Business.
+     * Dos interruptores globales por encima del toggle por contacto:
+     * Company->bot_enabled (empresa completa, TODOS sus números) y
+     * WhatsappChatbotConfig->is_active (un número puntual, ej. mientras se
+     * maneja a mano la coexistencia con la app de WhatsApp Business). Son
+     * independientes a propósito -- apagar la empresa no toca el valor que
+     * cada número tenga guardado, así que al reactivarla cada uno vuelve
+     * exactamente a como estaba antes, no todos encendidos de golpe.
      */
     protected function botMayRespondToContact($contact): bool
     {
+        if (! ($this->businessProfile?->company?->bot_enabled ?? true)) {
+            return false;
+        }
+
         if (! ($this->scopedChatbotConfig()?->is_active ?? true)) {
             return false;
         }
@@ -108,9 +114,11 @@ class WhatsappService
     protected function logBotBlocked(string $context, $contact, array $extra = []): void
     {
         $billing = app(PlatformBillingService::class);
-        $reason = ! ($this->scopedChatbotConfig()?->is_active ?? true)
-            ? 'bot_globally_disabled'
-            : $billing->botBlockReason($contact);
+        $reason = ! ($this->businessProfile?->company?->bot_enabled ?? true)
+            ? 'bot_disabled_for_company'
+            : (! ($this->scopedChatbotConfig()?->is_active ?? true)
+                ? 'bot_globally_disabled'
+                : $billing->botBlockReason($contact));
 
         Log::info("[{$context}] 🛑 Bot no responde", array_merge([
             'reason' => $reason,
@@ -3757,8 +3765,26 @@ class WhatsappService
         if (! $token) {
             return null;
         }
-        $url = app(BulkOrderService::class)->formUrl($token)
-            .($forOrderTracking ? '?cuenta=pedidos' : '');
+        $url = app(BulkOrderService::class)->formUrl($token);
+        $query = [];
+        if ($forOrderTracking) {
+            $query['cuenta'] = 'pedidos';
+        } else {
+            // Si ya eligió el método de pago en el chat, el micrositio no debe
+            // volver a preguntarlo (tarjeta normalmente se resuelve con el
+            // enlace de cobro directo antes de llegar hasta acá, pero se
+            // reenvía igual por si acaso para no volver a preguntarla).
+            $activePaymentMethod = WhatsappCart::query()
+                ->where('contact_id', $contact->id)
+                ->where('status', 'active')
+                ->value('payment_method');
+            if (in_array($activePaymentMethod, ['efectivo', 'transferencia', 'tarjeta'], true)) {
+                $query['payment_method'] = $activePaymentMethod;
+            }
+        }
+        if ($query) {
+            $url .= '?'.http_build_query($query);
+        }
 
         $businessLabel = $this->scopedChatbotConfig()?->bot_name ?: ($this->businessProfile?->business_name ?: 'nuestra tienda');
 

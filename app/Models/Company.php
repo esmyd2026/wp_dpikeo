@@ -17,6 +17,11 @@ class Company extends Model
         'name',
         'slug',
         'status',
+        'bot_enabled',
+    ];
+
+    protected $casts = [
+        'bot_enabled' => 'boolean',
     ];
 
     public function getRouteKeyName(): string

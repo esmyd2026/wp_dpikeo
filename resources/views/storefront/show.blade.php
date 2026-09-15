@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="{{ $settings->primary_color }}">
+    <link rel="icon" href="{{ $settings->faviconUrl() ?: asset('favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ $settings->faviconUrl() ?: asset('favicon.svg') }}">
     <title>Pide en línea — {{ $profile->business_name ?: $company->name }}</title>
     <style>
         :root{--brand:{{ $settings->primary_color }};--brand-dark:{{ $settings->secondary_color }};--accent:{{ $settings->accent_color }}}
@@ -12,8 +14,8 @@
         .storefront-gateway{min-height:100dvh;padding-bottom:48px;background:#fff}.storefront-hero{background:#fff;color:#222;box-shadow:0 12px 26px rgba(0,0,0,.05)}
         .storefront-gateway.is-browsing{min-height:0;padding:0}.storefront-gateway.is-browsing>.storefront-hero,.storefront-gateway.is-browsing>.storefront-preview,.storefront-gateway.is-browsing>.storefront-home-bottom{display:none}
         .storefront-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-brand{display:flex;align-items:center;gap:20px}.storefront-menu-toggle{width:36px;height:36px;padding:3px;border:0;background:transparent;color:#2d2d2d;cursor:pointer}.storefront-menu-toggle span{display:block;height:3px;margin:6px 0;border-radius:4px;background:currentColor}.storefront-logo{width:120px;height:100px;object-fit:contain}.storefront-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end;gap:44px}.storefront-tab{position:relative;padding:0 0 17px;font-size:1rem}.storefront-tab:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:4px;background:var(--accent)}
-        .storefront-mode-row{display:flex;gap:12px}.storefront-mode{flex:1;border:1px solid #ddd;border-radius:10px;padding:15px;background:#fff;color:#222;font:inherit;font-weight:800;cursor:pointer}.storefront-mode.is-active{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}
-        .storefront-payment-change{display:inline-block;margin:0 0 14px;border:0;background:none;padding:0;color:var(--brand-dark);font:inherit;font-size:.8rem;font-weight:800;cursor:pointer}
+        .storefront-mode-row{display:flex;gap:12px;margin-bottom:14px}.storefront-mode{flex:1;border:1px solid #ddd;border-radius:10px;padding:15px;background:#fff;color:#222;font:inherit;font-weight:800;cursor:pointer}.storefront-mode.is-active{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}.storefront-mode:disabled{opacity:.4;cursor:not-allowed}
+        #storefrontLocationCardNotice{margin-bottom:14px}
         .storefront-place-autocomplete{display:block;width:100%;min-width:0;border:1px solid #d7d7d7;border-radius:9px;background:#fff;color:#242424;color-scheme:light;font:inherit}.storefront-address-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.storefront-address-row>.storefront-geolocate{display:inline-flex;min-width:172px;align-items:center;justify-content:center;gap:7px;padding:0 14px;background:#f3f3f3;color:#242424}.storefront-geolocate svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.storefront-geolocate:disabled{cursor:wait;opacity:.65}
         .storefront-location{display:none;position:fixed;z-index:130;inset:0;width:auto;margin:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.storefront-location.is-open{display:flex}.storefront-location-card{width:min(800px,100%);min-height:70dvh;max-height:92dvh;padding:42px 56px;border-radius:8px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-location-head{display:flex;align-items:center;justify-content:space-between}.storefront-location-head h2{margin:0 0 18px;font-size:1.55rem}.storefront-location-close{border:0;background:transparent;font-size:2rem;cursor:pointer}.storefront-field{display:grid;gap:6px;margin:14px 0}.storefront-field span{font-size:.78rem;font-weight:800;color:#555}.storefront-field input,.storefront-field select{width:100%;border:1px solid #d7d7d7;border-radius:9px;padding:13px;font:inherit}.storefront-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.storefront-button{border:0;border-radius:8px;padding:14px 22px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-geolocate{background:#f3f3f3}.storefront-delivery-quote{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:16px 0 4px;border:1px solid #e7e7e7;border-left:4px solid var(--accent);border-radius:10px;background:#fffaf1;overflow:hidden}.storefront-delivery-quote[hidden]{display:none}.storefront-delivery-quote-item{display:grid;gap:3px;padding:13px 15px;border-right:1px solid #eadfca}.storefront-delivery-quote-item:last-of-type{border-right:0}.storefront-delivery-quote-label{color:#777;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.storefront-delivery-quote strong{font-size:.9rem}.storefront-delivery-quote small{color:#666;line-height:1.35}.storefront-delivery-map{color:var(--brand-dark);font-size:.74rem;font-weight:800}.storefront-delivery-quote-note{grid-column:1/-1;margin:0;padding:9px 15px;border-top:1px solid #eadfca;color:#6f5a28;font-size:.73rem}#storefrontDeliveryQuoteLocationItem,#storefrontDeliveryQuoteNote{display:none}.storefront-preview{width:min(1260px,100%);margin:auto;padding:70px 40px 120px}.storefront-category-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:76px 64px}.storefront-category{min-height:120px;border:0;background:#fff;text-align:center;font:inherit;font-size:1.3rem;cursor:pointer}.storefront-category img,.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;object-fit:contain;font-size:3rem}.storefront-category:hover{transform:translateY(-3px)}.storefront-error{display:none;color:#b42318;font-size:.82rem;margin-top:7px}.storefront-error.is-success{color:#087f5b}
         .storefront-drawer{position:fixed;z-index:140;inset:0 auto 0 0;width:min(470px,88vw);padding:26px 32px;background:#fff;color:#222;box-shadow:20px 0 60px rgba(0,0,0,.3);transform:translateX(-105%);transition:transform .22s}.storefront-drawer.is-open{transform:none}.storefront-drawer-close{float:right;border:0;background:none;font-size:2rem;cursor:pointer}.storefront-drawer-nav{display:grid;gap:5px;clear:both;padding-top:22px}.storefront-drawer-link{display:flex;width:100%;align-items:center;gap:14px;padding:15px 4px;border:0;border-bottom:1px solid #f0f0f0;background:#fff;color:#222;text-align:left;text-decoration:none;font:inherit;font-weight:700;cursor:pointer}.storefront-drawer-link:hover{color:var(--brand-dark);background:#fffaf2}.storefront-drawer-link-icon{display:grid;width:30px;height:30px;place-items:center;color:var(--brand-dark)}.storefront-drawer-link-icon svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.storefront-drawer-logout{margin-top:18px;color:#b42318}.storefront-home-bottom{display:none}
@@ -68,13 +70,17 @@
             <p class="storefront-location-copy" id="storefrontLocationCopy">Elige tu forma de pago para continuar con tu pedido.</p>
             @if(filled($closedMessage ?? null))<p class="storefront-closed-notice">{{ $closedMessage }}</p>@endif
             <div class="storefront-mode-row" id="storefrontPaymentStep">
-                <button class="storefront-mode" data-storefront-payment="efectivo">💵 Efectivo</button>
-                <button class="storefront-mode" data-storefront-payment="transferencia">🏦 Transferencia</button>
-                @if(filled($cardPaymentUrl ?? null))<button class="storefront-mode" data-storefront-payment="tarjeta">💳 Tarjeta</button>@endif
+                <button type="button" class="storefront-mode" data-storefront-payment="efectivo">💵 Efectivo</button>
+                <button type="button" class="storefront-mode" data-storefront-payment="transferencia">🏦 Transferencia</button>
+                @if(filled($cardPaymentUrl ?? null))<button type="button" class="storefront-mode" data-storefront-payment="tarjeta">💳 Tarjeta</button>@endif
+            </div>
+            <div class="storefront-checkout-block storefront-card-fields" id="storefrontLocationCardNotice">
+                <h4>Pago seguro con tarjeta</h4>
+                <p>Por el momento este micrositio no procesa pagos con tarjeta. Para pagar de manera segura, continúa en la página web de la empresa.</p>
+                @if(filled($cardPaymentUrl ?? null))<a class="storefront-card-link" href="{{ $cardPaymentUrl }}" target="_blank" rel="noopener noreferrer">Continuar en {{ parse_url($cardPaymentUrl, PHP_URL_HOST) ?: 'la página de pago' }}</a>@endif
             </div>
             <div id="storefrontLocationStep2" hidden>
-                <button type="button" class="storefront-payment-change" id="storefrontChangePayment">‹ Cambiar forma de pago</button>
-                <div class="storefront-mode-row"><button class="storefront-mode" data-storefront-mode="pickup">📍 Pide y retira</button><button class="storefront-mode" data-storefront-mode="delivery">🛵 Delivery</button></div>
+                <div class="storefront-mode-row"><button type="button" class="storefront-mode" data-storefront-mode="pickup">📍 Pide y retira</button><button type="button" class="storefront-mode" data-storefront-mode="delivery">🛵 Delivery</button></div>
                 <select id="storefrontBranch" hidden><option value="">Selecciona una sucursal</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($branch->is_default)>{{ $branch->name }}{{ $branch->address ? ' · '.$branch->address : '' }}</option>@endforeach</select>
                 <div class="storefront-pickup-fields" id="pickupFields"><label class="storefront-field"><span>Busca un local</span><input type="search" id="storefrontBranchSearch" placeholder="Busca una dirección o sucursal" autocomplete="off"></label><div class="storefront-branch-list" id="storefrontBranchList">@foreach($branches as $branch)<button type="button" class="storefront-branch-option @if($branch->is_default) is-active @endif" data-branch-option="{{ $branch->id }}" data-branch-search="{{ Str::lower($branch->name.' '.$branch->address) }}"><strong>{{ $branch->name }}</strong><small>{{ $branch->address ?: 'Sucursal disponible' }}</small></button>@endforeach</div></div>
                 <div id="deliveryFields" style="display:none">
@@ -312,6 +318,21 @@ try {
     localStorage.removeItem(storefrontOrderStorageKey);
     window.storefrontOrder = {...storefrontOrderDefaults};
 }
+// Si el cliente ya eligió la forma de pago en el chat de WhatsApp antes de
+// que le mandáramos este enlace, no se le vuelve a preguntar acá -- pero
+// nunca se pisa una elección que ya haya hecho en este mismo navegador.
+@if($prefillPaymentMethod ?? null)
+if(!window.storefrontOrder.payment_method){
+    window.storefrontOrder.payment_method=@json($prefillPaymentMethod);
+    try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){}
+}
+@endif
+@if($prefillServiceType ?? null)
+if(!window.storefrontOrder.service_type){
+    window.storefrontOrder.service_type=@json($prefillServiceType);
+    try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){}
+}
+@endif
 // Versiones anteriores guardaban las coordenadas como si fueran la dirección.
 // Se conservan latitud/longitud para cotizar, pero nunca se vuelven a mostrar.
 if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.test(window.storefrontOrder.address||'')){
@@ -321,7 +342,20 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
 }
 (function(){
  const gateway=document.getElementById('storefrontGateway'),locationBox=document.getElementById('storefrontLocation'),delivery=document.getElementById('deliveryFields'),error=document.getElementById('storefrontError');
- const persistOrder=()=>{try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){/* El pedido sigue funcionando aunque el navegador bloquee el almacenamiento. */}};
+ const persistOrder=()=>{try{localStorage.setItem(storefrontOrderStorageKey,JSON.stringify(window.storefrontOrder));}catch(_){/* El pedido sigue funcionando aunque el navegador bloquee el almacenamiento. */}window.syncStorefrontCartOrderContext?.();};
+ window.persistStorefrontOrder=persistOrder;
+ // Resumen que se ve en el carrito antes de confirmar entrega/pago -- lee
+ // directo de window.storefrontOrder para no duplicar estado.
+ const serviceTypeLabels={pickup:'Pide y retira',delivery:'Delivery'};
+ const paymentMethodLabels={efectivo:'Efectivo',transferencia:'Transferencia',tarjeta:'Tarjeta'};
+ window.syncStorefrontCartOrderContext=()=>{
+     const serviceTypeEl=document.getElementById('storefrontCartServiceType');
+     const paymentMethodEl=document.getElementById('storefrontCartPaymentMethod');
+     if(serviceTypeEl)serviceTypeEl.textContent=serviceTypeLabels[window.storefrontOrder.service_type]||'Por seleccionar';
+     if(paymentMethodEl)paymentMethodEl.textContent=paymentMethodLabels[window.storefrontOrder.payment_method]||'Por seleccionar';
+     window.applyCardPaymentButtonLabel?.();
+ };
+ window.syncStorefrontCartOrderContext();
  const nativeStorefrontFetch=window.fetch.bind(window);
  const storefrontCsrfUrl=@json(route('storefront.csrf',$company));
  const updateStorefrontCsrf=token=>{if(!token)return;const meta=document.querySelector('meta[name="csrf-token"]');if(meta)meta.content=token;};
@@ -343,7 +377,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      return response;
  };
  window.refreshStorefrontCsrf=refreshStorefrontCsrf;
- window.clearStorefrontOrderState=()=>{try{localStorage.removeItem(storefrontOrderStorageKey);}catch(_){}window.storefrontOrder={...storefrontOrderDefaults};};
+ window.clearStorefrontOrderState=()=>{try{localStorage.removeItem(storefrontOrderStorageKey);}catch(_){}window.storefrontOrder={...storefrontOrderDefaults};window.syncStorefrontCartOrderContext?.();};
  let pendingCategory='';
  const openCategory=(categoryId,attempt=0)=>{const categorySelect=document.getElementById('bulkCategory'),option=categorySelect?.querySelector(`option[value="${categoryId}"]`);if(!option&&attempt<12){setTimeout(()=>openCategory(categoryId,attempt+1),80);return;}if(categorySelect){categorySelect.value=categoryId;categorySelect.dispatchEvent(new Event('change'));}gateway.classList.add('is-browsing');document.getElementById('storefrontApp').style.display='block';window.scrollTo({top:0});window.renderStorefrontCartFab?.();};
  const drawer=document.getElementById('storefrontDrawer'),drawerTrigger=document.getElementById('storefrontMenuToggle'),drawerClose=document.getElementById('storefrontDrawerClose'),setDrawer=open=>{if(!open&&drawer.contains(document.activeElement))drawerTrigger.focus();drawer.inert=!open;drawer.classList.toggle('is-open',open);drawer.setAttribute('aria-hidden',open?'false':'true');if(open)requestAnimationFrame(()=>drawerClose.focus());};drawerTrigger.addEventListener('click',()=>setDrawer(true));document.getElementById('storefrontCatalogMenu')?.addEventListener('click',()=>setDrawer(true));drawerClose.addEventListener('click',()=>setDrawer(false));document.querySelectorAll('[data-close-drawer]').forEach(link=>link.addEventListener('click',()=>setDrawer(false)));
@@ -417,10 +451,22 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
     let customerOrders=[],customerAddresses=[],currentCustomer=null;
     let customerAuthenticated=false;
     let currentCustomerOrderId=null;
+    const normalizeSavedAddresses=value=>{
+        if(Array.isArray(value))return value.filter(item=>item&&typeof item==='object');
+        if(!value||typeof value!=='object')return [];
+        for(const key of ['addresses','data']){
+            if(Array.isArray(value[key]))return value[key].filter(item=>item&&typeof item==='object');
+        }
+        // Compatibilidad con respuestas antiguas serializadas como un objeto
+        // con índices numéricos en vez de un arreglo JSON.
+        return Object.values(value).filter(item=>item&&typeof item==='object'&&('id' in item||'address' in item));
+    };
+    window.normalizeStorefrontSavedAddresses=normalizeSavedAddresses;
+    window.getStorefrontSavedAddresses=()=>normalizeSavedAddresses(window.storefrontSavedAddresses);
     const escAccount=value=>{const node=document.createElement('div');node.textContent=value??'';return node.innerHTML;};
     const money=value=>'$'+Number(value||0).toFixed(2);
     const renderSavedAddresses=addresses=>{
-        customerAddresses=Array.isArray(addresses)?addresses:[];
+        customerAddresses=normalizeSavedAddresses(addresses);
         window.storefrontSavedAddresses=customerAddresses;
         const accountList=document.getElementById('storefrontSavedAddresses'),locationSection=document.getElementById('storefrontLocationSaved'),locationList=document.getElementById('storefrontLocationSavedList');
         accountList.innerHTML=customerAddresses.length?customerAddresses.map(item=>`<article class="storefront-saved-address ${item.is_default?'is-default':''}"><div><input value="${escAccount(item.label||'Mi dirección')}" maxlength="60" aria-label="Nombre de la dirección" data-saved-address-label="${item.id}">${item.is_default?'<span class="storefront-saved-address-default">PREDETERMINADA</span>':''}</div><small>${escAccount(item.address)}${item.reference?` · ${escAccount(item.reference)}`:''}</small><div class="storefront-saved-address-actions"><button type="button" data-use-saved-address="${item.id}">Usar</button><button type="button" class="is-delete" data-delete-saved-address="${item.id}">Eliminar</button></div></article>`).join(''):'<p class="storefront-saved-empty">Cuando confirmes un delivery, guardaremos esa dirección automáticamente para tu siguiente pedido.</p>';
@@ -657,7 +703,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
  };
  window.updateStorefrontDeliveryQuote=requestDeliveryQuote;
  window.useStorefrontSavedAddress=async id=>{
-     const saved=(window.storefrontSavedAddresses||[]).find(item=>item.id===Number(id));if(!saved)return;
+     const saved=window.getStorefrontSavedAddresses().find(item=>item.id===Number(id));if(!saved)return;
      selectMode('delivery');
      if(window.setStorefrontAddressValue)window.setStorefrontAddressValue(saved.address,saved.latitude,saved.longitude);else{const field=document.getElementById('storefrontAddress');field.value=saved.address;field.dataset.preserveCoordinates='1';field.dispatchEvent(new Event('input',{bubbles:true}));}
      document.getElementById('storefrontReference').value=saved.reference||'';
@@ -726,7 +772,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
  // #storefrontPaymentMethod real (con su propio evento 'change') para no
  // duplicar la lógica de campos de transferencia/tarjeta que ya depende de
  // ese select.
- const paymentStepBox=document.getElementById('storefrontPaymentStep'),locationStep2=document.getElementById('storefrontLocationStep2'),locationCopy=document.getElementById('storefrontLocationCopy');
+ const paymentStepBox=document.getElementById('storefrontPaymentStep'),locationStep2=document.getElementById('storefrontLocationStep2'),locationCopy=document.getElementById('storefrontLocationCopy'),cardNotice=document.getElementById('storefrontLocationCardNotice'),pickupModeBtn=document.querySelector('[data-storefront-mode="pickup"]');
  const showPaymentStep=()=>{
      document.getElementById('storefrontLocationTitle').textContent='¿Cómo vas a pagar?';
      locationCopy.textContent='Elige tu forma de pago para continuar con tu pedido.';
@@ -736,8 +782,44 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
  const showLocationStep2=()=>{
      document.getElementById('storefrontLocationTitle').textContent='¿Cómo quieres recibir tu pedido?';
      locationCopy.textContent='Elige si deseas retirar tu pedido en un local o recibirlo en una dirección.';
-     paymentStepBox.hidden=true;
+     // El paso de pago se deja visible junto con el de entrega -- así el
+     // cliente puede cambiar de forma de pago tocando directamente otro
+     // botón, sin tener que volver atrás.
+     paymentStepBox.hidden=false;
      locationStep2.hidden=false;
+ };
+ const updatePaymentModeUi=()=>{
+     const method=window.storefrontOrder.payment_method;
+     document.querySelectorAll('[data-storefront-payment]').forEach(b=>b.classList.toggle('is-active',b.dataset.storefrontPayment===method));
+     if(cardNotice)cardNotice.classList.toggle('is-open',method==='tarjeta');
+     // "Pide y retira" sin pago adelantado deja pedidos sin retirar -- solo
+     // se permite pagando por transferencia (mismo criterio que valida el
+     // servidor). Si el cliente ya tenía "pide y retira" elegido y cambia a
+     // efectivo/tarjeta, se limpia esa elección en vez de dejarla inválida.
+     if(pickupModeBtn){
+         const pickupAllowed=method==='transferencia';
+         pickupModeBtn.disabled=!pickupAllowed;
+         pickupModeBtn.title=pickupAllowed?'':'Pide y retira solo está disponible pagando por transferencia.';
+         if(!pickupAllowed&&window.storefrontOrder.service_type==='pickup'){
+             window.storefrontOrder.service_type=null;
+             window.storefrontOrder.confirmed=false;
+             persistOrder();
+             document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.remove('is-active'));
+             delivery.style.display='none';
+             document.getElementById('pickupFields').style.display='none';
+         }
+     }
+ };
+ // Con tarjeta no hay nada más que hacer en este modal -- no procesamos el
+ // cobro aquí, solo se le da el enlace externo. Preguntarle además cómo va
+ // a recibir el pedido no tendría sentido: se queda solo con el aviso y el
+ // botón hacia la página de pago.
+ const applyLocationStepVisibility=()=>{
+     if(window.storefrontOrder.payment_method==='tarjeta'){
+         showPaymentStep();
+     }else{
+         showLocationStep2();
+     }
  };
  document.querySelectorAll('[data-storefront-payment]').forEach(button=>button.addEventListener('click',()=>{
      const value=button.dataset.storefrontPayment;
@@ -746,9 +828,9 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      window.storefrontOrder.payment_method=value;
      window.storefrontOrder.confirmed=false;
      persistOrder();
-     showLocationStep2();
+     updatePaymentModeUi();
+     applyLocationStepVisibility();
  }));
- document.getElementById('storefrontChangePayment').addEventListener('click',showPaymentStep);
  const selectMode=(mode,save=true)=>{
      document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));
      window.storefrontOrder.service_type=mode;
@@ -772,7 +854,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      if(save){window.storefrontOrder.confirmed=false;persistOrder();}
      if(mode==='delivery'){
          window.loadStorefrontMapsScript?.();
-         const defaultAddress=(window.storefrontSavedAddresses||[]).find(item=>item.is_default);
+         const defaultAddress=window.getStorefrontSavedAddresses().find(item=>item.is_default);
          if(!window.storefrontOrder.address&&defaultAddress){
              if(window.setStorefrontAddressValue)window.setStorefrontAddressValue(defaultAddress.address,defaultAddress.latitude,defaultAddress.longitude);
              document.getElementById('storefrontReference').value=defaultAddress.reference||'';
@@ -805,8 +887,14 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);
      locationBox.classList.add('is-open');
      if(window.storefrontOrder.payment_method){
-         showLocationStep2();
-         selectMode(window.storefrontOrder.service_type||'pickup');
+         updatePaymentModeUi();
+         if(window.storefrontOrder.payment_method==='tarjeta'){
+             showPaymentStep();
+         }else{
+             showLocationStep2();
+             const fallbackMode=window.storefrontOrder.payment_method==='transferencia'?'pickup':'delivery';
+             selectMode(window.storefrontOrder.service_type||fallbackMode);
+         }
      }else{
          showPaymentStep();
      }

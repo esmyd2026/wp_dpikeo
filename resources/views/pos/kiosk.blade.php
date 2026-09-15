@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="{{ ($storefrontSettings ?? null)?->primary_color ?? '#ff650b' }}">
+    <link rel="icon" href="{{ ($storefrontSettings ?? null)?->faviconUrl() ?: asset('favicon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ ($storefrontSettings ?? null)?->faviconUrl() ?: asset('favicon.svg') }}">
     <title>Punto de venta{{ isset($headerTitle) ? " — {$headerTitle}" : '' }}</title>
     <style>
         :root{--brand:{{ ($storefrontSettings ?? null)?->primary_color ?? '#E85D04' }};--brand-dark:{{ ($storefrontSettings ?? null)?->secondary_color ?? '#7C2D12' }};--accent:{{ ($storefrontSettings ?? null)?->accent_color ?? '#FFD166' }}}
