@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\BulkOrderToken;
+use App\Models\BusinessBranch;
+use App\Models\BusinessBranchHour;
 use App\Models\Company;
 use App\Models\CompanyStorefrontSetting;
 use App\Models\WhatsappBusinessProfile;
@@ -14,6 +16,7 @@ use App\Models\WhatsappMenuItem;
 use App\Models\WhatsappPrice;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -88,28 +91,95 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
 
         $this->pressButton($profile->phone_number_id, $contact, 'menu_productos');
 
-        Http::assertSent(function ($request) use ($company) {
+        Http::assertSent(function ($request) use ($contact) {
             $url = $request['interactive']['action']['parameters']['url'] ?? '';
 
             return ($request['interactive']['action']['name'] ?? null) === 'cta_url'
-                && str_contains($url, '/tienda/'.$company->slug)
+                && str_contains($url, '/pedido/')
+                && ! str_contains($url, $contact->phone_number)
                 && ! str_contains($url, 'cuenta=pedidos');
         });
     }
 
-    public function test_armar_lista_also_uses_the_modern_storefront_when_it_is_published(): void
+    public function test_the_bot_does_not_start_a_new_order_when_all_branches_are_closed(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        [, $profile, $contact] = $this->fixture('100010', ecommerceMode: true);
+        $branch = BusinessBranch::create([
+            'business_profile_id' => $profile->id,
+            'name' => 'Urdesa',
+            'code' => 'URD-CLOSED',
+            'is_active' => true,
+            'orders_enabled' => true,
+        ]);
+        BusinessBranchHour::create([
+            'business_branch_id' => $branch->id,
+            'day_of_week' => 1,
+            'opens_at' => '10:00',
+            'closes_at' => '20:00',
+            'is_closed' => false,
+        ]);
+        Carbon::setTestNow(Carbon::parse('2026-09-14 09:00', config('app.timezone')));
+
+        try {
+            $this->pressButton($profile->phone_number_id, $contact, 'menu_productos');
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        Http::assertSent(fn ($request) => str_contains(
+            (string) ($request['text']['body'] ?? ''),
+            'Estamos fuera de horario'
+        ));
+        Http::assertNotSent(fn ($request) => ($request['interactive']['action']['name'] ?? null) === 'cta_url');
+        $this->assertDatabaseCount('bulk_order_tokens', 0);
+    }
+
+    /**
+     * Bug real reportado en vivo: "Armar lista" solía preguntar el método de
+     * pago ANTES de mandar a cualquier lado (así, si elegía tarjeta, el
+     * micrositio ya sabe redirigir al link externo en vez de cobrar ahí) --
+     * pero quedó después del redirect al storefront en el código, así que el
+     * gate nunca se disparaba para ninguna empresa con storefront publicado.
+     */
+    public function test_armar_lista_asks_payment_method_first_then_uses_the_modern_storefront(): void
     {
         [$company, $profile, $contact] = $this->fixture('100007', ecommerceMode: true);
         $service = app(WhatsappService::class);
         $service->setWebhookPhoneNumberId($profile->phone_number_id);
 
-        $response = $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $gateResponse = $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $this->assertSame('list', $gateResponse['interactive']['type']);
+        $this->assertStringContainsString('método de pago', $gateResponse['interactive']['body']['text']);
+        $this->assertDatabaseCount('bulk_order_tokens', 0);
+
+        $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
+        $response = $this->invoke($service, 'procesarPagoEfectivo', [$contact, $cart->id]);
         $url = $response['interactive']['action']['parameters']['url'] ?? '';
 
         $this->assertSame('cta_url', $response['interactive']['type']);
-        $this->assertStringContainsString('/tienda/'.$company->slug, $url);
-        $this->assertStringNotContainsString('/pedido/', $url);
-        $this->assertDatabaseCount('bulk_order_tokens', 0);
+        $this->assertStringContainsString('/pedido/', $url);
+        $this->assertStringNotContainsString($contact->phone_number, $url);
+        $this->assertDatabaseCount('bulk_order_tokens', 1);
+    }
+
+    public function test_choosing_card_for_armar_lista_carries_the_payment_method_into_the_storefront(): void
+    {
+        [$company, $profile, $contact] = $this->fixture('100010', ecommerceMode: true);
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId($profile->phone_number_id);
+
+        $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
+
+        $response = $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
+
+        // Con carrito vacío no hay nada que cobrar todavía -- se manda al
+        // micrositio con el método ya guardado (submitForContact lo hereda
+        // al confirmar), no un link de pago para $0.00.
+        $this->assertSame('cta_url', $response['interactive']['type']);
+        $this->assertSame('tarjeta', $cart->fresh()->payment_method);
+        $this->assertArrayNotHasKey('card_payment_link_sent', $cart->fresh()->metadata ?? []);
     }
 
     public function test_an_old_bulk_order_link_redirects_to_the_published_storefront(): void
@@ -123,6 +193,8 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
 
         $this->get(route('bulk-order.show', $token->token))
             ->assertRedirect(route('storefront.show', $company));
+        $this->assertAuthenticatedAs($contact, 'storefront_customer');
+        $this->assertNotNull($token->fresh()->used_at);
     }
 
     public function test_the_public_order_entry_also_redirects_to_the_published_storefront(): void
@@ -174,11 +246,12 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
 
         $this->pressButton($profile->phone_number_id, $contact, 'menu_pedido');
 
-        Http::assertSent(function ($request) use ($company) {
+        Http::assertSent(function ($request) use ($contact) {
             $url = $request['interactive']['action']['parameters']['url'] ?? '';
 
             return ($request['interactive']['action']['name'] ?? null) === 'cta_url'
-                && str_contains($url, '/tienda/'.$company->slug)
+                && str_contains($url, '/pedido/')
+                && ! str_contains($url, $contact->phone_number)
                 && str_contains($url, 'cuenta=pedidos');
         });
     }

@@ -13,6 +13,7 @@
         .storefront-gateway.is-browsing{min-height:0;padding:0}.storefront-gateway.is-browsing>.storefront-hero,.storefront-gateway.is-browsing>.storefront-preview,.storefront-gateway.is-browsing>.storefront-home-bottom{display:none}
         .storefront-nav{display:flex;min-height:124px;align-items:center;padding:20px 34px}.storefront-brand{display:flex;align-items:center;gap:20px}.storefront-menu-toggle{width:36px;height:36px;padding:3px;border:0;background:transparent;color:#2d2d2d;cursor:pointer}.storefront-menu-toggle span{display:block;height:3px;margin:6px 0;border-radius:4px;background:currentColor}.storefront-logo{width:120px;height:100px;object-fit:contain}.storefront-tabs{display:flex;height:62px;padding:0 82px;align-items:flex-end;gap:44px}.storefront-tab{position:relative;padding:0 0 17px;font-size:1rem}.storefront-tab:after{content:'';position:absolute;left:0;right:0;bottom:0;height:4px;border-radius:4px;background:var(--accent)}
         .storefront-mode-row{display:flex;gap:12px}.storefront-mode{flex:1;border:1px solid #ddd;border-radius:10px;padding:15px;background:#fff;color:#222;font:inherit;font-weight:800;cursor:pointer}.storefront-mode.is-active{border:2px solid var(--accent);background:color-mix(in srgb,var(--accent) 10%,white)}
+        .storefront-payment-change{display:inline-block;margin:0 0 14px;border:0;background:none;padding:0;color:var(--brand-dark);font:inherit;font-size:.8rem;font-weight:800;cursor:pointer}
         .storefront-place-autocomplete{display:block;width:100%;min-width:0;border:1px solid #d7d7d7;border-radius:9px;background:#fff;color:#242424;color-scheme:light;font:inherit}.storefront-address-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}.storefront-address-row>.storefront-geolocate{display:inline-flex;min-width:172px;align-items:center;justify-content:center;gap:7px;padding:0 14px;background:#f3f3f3;color:#242424}.storefront-geolocate svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.storefront-geolocate:disabled{cursor:wait;opacity:.65}
         .storefront-location{display:none;position:fixed;z-index:130;inset:0;width:auto;margin:0;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,.45)}.storefront-location.is-open{display:flex}.storefront-location-card{width:min(800px,100%);min-height:70dvh;max-height:92dvh;padding:42px 56px;border-radius:8px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:auto}.storefront-location-head{display:flex;align-items:center;justify-content:space-between}.storefront-location-head h2{margin:0 0 18px;font-size:1.55rem}.storefront-location-close{border:0;background:transparent;font-size:2rem;cursor:pointer}.storefront-field{display:grid;gap:6px;margin:14px 0}.storefront-field span{font-size:.78rem;font-weight:800;color:#555}.storefront-field input,.storefront-field select{width:100%;border:1px solid #d7d7d7;border-radius:9px;padding:13px;font:inherit}.storefront-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}.storefront-button{border:0;border-radius:8px;padding:14px 22px;background:var(--accent);font:inherit;font-weight:800;cursor:pointer}.storefront-geolocate{background:#f3f3f3}.storefront-delivery-quote{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:16px 0 4px;border:1px solid #e7e7e7;border-left:4px solid var(--accent);border-radius:10px;background:#fffaf1;overflow:hidden}.storefront-delivery-quote[hidden]{display:none}.storefront-delivery-quote-item{display:grid;gap:3px;padding:13px 15px;border-right:1px solid #eadfca}.storefront-delivery-quote-item:last-of-type{border-right:0}.storefront-delivery-quote-label{color:#777;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.storefront-delivery-quote strong{font-size:.9rem}.storefront-delivery-quote small{color:#666;line-height:1.35}.storefront-delivery-map{color:var(--brand-dark);font-size:.74rem;font-weight:800}.storefront-delivery-quote-note{grid-column:1/-1;margin:0;padding:9px 15px;border-top:1px solid #eadfca;color:#6f5a28;font-size:.73rem}#storefrontDeliveryQuoteLocationItem,#storefrontDeliveryQuoteNote{display:none}.storefront-preview{width:min(1260px,100%);margin:auto;padding:70px 40px 120px}.storefront-category-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:76px 64px}.storefront-category{min-height:120px;border:0;background:#fff;text-align:center;font:inherit;font-size:1.3rem;cursor:pointer}.storefront-category img,.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;object-fit:contain;font-size:3rem}.storefront-category:hover{transform:translateY(-3px)}.storefront-error{display:none;color:#b42318;font-size:.82rem;margin-top:7px}.storefront-error.is-success{color:#087f5b}
         .storefront-drawer{position:fixed;z-index:140;inset:0 auto 0 0;width:min(470px,88vw);padding:26px 32px;background:#fff;color:#222;box-shadow:20px 0 60px rgba(0,0,0,.3);transform:translateX(-105%);transition:transform .22s}.storefront-drawer.is-open{transform:none}.storefront-drawer-close{float:right;border:0;background:none;font-size:2rem;cursor:pointer}.storefront-drawer-nav{display:grid;gap:5px;clear:both;padding-top:22px}.storefront-drawer-link{display:flex;width:100%;align-items:center;gap:14px;padding:15px 4px;border:0;border-bottom:1px solid #f0f0f0;background:#fff;color:#222;text-align:left;text-decoration:none;font:inherit;font-weight:700;cursor:pointer}.storefront-drawer-link:hover{color:var(--brand-dark);background:#fffaf2}.storefront-drawer-link-icon{display:grid;width:30px;height:30px;place-items:center;color:var(--brand-dark)}.storefront-drawer-link-icon svg{display:block;width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.storefront-drawer-logout{margin-top:18px;color:#b42318}.storefront-home-bottom{display:none}
@@ -42,8 +43,15 @@
         @media(min-width:960px){.storefront-home-cart-fab{bottom:26px}}
         @media(max-width:640px){.storefront-gateway{padding-bottom:88px}.storefront-hero{box-shadow:none}.storefront-nav{min-height:82px;padding:12px 20px}.storefront-brand{gap:14px}.storefront-menu-toggle{width:34px;height:34px}.storefront-logo{width:100px;height:100px}.storefront-tabs{display:none}.storefront-preview{padding:34px 24px 48px}.storefront-category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:48px 24px}.storefront-category{min-height:120px;font-size:1.08rem}.storefront-category img,.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}.storefront-location{padding:0;background:#fff}.storefront-location-card{width:100%;height:100dvh;max-height:none;padding:18px 16px 22px;border-radius:0;box-shadow:none}.storefront-location-copy{display:none}.storefront-location-head{margin-bottom:20px}.storefront-location-head h2{font-size:1.4rem}.storefront-address-row>.storefront-geolocate{min-width:50px;width:50px;padding:0}.storefront-geolocate-label{display:none}.storefront-delivery-quote{grid-template-columns:1fr 1fr}.storefront-delivery-quote-item:first-child{grid-column:1/-1;border-right:0;border-bottom:1px solid #eadfca}.storefront-actions{position:sticky;bottom:0;padding-top:18px;background:#fff}.storefront-actions .storefront-button{width:100%;min-height:52px}.storefront-home-bottom{display:flex;position:fixed;z-index:80;left:0;right:0;bottom:0;height:76px;align-items:center;justify-content:space-around;border-top:1px solid #eee;border-radius:10px 10px 0 0;background:#fff;box-shadow:0 -8px 25px rgba(0,0,0,.09)}.storefront-home-bottom button{border:0;background:none;color:#777;font:inherit;font-size:.68rem}.storefront-home-bottom span{display:flex;justify-content:center;margin-bottom:3px}.storefront-home-bottom span svg{display:block}.storefront-home-bottom button:first-child{color:var(--brand);font-weight:800}.storefront-order-detail{padding:0;background:#fff}.storefront-order-detail-card{width:100%;height:100dvh;max-height:none;border-radius:0}.storefront-order-detail-head{padding:16px}.storefront-order-detail-body{padding:14px 12px 28px}.storefront-order-progress{padding:16px 4px}.storefront-order-progress-step{font-size:.62rem}.storefront-order-snapshot{grid-template-columns:repeat(2,1fr)}.storefront-order-snapshot div:nth-child(2){border-right:0}.storefront-order-snapshot div:nth-child(-n+2){border-bottom:1px solid #e5e7eb}}
         @media(max-width:640px){.storefront-delivery-quote-item:first-child{grid-column:auto;border-right:1px solid #e8e8e8;border-bottom:0}.storefront-delivery-quote-item{min-width:0;padding:12px}}
+        /* La miniatura ocupa exactamente el área de la categoría. El margen
+           pertenece al contenedor, no a la imagen, para evitar la franja gris. */
+        .storefront-category>.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;background:#fff!important;font-size:3rem}
+        .storefront-category>.storefront-category-icon>img{display:block;width:100%;height:100%;margin:0;object-fit:contain}
+        .bulk-order-app[data-channel="storefront"] .bulk-order-category-icon.catalog-image-shell{background:#fff!important}
+        @media(max-width:640px){.storefront-category>.storefront-category-icon{width:96px;height:76px;margin-bottom:12px}}
         /* El selector de entrega debe mostrarse sobre el detalle del producto. */
         .storefront-location{z-index:1600}
+        .storefront-closed-notice{margin:0 0 18px;padding:13px 15px;border-left:4px solid var(--accent);border-radius:8px;background:#fff8e7;color:#5d4820;font-size:.84rem;line-height:1.45}
     </style>
 </head>
 <body>
@@ -56,22 +64,31 @@
     </section>
     <section class="storefront-location" id="storefrontLocation">
         <div class="storefront-location-card">
-            <div class="storefront-location-head"><h2 id="storefrontLocationTitle">¿Cómo quieres recibir tu pedido?</h2><button type="button" class="storefront-location-close" id="storefrontLocationClose" aria-label="Cerrar">×</button></div>
-            <p class="storefront-location-copy">Elige si deseas retirar tu pedido en un local o recibirlo en una dirección.</p>
-            <div class="storefront-mode-row"><button class="storefront-mode" data-storefront-mode="pickup">📍 Pide y retira</button><button class="storefront-mode" data-storefront-mode="delivery">🛵 Delivery</button></div>
-            <select id="storefrontBranch" hidden><option value="">Selecciona una sucursal</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($branch->is_default)>{{ $branch->name }}{{ $branch->address ? ' · '.$branch->address : '' }}</option>@endforeach</select>
-            <div class="storefront-pickup-fields" id="pickupFields"><label class="storefront-field"><span>Busca un local</span><input type="search" id="storefrontBranchSearch" placeholder="Busca una dirección o sucursal" autocomplete="off"></label><div class="storefront-branch-list" id="storefrontBranchList">@foreach($branches as $branch)<button type="button" class="storefront-branch-option @if($branch->is_default) is-active @endif" data-branch-option="{{ $branch->id }}" data-branch-search="{{ Str::lower($branch->name.' '.$branch->address) }}"><strong>{{ $branch->name }}</strong><small>{{ $branch->address ?: 'Sucursal disponible' }}</small></button>@endforeach</div></div>
-            <div id="deliveryFields" style="display:none">
-                <section class="storefront-location-saved" id="storefrontLocationSaved"><h3>Tus direcciones</h3><div class="storefront-location-saved-list" id="storefrontLocationSavedList"></div></section>
-                <div class="storefront-field"><span>Dirección de entrega</span><div class="storefront-address-row"><input id="storefrontAddress" placeholder="Busca una dirección" autocomplete="street-address"><button type="button" class="storefront-button storefront-geolocate" id="storefrontGeolocate" title="Detectar mi ubicación" aria-label="Detectar mi ubicación"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg><span class="storefront-geolocate-label">Mi ubicación</span></button></div></div>
-                <label class="storefront-field"><span>Referencia para el repartidor</span><input id="storefrontReference" placeholder="Ej.: casa de dos pisos, junto al mercado"></label>
-                <section class="storefront-delivery-quote" id="storefrontDeliveryQuote" aria-live="polite" hidden>
-                    <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Sucursal más cercana</span><strong id="storefrontNearestBranch">Calculando…</strong><small id="storefrontNearestBranchAddress"></small></div>
-                    <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Distancia y envío</span><strong id="storefrontDeliveryDistance">Calculando…</strong><small id="storefrontDeliveryFee"></small></div>
-                </section>
+            <div class="storefront-location-head"><h2 id="storefrontLocationTitle">¿Cómo vas a pagar?</h2><button type="button" class="storefront-location-close" id="storefrontLocationClose" aria-label="Cerrar">×</button></div>
+            <p class="storefront-location-copy" id="storefrontLocationCopy">Elige tu forma de pago para continuar con tu pedido.</p>
+            @if(filled($closedMessage ?? null))<p class="storefront-closed-notice">{{ $closedMessage }}</p>@endif
+            <div class="storefront-mode-row" id="storefrontPaymentStep">
+                <button class="storefront-mode" data-storefront-payment="efectivo">💵 Efectivo</button>
+                <button class="storefront-mode" data-storefront-payment="transferencia">🏦 Transferencia</button>
+                @if(filled($cardPaymentUrl ?? null))<button class="storefront-mode" data-storefront-payment="tarjeta">💳 Tarjeta</button>@endif
             </div>
-            <p class="storefront-error" id="storefrontError"></p>
-            <div class="storefront-actions"><button class="storefront-button" id="storefrontContinue">Comenzar</button></div>
+            <div id="storefrontLocationStep2" hidden>
+                <button type="button" class="storefront-payment-change" id="storefrontChangePayment">‹ Cambiar forma de pago</button>
+                <div class="storefront-mode-row"><button class="storefront-mode" data-storefront-mode="pickup">📍 Pide y retira</button><button class="storefront-mode" data-storefront-mode="delivery">🛵 Delivery</button></div>
+                <select id="storefrontBranch" hidden><option value="">Selecciona una sucursal</option>@foreach($branches as $branch)<option value="{{ $branch->id }}" @selected($branch->is_default)>{{ $branch->name }}{{ $branch->address ? ' · '.$branch->address : '' }}</option>@endforeach</select>
+                <div class="storefront-pickup-fields" id="pickupFields"><label class="storefront-field"><span>Busca un local</span><input type="search" id="storefrontBranchSearch" placeholder="Busca una dirección o sucursal" autocomplete="off"></label><div class="storefront-branch-list" id="storefrontBranchList">@foreach($branches as $branch)<button type="button" class="storefront-branch-option @if($branch->is_default) is-active @endif" data-branch-option="{{ $branch->id }}" data-branch-search="{{ Str::lower($branch->name.' '.$branch->address) }}"><strong>{{ $branch->name }}</strong><small>{{ $branch->address ?: 'Sucursal disponible' }}</small></button>@endforeach</div></div>
+                <div id="deliveryFields" style="display:none">
+                    <section class="storefront-location-saved" id="storefrontLocationSaved"><h3>Tus direcciones</h3><div class="storefront-location-saved-list" id="storefrontLocationSavedList"></div></section>
+                    <div class="storefront-field"><span>Dirección de entrega</span><div class="storefront-address-row"><input id="storefrontAddress" placeholder="Busca una dirección" autocomplete="street-address"><button type="button" class="storefront-button storefront-geolocate" id="storefrontGeolocate" title="Detectar mi ubicación" aria-label="Detectar mi ubicación"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="7"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></svg><span class="storefront-geolocate-label">Mi ubicación</span></button></div></div>
+                    <label class="storefront-field"><span>Referencia para el repartidor</span><input id="storefrontReference" placeholder="Ej.: casa de dos pisos, junto al mercado"></label>
+                    <section class="storefront-delivery-quote" id="storefrontDeliveryQuote" aria-live="polite" hidden>
+                        <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Sucursal más cercana</span><strong id="storefrontNearestBranch">Calculando…</strong><small id="storefrontNearestBranchAddress"></small></div>
+                        <div class="storefront-delivery-quote-item"><span class="storefront-delivery-quote-label">Distancia y envío</span><strong id="storefrontDeliveryDistance">Calculando…</strong><small id="storefrontDeliveryFee"></small></div>
+                    </section>
+                </div>
+                <p class="storefront-error" id="storefrontError"></p>
+                <div class="storefront-actions"><button class="storefront-button" id="storefrontContinue">Comenzar</button></div>
+            </div>
         </div>
     </section>
     <section class="storefront-preview"><div class="storefront-category-grid" id="storefrontCategoryPreview" aria-label="Categorías">@foreach($categories as $category)<button class="storefront-category" type="button" data-preview-category="{{ $category['id'] }}">@if(filled($category['image'] ?? null))<span class="storefront-category-icon catalog-image-shell"><img class="catalog-loading-image" data-catalog-image src="{{ $category['image'] }}" alt="{{ $category['title'] }}"></span>@else<span class="storefront-category-icon">{{ $category['icon'] ?? '🍔' }}</span>@endif<span>{{ $category['title'] }}</span></button>@endforeach</div></section>
@@ -285,7 +302,7 @@ window.loadStorefrontMapsScript=function(){
 @endif
 <script>
 const storefrontOrderStorageKey = @json('storefront_order_'.$company->id);
-const storefrontOrderDefaults = {confirmed:false,service_type:null,branch_id:null,address:'',reference:'',latitude:null,longitude:null,delivery_distance_km:null,delivery_fee:null,delivery_fee_pending_review:false,nearest_branch_name:''};
+const storefrontOrderDefaults = {confirmed:false,payment_method:null,service_type:null,branch_id:null,address:'',reference:'',latitude:null,longitude:null,delivery_distance_km:null,delivery_fee:null,delivery_fee_pending_review:false,nearest_branch_name:''};
 try {
     const savedStorefrontOrder = JSON.parse(localStorage.getItem(storefrontOrderStorageKey) || 'null');
     window.storefrontOrder = savedStorefrontOrder && typeof savedStorefrontOrder === 'object'
@@ -477,8 +494,9 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
     window.loadStorefrontOrders=loadOrders;
     window.setInterval(()=>{if(!document.hidden&&(account.classList.contains('is-open')||document.getElementById('storefrontOrderDetail').classList.contains('is-open')))loadOrders();},15000);
      const showAuthed=customer=>{
-         customerAuthenticated=true;
+         customerAuthenticated=true;window.storefrontCustomerAuthenticated=true;
          currentCustomer=customer;
+         document.getElementById('storefrontCheckoutAccountBenefit')?.setAttribute('hidden','hidden');
          guestBox.style.display='none';authedBox.style.display='block';
          if(drawerLogout)drawerLogout.style.display='flex';
          const customerName=customer.name||'Cliente';
@@ -507,7 +525,9 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
          fillCustomerProfile(customer);
          loadOrders();
      };
-     const showGuest=()=>{customerAuthenticated=false;currentCustomer=null;customerAddresses=[];guestBox.style.display='block';authedBox.style.display='none';if(drawerLogout)drawerLogout.style.display='none';if(document.getElementById('storefrontCustomerPhone'))document.getElementById('storefrontCustomerPhone').readOnly=false;renderSavedAddresses([]);};
+     const showGuest=()=>{customerAuthenticated=false;window.storefrontCustomerAuthenticated=false;currentCustomer=null;customerAddresses=[];guestBox.style.display='block';authedBox.style.display='none';if(drawerLogout)drawerLogout.style.display='none';document.getElementById('storefrontCheckoutAccountBenefit')?.removeAttribute('hidden');if(document.getElementById('storefrontCustomerPhone'))document.getElementById('storefrontCustomerPhone').readOnly=false;renderSavedAddresses([]);};
+     window.openStorefrontAccount=()=>toggleNavOverlay(account,true);
+     document.getElementById('storefrontCheckoutAccountButton')?.addEventListener('click',()=>window.openStorefrontAccount());
      document.getElementById('storefrontProfileInvoicePreference').addEventListener('change',event=>document.getElementById('storefrontProfileBillingFields').classList.toggle('is-open',event.target.value==='invoice'));
      document.getElementById('storefrontProfileForm').addEventListener('submit',async event=>{
          event.preventDefault();const form=event.currentTarget,status=document.getElementById('storefrontProfileStatus'),preference=document.getElementById('storefrontProfileInvoicePreference').value;
@@ -700,6 +720,35 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
          setGeolocateBusy(false);
      },{enableHighAccuracy:true,timeout:12000,maximumAge:60000});
  };
+ // Paso 1 del modal: la forma de pago se pregunta ANTES que todo lo demás
+ // (sucursal, retiro/delivery, dirección) -- mismo criterio que ya usa el
+ // bot para "Armar lista". El valor elegido se refleja en el <select>
+ // #storefrontPaymentMethod real (con su propio evento 'change') para no
+ // duplicar la lógica de campos de transferencia/tarjeta que ya depende de
+ // ese select.
+ const paymentStepBox=document.getElementById('storefrontPaymentStep'),locationStep2=document.getElementById('storefrontLocationStep2'),locationCopy=document.getElementById('storefrontLocationCopy');
+ const showPaymentStep=()=>{
+     document.getElementById('storefrontLocationTitle').textContent='¿Cómo vas a pagar?';
+     locationCopy.textContent='Elige tu forma de pago para continuar con tu pedido.';
+     paymentStepBox.hidden=false;
+     locationStep2.hidden=true;
+ };
+ const showLocationStep2=()=>{
+     document.getElementById('storefrontLocationTitle').textContent='¿Cómo quieres recibir tu pedido?';
+     locationCopy.textContent='Elige si deseas retirar tu pedido en un local o recibirlo en una dirección.';
+     paymentStepBox.hidden=true;
+     locationStep2.hidden=false;
+ };
+ document.querySelectorAll('[data-storefront-payment]').forEach(button=>button.addEventListener('click',()=>{
+     const value=button.dataset.storefrontPayment;
+     const select=document.getElementById('storefrontPaymentMethod');
+     if(select){select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));}
+     window.storefrontOrder.payment_method=value;
+     window.storefrontOrder.confirmed=false;
+     persistOrder();
+     showLocationStep2();
+ }));
+ document.getElementById('storefrontChangePayment').addEventListener('click',showPaymentStep);
  const selectMode=(mode,save=true)=>{
      document.querySelectorAll('[data-storefront-mode]').forEach(x=>x.classList.toggle('is-active',x.dataset.storefrontMode===mode));
      window.storefrontOrder.service_type=mode;
@@ -752,7 +801,16 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
  document.querySelectorAll('[data-branch-option]').forEach(button=>button.addEventListener('click',()=>{const branchId=button.dataset.branchOption;document.getElementById('storefrontBranch').value=branchId;document.getElementById('bulkBranch').value=branchId;window.storefrontOrder.confirmed=false;window.storefrontOrder.branch_id=Number(branchId)||null;persistOrder();document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item===button));}));document.getElementById('storefrontBranchSearch').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-branch-option]').forEach(item=>item.style.display=item.dataset.branchSearch.includes(query)?'grid':'none');});
  document.getElementById('storefrontAddress').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.address=event.target.value;if(event.target.dataset.preserveCoordinates==='1'){delete event.target.dataset.preserveCoordinates;}else{window.storefrontOrder.latitude=null;window.storefrontOrder.longitude=null;clearDeliveryQuote();}persistOrder();});
  document.getElementById('storefrontReference').addEventListener('input',event=>{window.storefrontOrder.confirmed=false;window.storefrontOrder.reference=event.target.value;persistOrder();});
- window.openStorefrontOrderMode=()=>{selectMode(window.storefrontOrder.service_type||'pickup');if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);locationBox.classList.add('is-open');};
+ window.openStorefrontOrderMode=()=>{
+     if(locationBox.parentElement!==document.body)document.body.appendChild(locationBox);
+     locationBox.classList.add('is-open');
+     if(window.storefrontOrder.payment_method){
+         showLocationStep2();
+         selectMode(window.storefrontOrder.service_type||'pickup');
+     }else{
+         showPaymentStep();
+     }
+ };
  window.addEventListener('storefront:start-order',window.openStorefrontOrderMode);
  document.getElementById('storefrontContinue').addEventListener('click',()=>{
      const branch=document.getElementById('storefrontBranch').value;

@@ -11,6 +11,7 @@ class StorefrontDeliveryQuoteService
     public function __construct(
         private readonly GeoDistanceService $distances,
         private readonly DeliveryFeeTierService $fees,
+        private readonly BusinessHoursService $businessHours,
     ) {}
 
     /**
@@ -23,8 +24,9 @@ class StorefrontDeliveryQuoteService
             ->availableForOrders()
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
-            ->with('deliveryFeeTiers')
+            ->with(['deliveryFeeTiers', 'hours'])
             ->get()
+            ->filter(fn (BusinessBranch $candidate) => $this->businessHours->branchIsOpen($candidate))
             ->sortBy(fn (BusinessBranch $candidate) => $this->distances->distanceKm(
                 (float) $candidate->latitude,
                 (float) $candidate->longitude,

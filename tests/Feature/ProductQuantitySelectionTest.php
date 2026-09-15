@@ -171,7 +171,7 @@ class ProductQuantitySelectionTest extends TestCase
             'is_active' => true, 'stock' => 20,
             'allow_quantity_selection' => $allowQuantity, 'min_quantity' => $min, 'max_quantity' => $max,
         ]);
-        $contact = WhatsappContact::create(['phone_number' => '593990000002', 'name' => 'Cliente']);
+        $contact = WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593990000002', 'name' => 'Cliente']);
 
         return [$product, $contact];
     }

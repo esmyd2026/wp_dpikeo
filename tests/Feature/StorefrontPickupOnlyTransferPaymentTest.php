@@ -79,6 +79,10 @@ class StorefrontPickupOnlyTransferPaymentTest extends TestCase
     public function test_pickup_with_transfer_is_accepted(): void
     {
         [$company, $branch, $product] = $this->fixture('300003');
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Cliente Prueba', 'phone' => '0992220003',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
 
         $response = $this->postJson("/tienda/{$company->slug}/pedido", $this->orderPayload($branch, $product, 'pickup', 'transferencia', '0003'));
 
@@ -90,6 +94,10 @@ class StorefrontPickupOnlyTransferPaymentTest extends TestCase
         [$company, $branch, $product] = $this->fixture('300004');
         $payload = $this->orderPayload($branch, $product, 'delivery', 'efectivo', '0004');
         $payload['address'] = 'Av. Siempre Viva 123';
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Cliente Prueba', 'phone' => '0992220004',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
 
         $response = $this->postJson("/tienda/{$company->slug}/pedido", $payload);
 

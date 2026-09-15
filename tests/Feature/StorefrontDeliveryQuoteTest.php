@@ -124,6 +124,11 @@ class StorefrontDeliveryQuoteTest extends TestCase
         $this->fakeRoadDistance();
         [$company, $nearest, $farther, $product] = $this->fixture();
 
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Cliente Delivery', 'phone' => '0991234567',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
+
         $response = $this->postJson("/tienda/{$company->slug}/pedido", [
             'name' => 'Cliente Delivery',
             'phone' => '0991234567',

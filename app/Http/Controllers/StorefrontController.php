@@ -7,14 +7,15 @@ use App\Models\Company;
 use App\Models\CompanyStorefrontSetting;
 use App\Models\WhatsappCart;
 use App\Models\WhatsappChatbotConfig;
-use App\Models\WhatsappContact;
 use App\Services\BulkOrderService;
+use App\Services\BusinessHoursService;
 use App\Services\OrderLifecycleService;
 use App\Services\OrderPdfService;
 use App\Services\StorefrontDeliveryQuoteService;
 use App\Services\StorefrontOrderSelfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -25,6 +26,7 @@ class StorefrontController extends Controller
         private BulkOrderService $bulkOrders,
         private StorefrontOrderSelfService $orderSelfService,
         private StorefrontDeliveryQuoteService $deliveryQuotes,
+        private BusinessHoursService $businessHours,
     ) {}
 
     public function show(Request $request, ?Company $company = null): View
@@ -37,11 +39,8 @@ class StorefrontController extends Controller
             return view('storefront.unavailable', compact('company', 'settings'));
         }
 
-        $branches = BusinessBranch::query()
-            ->where('business_profile_id', $profile->id)
-            ->availableForOrders()
-            ->orderByDesc('is_default')->orderBy('name')
-            ->get(['id', 'name', 'code', 'address', 'latitude', 'longitude', 'is_default']);
+        $branches = $this->businessHours->openOrderBranches($profile->id);
+        $closedMessage = $this->businessHours->closedMessage($profile->id);
         // Aparte de $branches (solo las que reciben pedidos, para el selector
         // de retiro/delivery): la sección "Sucursales" es informativa y debe
         // mostrar cualquier local activo, aunque hoy no esté recibiendo
@@ -59,7 +58,7 @@ class StorefrontController extends Controller
         $bankTransferInstructions = $paymentConfig?->bank_transfer_instructions;
         $cardPaymentUrl = trim((string) data_get($paymentConfig?->metadata, 'card_payment_url')) ?: null;
 
-        return view('storefront.show', compact('company', 'profile', 'settings', 'branches', 'infoBranches', 'categories', 'bankTransferInstructions', 'cardPaymentUrl'));
+        return view('storefront.show', compact('company', 'profile', 'settings', 'branches', 'closedMessage', 'infoBranches', 'categories', 'bankTransferInstructions', 'cardPaymentUrl'));
     }
 
     public function catalog(Request $request, Company $company): JsonResponse
@@ -163,9 +162,17 @@ class StorefrontController extends Controller
             'payment_method.in' => 'Para "Pide y retira" solo aceptamos pago por transferencia.',
         ]);
 
-        $phone = WhatsappContact::normalizePhone($validated['phone']);
-        if (! $phone) {
-            return response()->json(['ok' => false, 'message' => 'Ingresa un teléfono válido de 8 a 15 dígitos.'], 422);
+        $branch = BusinessBranch::query()
+            ->where('business_profile_id', $profile->id)
+            ->availableForOrders()
+            ->with('hours')
+            ->find((int) $validated['branch_id']);
+        if (! $branch || ! $this->businessHours->branchIsOpen($branch)) {
+            return response()->json([
+                'ok' => false,
+                'message' => $this->businessHours->closedMessage($profile->id)
+                    ?? 'La sucursal seleccionada ya cerró. Elige otra disponible para continuar.',
+            ], 422);
         }
 
         // El micrositio no procesa pagos con tarjeta -- igual que el bot,
@@ -201,10 +208,20 @@ class StorefrontController extends Controller
             }
         }
 
-        $contact = WhatsappContact::query()->firstOrNew([
-            'business_profile_id' => $profile->id,
-            'phone_number' => $phone,
-        ]);
+        // Pedido explícito: todo pedido del micrositio debe quedar ligado a
+        // una cuenta real (teléfono+contraseña o Google) -- ya no se permite
+        // "pedir como invitado" acá (el bot es distinto: el número de
+        // WhatsApp del cliente YA es su identidad real ahí). El frontend ya
+        // bloquea el botón de confirmar sin sesión; esto es la validación
+        // real del lado servidor.
+        $contact = Auth::guard('storefront_customer')->user();
+        if (! $contact || $contact->business_profile_id !== $profile->id) {
+            return response()->json([
+                'ok' => false,
+                'needs_account' => true,
+                'message' => 'Inicia sesión o crea una cuenta (con tu teléfono o con Google) para confirmar tu pedido.',
+            ], 401);
+        }
         $metadata = $contact->metadata ?? [];
         if (filled($validated['email'] ?? null)) {
             $metadata['email'] = strtolower(trim($validated['email']));

@@ -68,6 +68,11 @@ class StorefrontOrderFollowsBotFulfillmentPatternTest extends TestCase
     {
         [$company, , $branch, $product, $admin] = $this->fixture('200001');
 
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Cliente Delivery', 'phone' => '0991110001',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
+
         $submit = $this->postJson("/tienda/{$company->slug}/pedido", [
             'name' => 'Cliente Delivery', 'phone' => '0991110001',
             'service_type' => 'delivery',
@@ -94,6 +99,11 @@ class StorefrontOrderFollowsBotFulfillmentPatternTest extends TestCase
     public function test_a_pickup_order_from_the_storefront_shows_as_para_llevar_retiro_not_para_servir(): void
     {
         [$company, , $branch, $product, $admin] = $this->fixture('200002');
+
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Cliente Retiro', 'phone' => '0991110002',
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
 
         $submit = $this->postJson("/tienda/{$company->slug}/pedido", [
             'name' => 'Cliente Retiro', 'phone' => '0991110002',

@@ -148,12 +148,17 @@
         transition:opacity .18s ease;
     }
     .catalog-image-shell > img.catalog-loading-image { position:relative; z-index:1; opacity:0; transition:opacity .2s ease,transform .25s ease; }
+    .catalog-image-shell.is-image-loaded { background:transparent; }
     .catalog-image-shell.is-image-loaded::before { opacity:0; pointer-events:none; }
     .catalog-image-shell.is-image-loaded > img.catalog-loading-image { opacity:1; }
     .catalog-image-shell.is-image-error::before { animation:none; background:#eef0f2; }
     .catalog-image-shell.is-image-error > img.catalog-loading-image { visibility:hidden; }
     @keyframes catalog-image-shimmer { to { background-position-x:-220%; } }
     @media(prefers-reduced-motion:reduce){.catalog-image-shell::before{animation:none}.catalog-image-shell > img.catalog-loading-image{transition:none}}
+    .storefront-account-benefit{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 16px;padding:13px 14px;border:1px solid #f1dca4;border-radius:11px;background:#fffaf0}.storefront-account-benefit-copy{display:grid;gap:3px}.storefront-account-benefit-copy strong{font-size:.82rem}.storefront-account-benefit-copy small{color:#665b45;font-size:.72rem;line-height:1.35}.storefront-account-benefit button{flex:0 0 auto;border:0;border-radius:8px;padding:10px 13px;background:var(--accent);font:inherit;font-size:.74rem;font-weight:850;cursor:pointer}.storefront-account-benefit[hidden]{display:none}
+    /* Ya no es un "tip" opcional -- sin cuenta no se puede confirmar el
+       pedido, así que lleva un tratamiento más parecido a una advertencia. */
+    .storefront-account-benefit.is-required{border-color:#f4c28a;background:#fff4e6}.storefront-account-benefit.is-required .storefront-account-benefit-copy strong{color:#a34e00}
     .bulk-order-product-content { padding:0 12px 12px; }
     .bulk-order-product-actions { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; }
     .bulk-order-product-price {
@@ -1657,6 +1662,10 @@
                     @if($isStorefront)
                     <div class="bulk-order-storefront-customer">
                         <h3>Datos para confirmar</h3>
+                        <aside class="storefront-account-benefit is-required" id="storefrontCheckoutAccountBenefit">
+                            <span class="storefront-account-benefit-copy"><strong>Necesitas una cuenta para confirmar</strong><small>Inicia sesión o regístrate con tu teléfono o con Google -- así puedes ver el estado de tu pedido y reutilizar tus datos la próxima vez.</small></span>
+                            <button type="button" id="storefrontCheckoutAccountButton">Iniciar sesión / Crear cuenta</button>
+                        </aside>
                         <label>Nombre completo<input type="text" id="storefrontCustomerName" maxlength="120" autocomplete="name" placeholder="¿Quién recibe el pedido?"></label>
                         <label>Teléfono<input type="tel" id="storefrontCustomerPhone" maxlength="30" autocomplete="tel" placeholder="Ej.: 099 123 4567"><small class="bulk-order-field-error" id="storefrontCustomerPhoneError"></small></label>
                         <label>Correo de contacto <span>(opcional)</span><input type="email" id="storefrontCustomerEmail" maxlength="255" autocomplete="email" placeholder="correo@ejemplo.com"><small class="bulk-order-field-error" id="storefrontCustomerEmailError"></small></label>
@@ -3214,6 +3223,11 @@
             el('bulkBranch')?.focus();
             return;
         }
+        if (isStorefront && !window.storefrontCustomerAuthenticated) {
+            toast('Inicia sesión o crea una cuenta para confirmar tu pedido');
+            window.openStorefrontAccount?.();
+            return;
+        }
         if (isStorefront && (!el('storefrontCustomerName')?.value.trim() || !el('storefrontCustomerPhone')?.value.trim())) {
             toast('Ingresa tu nombre y teléfono para continuar');
             (el('storefrontCustomerName')?.value.trim() ? el('storefrontCustomerPhone') : el('storefrontCustomerName'))?.focus();
@@ -3313,6 +3327,10 @@
             }
 
             if (!res.ok || !data.ok) {
+                // Ej.: la sesión venció justo entre cargar la página y
+                // confirmar -- se le pide iniciar sesión de nuevo en vez de
+                // solo mostrar un error genérico.
+                if (data.needs_account) window.openStorefrontAccount?.();
                 throw new Error(data.message || 'No se pudo enviar el pedido.');
             }
 

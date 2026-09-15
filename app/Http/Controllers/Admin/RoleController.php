@@ -63,8 +63,14 @@ class RoleController extends Controller
 
         $role->permissions()->sync($permissionIds);
 
+        // wherePivot() solo existe en la relación BelongsToMany en sí (ej.
+        // $user->companies()->wherePivot(...)) -- dentro del closure de
+        // whereHas() lo que se recibe es un Builder normal, así que
+        // wherePivot() ahí no filtra nada y generaba SQL inválido
+        // ("Unknown column 'pivot'"). Se filtra calificando la columna real
+        // de la tabla pivote (company_user.role_id).
         User::where('role_id', $role->id)
-            ->orWhereHas('companies', fn ($q) => $q->wherePivot('role_id', $role->id))
+            ->orWhereHas('companies', fn ($q) => $q->where('company_user.role_id', $role->id))
             ->each(fn (User $user) => $permissionService->forgetUserCache($user));
 
         return redirect()

@@ -83,6 +83,33 @@ class RolePermissionsMultiProfileTest extends TestCase
         $this->assertTrue($customRole->fresh()->permissions()->whereKey($permissionId)->exists());
     }
 
+    /**
+     * Segundo bug real encontrado en el mismo endpoint (con el log de
+     * producción): wherePivot() solo existe en la relación BelongsToMany en
+     * sí -- dentro de un closure de whereHas() el $q recibido es un Builder
+     * normal, así que wherePivot() ahí generaba SQL inválido
+     * ("Unknown column 'pivot'") apenas existía algún usuario asignado a ese
+     * rol por la tabla pivote company_user (no por la columna users.role_id
+     * directa). Este test asigna el rol exactamente por esa vía para
+     * reproducirlo.
+     */
+    public function test_updating_permissions_works_when_a_user_has_the_role_only_via_the_company_pivot(): void
+    {
+        [$company, $admin] = $this->companyWithTwoProfilesAndNoPrimary('100004');
+        $customRole = Role::create(['company_id' => $company->id, 'slug' => 'rol-custom-100004', 'name' => 'Rol Custom', 'is_system' => false]);
+        $staff = User::factory()->create(['is_admin' => true, 'role_id' => null]);
+        $company->users()->attach($staff->id, ['role_id' => $customRole->id]);
+
+        $response = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->put(route('admin.roles.permissions.update', $customRole), [
+                'permissions' => ['clients.view'],
+            ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success');
+    }
+
     public function test_creating_a_role_works_for_a_company_with_two_numbers_and_no_primary(): void
     {
         [$company, $admin] = $this->companyWithTwoProfilesAndNoPrimary('100003');

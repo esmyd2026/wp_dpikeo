@@ -8,11 +8,12 @@ use App\Services\OrderPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class BulkOrderController extends Controller
 {
-    public function show(string $token, BulkOrderService $bulkOrders): View|RedirectResponse
+    public function show(string $token, Request $request, BulkOrderService $bulkOrders): View|RedirectResponse
     {
         $record = $bulkOrders->findValidToken($token);
 
@@ -26,7 +27,18 @@ class BulkOrderController extends Controller
         // unificar el ecommerce. Si la empresa ya tiene tienda moderna, el
         // cliente entra al mismo storefront que se muestra en la raíz.
         if ($company?->storefrontSetting?->storefront_enabled) {
-            return redirect()->route('storefront.show', $company);
+            // El token aleatorio y temporal identifica al contacto sin poner
+            // su número de WhatsApp en la URL. Se consume una sola vez y deja
+            // iniciada su cuenta en este navegador para que el pedido y su
+            // seguimiento queden asociados automáticamente.
+            Auth::guard('storefront_customer')->login($contact, true);
+            $request->session()->regenerate();
+            $record->markUsed();
+
+            return redirect()->route('storefront.show', array_filter([
+                'company' => $company,
+                'cuenta' => $request->query('cuenta') === 'pedidos' ? 'pedidos' : null,
+            ]));
         }
 
         $branches = BusinessBranch::query()

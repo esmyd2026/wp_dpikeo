@@ -55,6 +55,14 @@ class StorefrontCardPaymentRedirectTest extends TestCase
         return [$company, $profile, $branch, $product];
     }
 
+    private function registerStorefrontCustomer(Company $company, string $phoneSuffix): void
+    {
+        $this->postJson("/tienda/{$company->slug}/cuenta/registro", [
+            'name' => 'Ana Torres', 'phone' => '099111'.$phoneSuffix,
+            'password' => 'secreto1', 'password_confirmation' => 'secreto1',
+        ])->assertOk();
+    }
+
     private function orderPayload(BusinessBranch $branch, WhatsappPrice $product, string $paymentMethod, string $phoneSuffix): array
     {
         return [
@@ -94,6 +102,7 @@ class StorefrontCardPaymentRedirectTest extends TestCase
             ->assertSee('Por el momento este micrositio no procesa pagos con tarjeta')
             ->assertSee("el('storefrontCardFields')?.classList.toggle('is-open', isCard)", false);
 
+        $this->registerStorefrontCustomer($company, '0002');
         $response = $this->postJson("/tienda/{$company->slug}/pedido", $this->orderPayload($branch, $product, 'tarjeta', '0002'));
 
         $response->assertOk()
@@ -116,6 +125,7 @@ class StorefrontCardPaymentRedirectTest extends TestCase
             'metadata' => ['card_payment_url' => 'https://dpikeos.ec/pagar'],
         ]);
 
+        $this->registerStorefrontCustomer($company, '0003');
         $response = $this->postJson("/tienda/{$company->slug}/pedido", $this->orderPayload($branch, $product, 'efectivo', '0003'));
 
         $response->assertOk()->assertJsonPath('ok', true)->assertJsonMissingPath('card_payment_redirect');

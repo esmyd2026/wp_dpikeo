@@ -3662,6 +3662,24 @@ class WhatsappService
         if ($activeOrder = $this->buildActiveOrderStatusResponse($contact)) {
             return $activeOrder;
         }
+        if ($closed = $this->closedOrderingResponse($contact)) {
+            return $closed;
+        }
+
+        // Pedido explícito: preguntar el método de pago ANTES de mandarlo a
+        // cualquiera de los dos destinos de abajo (micrositio moderno o el
+        // formulario legado), no después de que vuelva -- no lo vamos a
+        // hacer llegar hasta allá y devolverse para preguntarle. Mismo gate
+        // que usa addToCart() (una sola vez por pedido); submitForContact()/
+        // el micrositio ya saben heredar el payment_method de este carrito
+        // (ver comentario en resumePendingFirstAction()), así que en cuanto
+        // responda acá queda resuelto para cuando vuelva. Este chequeo debe
+        // ir ANTES del redirect al storefront -- quedó después por un tiempo
+        // y el gate nunca se disparaba para ninguna empresa con storefront
+        // publicado (todas, hoy).
+        if ($gate = $this->interceptForPaymentMethod($contact, ['action' => 'bulk_order_web'])) {
+            return $gate;
+        }
 
         // Todas las entradas web deben usar la misma tienda moderna. Este
         // método todavía es invocado por botones históricos como "Armar una
@@ -3669,17 +3687,6 @@ class WhatsappService
         // ya publicó su storefront, no generamos el formulario /pedido/{token}.
         if ($redirect = $this->sendStorefrontRedirectLink($contact)) {
             return $redirect;
-        }
-
-        // Pedido explícito: preguntar el método de pago ANTES de mandarlo al
-        // micrositio, no después de que vuelva -- no lo vamos a hacer llegar
-        // hasta allá y devolverse para preguntarle. Mismo gate que usa
-        // addToCart() (una sola vez por pedido); submitForContact() ya sabe
-        // heredar el payment_method de este carrito al carrito nuevo que arma
-        // el micrositio (ver comentario ahí), así que en cuanto responda acá
-        // queda resuelto para cuando vuelva.
-        if ($gate = $this->interceptForPaymentMethod($contact, ['action' => 'bulk_order_web'])) {
-            return $gate;
         }
 
         $bulkService = app(BulkOrderService::class);
@@ -3739,15 +3746,25 @@ class WhatsappService
             return null;
         }
 
-        $url = $forOrderTracking
-            ? route('storefront.show', ['company' => $company, 'cuenta' => 'pedidos'])
-            : route('storefront.show', $company);
+        if (! $forOrderTracking && ($closedMessage = app(BusinessHoursService::class)->closedMessage($contact->business_profile_id))) {
+            return [
+                'type' => 'text',
+                'text' => ['body' => "🕐 *Estamos fuera de horario*\n\n{$closedMessage}"],
+            ];
+        }
+
+        $token = app(BulkOrderService::class)->issueToken($contact);
+        if (! $token) {
+            return null;
+        }
+        $url = app(BulkOrderService::class)->formUrl($token)
+            .($forOrderTracking ? '?cuenta=pedidos' : '');
 
         $businessLabel = $this->scopedChatbotConfig()?->bot_name ?: ($this->businessProfile?->business_name ?: 'nuestra tienda');
 
         $body = $forOrderTracking
             ? "📦 *Consulta tu pedido en {$businessLabel}*\n\nEntra al link y toca *Mi cuenta* para ver el estado, tu comprobante y tu factura."
-            : "🛍️ *Pide en línea con {$businessLabel}*\n\nElige tus productos, entrega, pago y factura, todo en una sola pantalla.";
+            : "🛍️ *Pide en línea con {$businessLabel}*\n\nEl enlace reconoce tu WhatsApp de forma segura. Tu pedido quedará en *Mi cuenta* para que puedas seguirlo y recibir notificaciones.";
 
         return [
             'type' => 'interactive',
@@ -4059,6 +4076,11 @@ class WhatsappService
     private function addToCart(WhatsappContact $contact, $priceId, $quantity = 1, ?int $variationIndex = null)
     {
         try {
+            // Quien empezó antes del cierre puede terminar su carrito. Solo
+            // se bloquea el inicio de un pedido nuevo fuera del horario real.
+            if (! $this->hasNativeCartInProgress($contact) && ($closed = $this->closedOrderingResponse($contact))) {
+                return $closed;
+            }
             $quantity = filter_var($quantity, FILTER_VALIDATE_INT);
             $price = WhatsappPrice::query()->whereKey($priceId)
                 ->where('business_profile_id', $this->businessProfile?->id)
@@ -7242,6 +7264,9 @@ class WhatsappService
 
     private function getProductsMenu(?WhatsappContact $contact = null, ?int $categoryId = null)
     {
+        if ($contact && ! $this->hasNativeCartInProgress($contact) && ($closed = $this->closedOrderingResponse($contact))) {
+            return $closed;
+        }
         if ($contact
             && ($this->scopedChatbotConfig()?->ecommerce_mode_enabled ?? false)
             && ! $this->hasNativeCartInProgress($contact)
@@ -7271,6 +7296,24 @@ class WhatsappService
                 ],
             ];
         }
+    }
+
+    private function closedOrderingResponse(WhatsappContact $contact): ?array
+    {
+        // Un contacto sin perfil resuelto (legado, o creado antes de
+        // vincularse a un número) no tiene contra qué horario comparar --
+        // closedMessage() exige un id real, así que sin esto tronaba con
+        // TypeError en vez de simplemente no bloquear el pedido.
+        if (! $contact->business_profile_id) {
+            return null;
+        }
+
+        $message = app(BusinessHoursService::class)->closedMessage($contact->business_profile_id);
+
+        return $message ? [
+            'type' => 'text',
+            'text' => ['body' => "🕐 *Estamos fuera de horario*\n\n{$message}"],
+        ] : null;
     }
 
     private function sendNativeCatalogMenu(?WhatsappContact $contact = null): array
@@ -10096,6 +10139,22 @@ class WhatsappService
             default => "[{$type} enviado desde la app de WhatsApp Business]",
         };
 
+        $metadata = [
+            'human_sent' => true,
+            'human_sent_at' => now()->toIso8601String(),
+            'sent_via' => 'whatsapp_business_app',
+        ];
+        // Igual que un mensaje de imagen/video/audio/documento normal: Meta
+        // manda el id del media bajo la clave del propio tipo (ej.
+        // echo['image']['id']), y es lo que AdminController::getImage() usa
+        // para pedirle a Meta la URL real. Sin esto, el visor del chat
+        // siempre mostraba "Imagen no disponible" para lo enviado desde la
+        // app de WhatsApp Business.
+        $mediaId = is_array($echo[$type] ?? null) ? ($echo[$type]['id'] ?? null) : null;
+        if ($mediaId) {
+            $metadata['media_id'] = $mediaId;
+        }
+
         // firstOrCreate por message_id: si Meta reenvía el mismo webhook, no
         // duplica la fila ni vuelve a tocar bot_enabled innecesariamente.
         WhatsappMessage::firstOrCreate(
@@ -10108,11 +10167,7 @@ class WhatsappService
                 'content' => $content,
                 'type' => $type === 'text' ? 'text' : $type,
                 'status' => 'sent',
-                'metadata' => [
-                    'human_sent' => true,
-                    'human_sent_at' => now()->toIso8601String(),
-                    'sent_via' => 'whatsapp_business_app',
-                ],
+                'metadata' => $metadata,
             ]
         );
     }

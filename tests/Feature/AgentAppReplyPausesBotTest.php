@@ -109,4 +109,31 @@ class AgentAppReplyPausesBotTest extends TestCase
         $this->assertSame('image', $message->type);
         $this->assertStringContainsString('enviado desde la app de WhatsApp Business', $message->content);
     }
+
+    /**
+     * Pedido explícito en vivo: las imágenes enviadas desde la app de
+     * WhatsApp Business salían como "Imagen no disponible" en el chat.
+     * Causa: no se guardaba el media_id que AdminController::getImage() usa
+     * para pedirle la URL real a Meta -- solo se guardaba un texto de
+     * marcador de posición. Meta manda el id bajo la clave del propio tipo
+     * (echo['image']['id']), igual que en un mensaje entrante normal.
+     */
+    public function test_an_image_echo_saves_the_media_id_so_the_chat_viewer_can_load_it(): void
+    {
+        $profile = $this->makeProfile('100005');
+        WhatsappContact::create(['business_profile_id' => $profile->id, 'phone_number' => '593999888999', 'name' => 'Cliente', 'bot_enabled' => true]);
+
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId('ECHO-PHONE-100005');
+        $service->processAgentAppReply([
+            'from' => '593995100005',
+            'to' => '593999888999',
+            'id' => 'wamid.echo.5',
+            'type' => 'image',
+            'image' => ['id' => 'wamid-media-abc123', 'mime_type' => 'image/jpeg'],
+        ]);
+
+        $message = WhatsappMessage::where('message_id', 'wamid.echo.5')->firstOrFail();
+        $this->assertSame('wamid-media-abc123', $message->metadata['media_id']);
+    }
 }

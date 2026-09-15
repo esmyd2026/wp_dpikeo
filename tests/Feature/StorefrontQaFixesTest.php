@@ -82,6 +82,18 @@ class StorefrontQaFixesTest extends TestCase
         $response->assertSee('Revisa los datos resaltados en rojo', false);
     }
 
+    public function test_checkout_requires_the_customer_to_create_an_account_before_confirming(): void
+    {
+        $this->fixture('05');
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('id="storefrontCheckoutAccountBenefit"', false);
+        $response->assertSee('Necesitas una cuenta para confirmar');
+        $response->assertSee('id="storefrontCheckoutAccountButton"', false);
+    }
+
     public function test_touch_zoom_is_not_disabled_on_the_storefront(): void
     {
         $this->fixture('04');
@@ -100,6 +112,20 @@ class StorefrontQaFixesTest extends TestCase
 
         $this->assertStringContainsString(
             "data-catalog-image src=\"{{ \$category['image'] }}\" alt=\"{{ \$category['title'] }}\">",
+            $source
+        );
+    }
+
+    public function test_loaded_category_image_containers_are_white_without_gray_bands(): void
+    {
+        $source = file_get_contents(resource_path('views/storefront/show.blade.php'));
+
+        $this->assertStringContainsString(
+            '.storefront-category>.storefront-category-icon{display:flex;width:120px;height:82px;margin:0 auto 16px;align-items:center;justify-content:center;background:#fff!important;',
+            $source
+        );
+        $this->assertStringContainsString(
+            '.bulk-order-app[data-channel="storefront"] .bulk-order-category-icon.catalog-image-shell{background:#fff!important}',
             $source
         );
     }
