@@ -126,13 +126,25 @@ function deliveryShareText(order, dispatchResult) {
     const branchName = dispatchResult?.branch_name ?? order.branch;
     const routeUrl = dispatchResult?.maps_url ?? order.maps_url;
     const distanceKm = dispatchResult?.distance_km ?? order.distance_km;
+    const deliveryFee = parseFloat(order.delivery_fee ?? 0);
+    const total = parseFloat(order.total ?? 0);
+    const subtotal = total - deliveryFee;
+    const itemsText = (order.items || []).map(item => `${item.quantity} × ${item.name}`).join('\n');
     const lines = [
         '🛵 *Datos para el delivery*',
         '',
         `Pedido: *${order.order_number}*`,
         branchName ? `Retirar en: ${branchName}` : null,
         `Entregar a: ${order.recipient_name || order.customer?.name || 'Cliente'}`,
+        order.customer?.phone ? `Teléfono del cliente: ${order.customer.phone}` : null,
         `Dirección: ${order.address || 'Sin dirección registrada'}`,
+        '',
+        '*Qué lleva:*',
+        itemsText || 'Sin productos registrados',
+        '',
+        `Subtotal: $${subtotal.toFixed(2)}`,
+        `Envío: $${deliveryFee.toFixed(2)}`,
+        `Total: *$${total.toFixed(2)}*`,
         `Pago: ${order.payment_dispatch_label || 'No especificado'}`,
     ].filter(line => line !== null);
     if (routeUrl) {

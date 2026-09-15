@@ -5629,7 +5629,7 @@ class WhatsappService
         $needleDigits = ltrim(preg_replace('/\D+/', '', $needle), '0');
 
         return WhatsappCart::reportable()
-            ->with(['contact', 'branch'])
+            ->with(['contact', 'branch', 'items'])
             ->orderByDesc('id')
             ->limit(500)
             ->get()
@@ -5662,11 +5662,24 @@ class WhatsappService
 
         $recipient = $metadata['delivery_recipient_name'] ?? $order->contact?->name ?? 'Cliente';
         $address = $metadata['delivery_location']['manual_address'] ?? 'Sin dirección registrada';
+        $phone = $order->contact?->phone_number;
+        $itemsText = $order->items->isEmpty()
+            ? 'Sin productos registrados'
+            : $order->items->map(fn ($item) => "{$item->quantity} × {$item->name}")->implode("\n");
+        $deliveryFee = (float) ($metadata['delivery_fee'] ?? 0);
+        $total = (float) $order->total;
+        $subtotal = $total - $deliveryFee;
 
         return "*Datos para el delivery*\n\n"
             ."Pedido: *{$order->getOrderNumber()}*\n"
+            .($order->branch?->name ? "Retirar en: {$order->branch->name}\n" : '')
             ."Entregar a: {$recipient}\n"
-            ."Dirección: {$address}\n"
+            .($phone ? "Teléfono del cliente: {$phone}\n" : '')
+            ."Dirección: {$address}\n\n"
+            ."*Qué lleva:*\n{$itemsText}\n\n"
+            .'Subtotal: $'.number_format($subtotal, 2)."\n"
+            .'Envío: $'.number_format($deliveryFee, 2)."\n"
+            .'Total: *$'.number_format($total, 2)."*\n"
             .'Pago: '.$this->getDispatchPaymentLabel($order);
     }
 

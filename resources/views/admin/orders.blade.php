@@ -1617,14 +1617,24 @@ function renderOrderModal(order) {
 }
 
 function deliveryDispatchText(order, f, driver) {
+    const deliveryFee = parseFloat(f.delivery_fee ?? 0);
+    const total = parseFloat(order.total ?? 0);
+    const subtotal = total - deliveryFee;
+    const itemsText = (order.items || []).map(item => `${item.quantity} × ${item.name}`).join('\n');
     const lines = [
         '🛵 *Datos para el delivery*',
         '',
         `Pedido: *${order.order_number}*`,
-        `Entregar a: ${f.recipient_name || order.contact?.name || 'Cliente'}`,
-        `Dirección: ${f.address || 'Sin dirección registrada'}`,
     ];
+    if (f.branch) lines.push(`Retirar en: ${f.branch}`);
+    lines.push(`Entregar a: ${f.recipient_name || order.contact?.name || 'Cliente'}`);
+    if (order.contact?.phone_number) lines.push(`Teléfono del cliente: ${order.contact.phone_number}`);
+    lines.push(`Dirección: ${f.address || 'Sin dirección registrada'}`);
     if (f.reference) lines.push(`Referencia: ${f.reference}`);
+    lines.push('', '*Qué lleva:*', itemsText || 'Sin productos registrados', '');
+    lines.push(`Subtotal: $${subtotal.toFixed(2)}`);
+    lines.push(`Envío: $${deliveryFee.toFixed(2)}`);
+    lines.push(`Total: *$${total.toFixed(2)}*`);
     lines.push(`Pago: ${f.payment_dispatch_label || 'No especificado'}`);
     return lines.join('\n');
 }

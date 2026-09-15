@@ -17,6 +17,13 @@
         .card .lbl { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b; font-weight:700; }
         .card .val { display:block; color:#0f172a; font-weight:600; margin:.1rem 0 .7rem; }
         .card .val:last-child { margin-bottom:0; }
+        .items-list { list-style:none; margin:.1rem 0 .7rem; padding:0; }
+        .items-list li { display:flex; justify-content:space-between; gap:.5rem; padding:.3rem 0; border-bottom:1px dashed #e2e8f0; font-size:.85rem; color:#0f172a; }
+        .items-list li:last-child { border-bottom:none; }
+        .items-list .item-name { font-weight:600; }
+        .items-list .item-qty { color:#64748b; font-weight:700; white-space:nowrap; }
+        .totals-row { display:flex; justify-content:space-between; font-size:.85rem; color:#334155; padding:.15rem 0; }
+        .totals-row.grand { font-weight:800; color:#0f172a; font-size:.95rem; border-top:1px solid #e2e8f0; margin-top:.25rem; padding-top:.4rem; }
         label { display:block; font-size:.82rem; font-weight:700; color:#475569; margin-bottom:.35rem; margin-top:.9rem; }
         input[type="file"], textarea { width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:.6rem .7rem; font-size:.85rem; font-family:inherit; }
         .photo-help { margin:.4rem 0 0; color:#64748b; font-size:.74rem; line-height:1.35; }
@@ -58,12 +65,33 @@
                 @endif
                 <span class="lbl">Entregar a</span>
                 <span class="val">{{ $recipientName }}</span>
+                @if($customerPhone)
+                    <span class="lbl">Teléfono del cliente</span>
+                    <span class="val"><a href="tel:{{ $customerPhone }}" style="color:inherit;text-decoration:none;">{{ $customerPhone }}</a></span>
+                @endif
                 @if($address)
                     <span class="lbl">Dirección</span>
                     <span class="val">{{ $address }}</span>
                 @endif
                 <span class="lbl">Pago</span>
                 <span class="val">{{ $paymentLabel }}</span>
+            </div>
+
+            <div class="card">
+                <span class="lbl">Qué lleva este pedido</span>
+                <ul class="items-list">
+                    @forelse($items as $item)
+                        <li>
+                            <span class="item-name">{{ $item->name }}{{ $item->line_note ? ' — '.$item->line_note : '' }}</span>
+                            <span class="item-qty">×{{ $item->quantity }}</span>
+                        </li>
+                    @empty
+                        <li><span class="item-name">Sin productos registrados</span></li>
+                    @endforelse
+                </ul>
+                <div class="totals-row"><span>Subtotal</span><span>${{ number_format($subtotal, 2) }}</span></div>
+                <div class="totals-row"><span>Envío</span><span>${{ number_format($deliveryFee, 2) }}</span></div>
+                <div class="totals-row grand"><span>Total</span><span>${{ number_format($total, 2) }}</span></div>
             </div>
 
             <button type="button" id="onTheWayBtn" class="on-the-way-btn{{ $onTheWayNotifiedAt ? ' is-sent' : '' }}" {{ $onTheWayNotifiedAt ? 'disabled' : '' }}>

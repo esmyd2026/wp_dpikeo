@@ -72,6 +72,39 @@ class DeliveryConfirmationByDriverTest extends TestCase
         $response->assertSee('Av. Siempre Viva 123');
     }
 
+    /**
+     * Pedido explícito: "agrégame aquí el detalle del pedido para que el
+     * motorizado sepa que está llevando... y adicional el desglose de los
+     * valores, el total del pedido y el costo del envío, adicional el
+     * número del cliente que está pidiendo."
+     */
+    public function test_driver_sees_the_order_items_price_breakdown_and_customer_phone(): void
+    {
+        $cart = $this->readyDeliveryCart();
+        $cart->metadata = array_merge($cart->metadata, ['delivery_fee' => 2.50]);
+        $cart->total = 14.99;
+        $cart->save();
+        $profileId = $cart->contact->business_profile_id;
+        $menu = \App\Models\WhatsappMenu::create(['business_profile_id' => $profileId, 'title' => 'Menú', 'type' => 'list', 'content' => 'x', 'action_id' => 'prices_menu']);
+        $category = \App\Models\WhatsappMenuItem::create(['menu_id' => $menu->id, 'business_profile_id' => $profileId, 'title' => 'Boxes', 'action_id' => 'boxes', 'is_active' => true]);
+        $priceA = \App\Models\WhatsappPrice::create(['menu_item_id' => $category->id, 'business_profile_id' => $profileId, 'category' => 'Boxes', 'sku' => 'BOX-1', 'name' => 'Box Tender', 'price' => 7.49, 'currency' => 'USD', 'is_active' => true, 'stock' => 5]);
+        $priceB = \App\Models\WhatsappPrice::create(['menu_item_id' => $category->id, 'business_profile_id' => $profileId, 'category' => 'Boxes', 'sku' => 'GAS-1', 'name' => 'Gaseosa 1L', 'price' => 2.50, 'currency' => 'USD', 'is_active' => true, 'stock' => 5]);
+        $cart->items()->create(['whatsapp_price_id' => $priceA->id, 'name' => 'Box Tender', 'price' => 7.49, 'quantity' => 1]);
+        $cart->items()->create(['whatsapp_price_id' => $priceB->id, 'name' => 'Gaseosa 1L', 'price' => 2.50, 'quantity' => 2]);
+
+        $url = app(DeliveryConfirmationService::class)->urlFor($cart);
+
+        $response = $this->get($url);
+
+        $response->assertOk();
+        $response->assertSee('Box Tender');
+        $response->assertSee('Gaseosa 1L');
+        $response->assertSee('593990000002'); // teléfono del cliente
+        $response->assertSee('12.49'); // subtotal (14.99 - 2.50 de envío)
+        $response->assertSee('2.50'); // envío
+        $response->assertSee('14.99'); // total
+    }
+
     public function test_unknown_token_returns_404(): void
     {
         $this->get(route('delivery-confirmation.show', ['token' => 'does-not-exist']))->assertNotFound();

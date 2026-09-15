@@ -39,7 +39,7 @@ class DeliveryController extends Controller
 
     public function confirmDelivery(Request $request, int $id, DeliveryConfirmationService $confirmations, OrderLifecycleService $lifecycle, ProductImageService $images, GeoDistanceService $geo): JsonResponse
     {
-        $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch'])->findOrFail($id);
+        $order = WhatsappCart::reportable()->forActiveCompany()->with(['contact', 'branch', 'items'])->findOrFail($id);
 
         if (($order->metadata['pickup_mode'] ?? null) !== 'delivery') {
             return response()->json(['success' => false, 'message' => 'Este pedido no es de delivery.'], 422);
@@ -72,7 +72,7 @@ class DeliveryController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Entrega confirmada.',
-            'order' => $this->mapOrder($order->fresh(['contact', 'branch']), $geo),
+            'order' => $this->mapOrder($order->fresh(['contact', 'branch', 'items']), $geo),
         ]);
     }
 
@@ -238,7 +238,7 @@ class DeliveryController extends Controller
         return WhatsappCart::reportable()
             ->forActiveCompany()
             ->where('metadata->pickup_mode', 'delivery')
-            ->with(['contact', 'branch'])
+            ->with(['contact', 'branch', 'items'])
             ->orderByRaw("CASE status
                 WHEN 'ready' THEN 1
                 WHEN 'preparing' THEN 2
@@ -292,6 +292,12 @@ class DeliveryController extends Controller
                 'name' => $order->contact?->name ?: 'Cliente',
                 'phone' => $order->contact?->phone_number,
             ],
+            // El repartidor necesita saber QUÉ está llevando, no solo a
+            // quién y dónde.
+            'items' => $order->items->map(fn ($item) => [
+                'name' => $item->name,
+                'quantity' => $item->quantity,
+            ])->all(),
             'address' => $location['manual_address'] ?? null,
             'recipient_name' => $metadata['delivery_recipient_name'] ?? null,
             'last_dispatch_driver' => DeliveryDriver::summaryFor($metadata['last_dispatch_driver_id'] ?? null, $order->contact?->business_profile_id),

@@ -22,10 +22,12 @@ class DeliveryConfirmationController extends Controller
         $record = $confirmations->findToken($token);
         abort_unless($record, 404);
 
-        $order = $record->cart()->with('branch')->first();
+        $order = $record->cart()->with(['branch', 'contact', 'items'])->first();
         abort_unless($order, 404);
 
         $metadata = $order->metadata ?? [];
+        $deliveryFee = (float) ($metadata['delivery_fee'] ?? 0);
+        $total = (float) $order->total;
 
         return view('delivery-confirmation.show', [
             'state' => match (true) {
@@ -37,8 +39,16 @@ class DeliveryConfirmationController extends Controller
             'branchName' => $order->branch?->name,
             'recipientName' => $metadata['delivery_recipient_name'] ?? $order->contact?->name ?: 'Cliente',
             'address' => $metadata['delivery_location']['manual_address'] ?? null,
+            'customerPhone' => $order->contact?->phone_number,
+            // El repartidor necesita saber QUÉ está llevando, no solo a
+            // quién y dónde -- antes esta pantalla solo tenía la dirección y
+            // la forma de pago.
+            'items' => $order->items,
+            'subtotal' => $total - $deliveryFee,
+            'deliveryFee' => $deliveryFee,
+            'total' => $total,
             'paymentLabel' => match ($order->payment_method) {
-                'efectivo' => 'Efectivo — cobrar $'.number_format((float) $order->total, 2).' al entregar',
+                'efectivo' => 'Efectivo — cobrar $'.number_format($total, 2).' al entregar',
                 'transferencia' => 'Transferencia o depósito (ya pagado, no cobrar)',
                 'tarjeta' => 'Tarjeta (ya pagado, no cobrar)',
                 default => 'No especificado',
