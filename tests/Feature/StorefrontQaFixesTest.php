@@ -192,6 +192,11 @@ class StorefrontQaFixesTest extends TestCase
             ':not(.is-order-started) .storefront-variation-section',
             $source
         );
+        // El footer de acciones quedaba posicionado a una altura fija
+        // (top:520px) pensada para cuando arriba solo había título y
+        // descripción -- con precio y variaciones visibles, el contenido es
+        // más alto y ese footer terminaba superpuesto encima.
+        $this->assertStringNotContainsString('top:520px', $source);
         $this->assertStringContainsString('storefrontMustStartOrder()', $source);
     }
 

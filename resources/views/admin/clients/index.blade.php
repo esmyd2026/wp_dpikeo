@@ -152,6 +152,19 @@
     .client-status.pending { background: #ffedd5; color: #c2410c; }
     .client-status.agent { background: #fee2e2; color: #991b1b; }
     .client-status.ok { background: #ecfdf5; color: #047857; }
+    .client-status.blacklisted { background: #1e293b; color: #f1f5f9; }
+
+    .client-bot-cell { display: flex; flex-direction: column; gap: .3rem; align-items: flex-start; }
+    .client-bot-actions { display: flex; gap: .25rem; }
+    .client-bot-actions .c-btn { padding: .25rem .4rem; }
+    .client-bot-blacklist-toggle.is-active { background: #1e293b; color: #fff; border-color: #1e293b; }
+
+    .clients-bulk-bar {
+        display: flex; align-items: center; gap: .75rem; margin-bottom: .65rem;
+        padding: .6rem .9rem; border-radius: 10px; background: #ecfdf5; border: 1px solid #a7f3d0;
+        font-size: .82rem; font-weight: 700; color: #047857;
+    }
+    .clients-bulk-bar[hidden] { display: none; }
 
     .client-badge {
         display: inline-flex; align-items: center; gap: .2rem;
@@ -310,6 +323,16 @@
     </details>
 
     {{-- 5. Lista de clientes (tabla) --}}
+    @perm('clients.update')
+        <div class="clients-bulk-bar" id="clients-bulk-bar" hidden>
+            <span id="clients-bulk-count">0 seleccionados</span>
+            <button type="button" class="btn btn-success btn-sm" id="clients-bulk-reactivate">
+                <i class="fas fa-robot me-1"></i>Reactivar bot
+            </button>
+        </div>
+    @endperm
+    <form id="clients-bulk-form" method="POST" action="{{ route('admin.clients.bulk-reactivate-bot') }}">
+        @csrf
     <div class="clients-table-wrap">
         @if($clients->isEmpty())
             <div class="clients-empty">
@@ -320,6 +343,9 @@
             <table class="clients-table">
                 <thead>
                     <tr>
+                        @perm('clients.update')
+                            <th><input type="checkbox" id="clients-select-all" aria-label="Seleccionar todos"></th>
+                        @endperm
                         <th>Cliente</th>
                         <th>Teléfono</th>
                         <th>Segmento</th>
@@ -335,6 +361,7 @@
                             </span>
                         </th>
                         <th>Último msg.</th>
+                        <th>Bot</th>
                         <th class="text-end">Acciones</th>
                     </tr>
                 </thead>
@@ -348,6 +375,13 @@
                             $segmentBadge = collect($badges)->first(fn ($b) => !in_array($b['key'] ?? '', ['pending', 'agent'], true));
                         @endphp
                         <tr class="{{ $needsAttention ? 'needs-attention' : '' }}">
+                            @perm('clients.update')
+                                <td>
+                                    @unless($client->bot_blacklisted)
+                                        <input type="checkbox" name="client_ids[]" value="{{ $client->id }}" class="client-select-row" {{ $client->bot_enabled ? 'disabled title="Ya está activo"' : '' }}>
+                                    @endunless
+                                </td>
+                            @endperm
                             <td>
                                 <span class="client-cell-name">{{ $client->name ?: 'Sin nombre' }}</span>
                                 @if($client->national_id)
@@ -391,6 +425,26 @@
                             </td>
                             <td class="client-cell-muted">{{ $fmtShort($client->last_client_message_at) }}</td>
                             <td>
+                                <div class="client-bot-cell" data-contact-id="{{ $client->id }}">
+                                    <span class="client-status {{ $client->bot_blacklisted ? 'blacklisted' : ($client->bot_enabled ? 'ok' : 'pending') }} client-bot-status">
+                                        <i class="fas {{ $client->bot_blacklisted ? 'fa-ban' : ($client->bot_enabled ? 'fa-robot' : 'fa-pause') }}"></i>
+                                        {{ $client->bot_blacklisted ? 'Lista negra' : ($client->bot_enabled ? 'Activo' : 'Pausado') }}
+                                    </span>
+                                    @perm('chats.toggle_bot')
+                                        <div class="client-bot-actions">
+                                            @unless($client->bot_blacklisted)
+                                                <button type="button" class="c-btn client-bot-toggle" title="{{ $client->bot_enabled ? 'Pausar bot' : 'Reactivar bot' }}" data-enabled="{{ $client->bot_enabled ? '1' : '0' }}">
+                                                    <i class="fas {{ $client->bot_enabled ? 'fa-pause' : 'fa-play' }}"></i>
+                                                </button>
+                                            @endunless
+                                            <button type="button" class="c-btn client-bot-blacklist-toggle" title="{{ $client->bot_blacklisted ? 'Quitar de la lista negra' : 'Agregar a la lista negra (nunca reactivar solo)' }}" data-blacklisted="{{ $client->bot_blacklisted ? '1' : '0' }}">
+                                                <i class="fas fa-ban"></i>
+                                            </button>
+                                        </div>
+                                    @endperm
+                                </div>
+                            </td>
+                            <td>
                                 <div class="client-row-actions">
                                     @perm('chats.open')
                                         <a href="{{ route('admin.chat', $client->id) }}" class="c-btn primary" title="Abrir chat">
@@ -408,6 +462,7 @@
             </table>
         @endif
     </div>
+    </form>
 
     @if($clients->hasPages())
         <div class="clients-pagination">{{ $clients->links() }}</div>
@@ -434,6 +489,97 @@
 
     select.addEventListener('change', updateSegmentHint);
     select.addEventListener('mouseenter', updateSegmentHint);
+})();
+
+(function () {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const selectAll = document.getElementById('clients-select-all');
+    const bulkBar = document.getElementById('clients-bulk-bar');
+    const bulkCount = document.getElementById('clients-bulk-count');
+    const bulkForm = document.getElementById('clients-bulk-form');
+    const rowCheckboxes = () => Array.from(document.querySelectorAll('.client-select-row:not(:disabled)'));
+
+    function refreshBulkBar() {
+        const checked = rowCheckboxes().filter((c) => c.checked);
+        if (!bulkBar) return;
+        bulkBar.hidden = checked.length === 0;
+        if (bulkCount) bulkCount.textContent = checked.length === 1 ? '1 seleccionado' : `${checked.length} seleccionados`;
+    }
+
+    selectAll?.addEventListener('change', () => {
+        rowCheckboxes().forEach((c) => { c.checked = selectAll.checked; });
+        refreshBulkBar();
+    });
+    rowCheckboxes().forEach((c) => c.addEventListener('change', refreshBulkBar));
+    document.getElementById('clients-bulk-reactivate')?.addEventListener('click', () => {
+        const checked = rowCheckboxes().filter((c) => c.checked).length;
+        if (checked === 0) return;
+        if (!confirm(`¿Reactivar el bot para ${checked} cliente(s) seleccionado(s)?`)) return;
+        bulkForm?.submit();
+    });
+
+    // Interruptor y lista negra por fila -- feedback al instante, sin
+    // recargar toda la página.
+    document.querySelectorAll('.client-bot-cell').forEach((cell) => {
+        const contactId = cell.dataset.contactId;
+        const statusEl = cell.querySelector('.client-bot-status');
+        const toggleBtn = cell.querySelector('.client-bot-toggle');
+        const blacklistBtn = cell.querySelector('.client-bot-blacklist-toggle');
+
+        const applyState = (enabled, blacklisted) => {
+            statusEl.classList.remove('ok', 'pending', 'blacklisted');
+            statusEl.classList.add(blacklisted ? 'blacklisted' : (enabled ? 'ok' : 'pending'));
+            statusEl.innerHTML = `<i class="fas ${blacklisted ? 'fa-ban' : (enabled ? 'fa-robot' : 'fa-pause')}"></i> ${blacklisted ? 'Lista negra' : (enabled ? 'Activo' : 'Pausado')}`;
+            if (toggleBtn) {
+                toggleBtn.style.display = blacklisted ? 'none' : '';
+                toggleBtn.dataset.enabled = enabled ? '1' : '0';
+                toggleBtn.title = enabled ? 'Pausar bot' : 'Reactivar bot';
+                toggleBtn.querySelector('i').className = `fas ${enabled ? 'fa-pause' : 'fa-play'}`;
+            }
+            if (blacklistBtn) {
+                blacklistBtn.dataset.blacklisted = blacklisted ? '1' : '0';
+                blacklistBtn.title = blacklisted ? 'Quitar de la lista negra' : 'Agregar a la lista negra (nunca reactivar solo)';
+                blacklistBtn.classList.toggle('is-active', blacklisted);
+            }
+            const rowCheckbox = document.querySelector(`.client-select-row[value="${contactId}"]`);
+            if (rowCheckbox) {
+                rowCheckbox.disabled = enabled || blacklisted;
+                if (rowCheckbox.disabled) rowCheckbox.checked = false;
+            }
+            refreshBulkBar();
+        };
+
+        toggleBtn?.addEventListener('click', () => {
+            const nextEnabled = toggleBtn.dataset.enabled !== '1';
+            fetch(`/admin/contacts/${contactId}/toggle-bot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                body: JSON.stringify({ enabled: nextEnabled }),
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (!data.success) { alert(data.message || 'No se pudo actualizar el bot.'); return; }
+                    applyState(data.bot_enabled, blacklistBtn?.dataset.blacklisted === '1');
+                })
+                .catch(() => alert('No se pudo actualizar el bot.'));
+        });
+
+        blacklistBtn?.addEventListener('click', () => {
+            const nextBlacklisted = blacklistBtn.dataset.blacklisted !== '1';
+            if (nextBlacklisted && !confirm('¿Agregar a la lista negra? El bot se apaga ya mismo y nunca se reactivará solo para este cliente (ni siquiera por el proceso diario) hasta que lo quites de la lista.')) return;
+            fetch(`/admin/contacts/${contactId}/toggle-blacklist`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                body: JSON.stringify({ blacklisted: nextBlacklisted }),
+            })
+                .then((r) => r.json())
+                .then((data) => {
+                    if (!data.success) { alert(data.message || 'No se pudo actualizar la lista negra.'); return; }
+                    applyState(data.bot_enabled, data.bot_blacklisted);
+                })
+                .catch(() => alert('No se pudo actualizar la lista negra.'));
+        });
+    });
 })();
 </script>
 @endpush

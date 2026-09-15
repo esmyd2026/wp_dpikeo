@@ -40,6 +40,32 @@ class ClientController extends Controller
         ]);
     }
 
+    /**
+     * Pedido explícito: reactivar el bot para varios clientes a la vez desde
+     * el listado. Ignora en silencio cualquier id en la lista negra o que no
+     * pertenezca a la empresa activa, en vez de fallar todo el lote por uno
+     * solo -- la casilla de selección ya no debería ofrecerlos, pero esto es
+     * la defensa real del lado servidor.
+     */
+    public function bulkReactivateBot(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'client_ids' => ['required', 'array', 'min:1'],
+            'client_ids.*' => ['integer'],
+        ]);
+
+        $companyId = CompanyContext::currentCompany()->id;
+        $reactivated = WhatsappContact::query()
+            ->whereIn('id', $validated['client_ids'])
+            ->where('bot_blacklisted', false)
+            ->whereHas('businessProfile', fn ($q) => $q->where('company_id', $companyId))
+            ->update(['bot_enabled' => true]);
+
+        return back()->with('success', $reactivated === 1
+            ? 'Bot reactivado para 1 cliente.'
+            : "Bot reactivado para {$reactivated} clientes.");
+    }
+
     public function show(WhatsappContact $client, ClientInsightsService $insights): View
     {
         $this->authorizeClient($client);

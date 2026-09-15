@@ -32,6 +32,7 @@ class WhatsappContact extends Model implements AuthenticatableContract
         'billing_email',
         'status',
         'bot_enabled',
+        'bot_blacklisted',
         'last_inbound_message_id',
         'last_inbound_at',
         'metadata',
@@ -48,6 +49,7 @@ class WhatsappContact extends Model implements AuthenticatableContract
     protected $casts = [
         'metadata' => 'array',
         'bot_enabled' => 'boolean',
+        'bot_blacklisted' => 'boolean',
         'last_inbound_at' => 'datetime',
         'birth_date' => 'date',
         'password' => 'hashed',

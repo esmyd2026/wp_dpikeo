@@ -251,6 +251,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/clients', [ClientController::class, 'index'])
         ->middleware('permission:clients.view,clients.menu')
         ->name('clients.index');
+    Route::post('/clients/bulk-reactivate-bot', [ClientController::class, 'bulkReactivateBot'])
+        ->middleware('permission:clients.update')
+        ->name('clients.bulk-reactivate-bot');
     Route::get('/clients/{client}', [ClientController::class, 'show'])
         ->middleware('permission:clients.detail,clients.view')
         ->name('clients.show');
@@ -296,6 +299,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/contacts/{contact}/toggle-bot', [AdminController::class, 'toggleBot'])
         ->middleware(['permission:chats.toggle_bot', 'platform.feature:chat'])
         ->name('contact.toggle-bot');
+    Route::post('/contacts/{contact}/toggle-blacklist', [AdminController::class, 'toggleBlacklist'])
+        ->middleware(['permission:chats.toggle_bot', 'platform.feature:chat'])
+        ->name('contact.toggle-blacklist');
     Route::post('/contacts/{contact}/dismiss-agent', [AdminController::class, 'dismissAgentRequest'])
         ->middleware(['permission:chats.send', 'platform.feature:chat'])
         ->name('contact.dismiss-agent');

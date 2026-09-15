@@ -27,6 +27,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('campaigns:send-scheduled')->everyMinute();
         $schedule->command('carts:cancel-abandoned')->everyFiveMinutes();
         $schedule->command('orders:alert-delayed-fulfillment-costs')->everyFiveMinutes();
+        // Pedido explícito: reactivar el bot todos los días para quien lo
+        // tenga pausado, salvo la lista negra (bot_blacklisted). A diferencia
+        // del comando de arriba (deshabilitado a propósito), este NUNCA
+        // reenvía ni reprocesa ningún mensaje -- solo cambia el interruptor,
+        // así que no corre el mismo riesgo.
+        $schedule->command('whatsapp:reactivate-bots-daily')->dailyAt('06:00');
         // Pedido explícito en vivo: "el cliente no dijo nada y le volvió a
         // pasar el menú -- eso no puede pasar." Este comando reprocesaba el
         // ÚLTIMO mensaje del cliente como si acabara de llegar cuando nadie

@@ -1362,6 +1362,60 @@ class AdminController extends Controller
         }
     }
 
+    /**
+     * Pedido explícito: contactos que NUNCA deben reactivarse solos (ni por
+     * el job diario, ver whatsapp:reactivate-bots-daily, ni por accidente).
+     * Se puede tocar tanto desde Clientes como desde la conversación misma
+     * -- ambas vistas pegan a este mismo endpoint.
+     */
+    public function toggleBlacklist(Request $request, $contactId)
+    {
+        try {
+            $request->validate([
+                'blacklisted' => 'required|boolean',
+            ]);
+
+            $contact = $this->findContactForActiveCompany($contactId);
+            if (! $contact) {
+                return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+            }
+
+            $contact->bot_blacklisted = $request->blacklisted;
+            // Agregar a la lista negra apaga el bot de una vez -- si no,
+            // "lista negra" no haría nada hasta la próxima pausa manual.
+            // Quitarlo de la lista NO lo reactiva solo; eso queda para el
+            // asesor o para el job diario.
+            if ($request->blacklisted) {
+                $contact->bot_enabled = false;
+            }
+            $contact->save();
+
+            Log::info('Lista negra del bot actualizada', [
+                'contact_id' => $contactId,
+                'bot_blacklisted' => $request->blacklisted,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $request->blacklisted
+                    ? 'Agregado a la lista negra: el bot no se reactivará solo para este cliente.'
+                    : 'Quitado de la lista negra.',
+                'bot_blacklisted' => $contact->bot_blacklisted,
+                'bot_enabled' => $contact->bot_enabled,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar la lista negra del bot', [
+                'error' => $e->getMessage(),
+                'contact_id' => $contactId,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar la lista negra: '.$e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function dismissAgentRequest($contactId)
     {
         try {
