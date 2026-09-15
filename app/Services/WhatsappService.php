@@ -9125,10 +9125,48 @@ class WhatsappService
             // que cobrar); eso ya no aplica porque dpikeos.ec no depende de
             // nuestro carrito ni de un total nuestro.
             $isEmptyGateCart = ($cart->metadata['pending_first_action']['action'] ?? null) === 'bulk_order_web';
+
+            $chatbotConfig = $this->scopedChatbotConfig();
+            $cardPaymentUrl = trim((string) ($chatbotConfig?->metadata['card_payment_url'] ?? ''));
+
+            if ($cardPaymentUrl === '') {
+                Log::warning('[procesarPagoTarjeta] Se seleccionó tarjeta pero no hay card_payment_url configurada', [
+                    'cart_id' => $cart->id,
+                ]);
+
+                return [
+                    'type' => 'text',
+                    'text' => ['body' => $this->renderPaymentTemplate('card_payment_unavailable', [
+                        'order_number' => $cart->getOrderNumber(),
+                    ])],
+                ];
+            }
+
             if ($isEmptyGateCart) {
-                $metadata = $cart->metadata ?? [];
-                unset($metadata['pending_payment_method'], $metadata['pending_first_action']);
-                $cart->metadata = $metadata;
+                // Pedido explícito en vivo: este carrito solo existía para
+                // recordar "está eligiendo cómo pagar" -- nunca tuvo
+                // productos ni el cliente llegó a ver nada real. Cancelarlo
+                // (en vez de borrarlo) lo dejaba "reportable" y aparecía en
+                // el panel de Pedidos como una orden real de $0.00 sin que
+                // el cliente hubiera pedido nada. Se borra directamente: no
+                // hay ninguna información real que valga la pena conservar.
+                $cart->delete();
+                $contact->forgetFlowPosition();
+
+                return [
+                    'type' => 'interactive',
+                    'interactive' => [
+                        'type' => 'cta_url',
+                        'body' => ['text' => "💳 Por este medio no procesamos pagos con tarjeta.\n\nContinúa tu compra y paga de forma segura en nuestra página web:"],
+                        'action' => [
+                            'name' => 'cta_url',
+                            'parameters' => [
+                                'display_text' => 'Pagar en línea',
+                                'url' => $cardPaymentUrl,
+                            ],
+                        ],
+                    ],
+                ];
             }
 
             // El pago con tarjeta se resuelve fuera del chat, en la página web
@@ -9144,39 +9182,15 @@ class WhatsappService
             $cart->metadata = $metadata;
             $cart->save();
 
-            $chatbotConfig = $this->scopedChatbotConfig();
-            $cardPaymentUrl = trim((string) ($chatbotConfig?->metadata['card_payment_url'] ?? ''));
-            // Carrito todavía vacío (gate de "Armar lista"): no hay ni
-            // número de pedido ni total real que mostrar todavía -- el
-            // mensaje de {{order_number}}/{{total}} quedaría mostrando
-            // "$0.00", así que acá se usa un texto genérico en vez del
-            // template configurado para el cobro de un pedido real.
-            if ($isEmptyGateCart) {
-                $cardPaymentMessage = "💳 Por este medio no procesamos pagos con tarjeta.\n\nContinúa tu compra y paga de forma segura en nuestra página web:";
-            } else {
-                $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
-                $customCardTemplate = trim((string) ($chatbotConfig?->metadata['payment_templates']['card_payment'] ?? ''));
-                if ($customCardTemplate !== '' || $cardPaymentMessage === '') {
-                    $cardPaymentMessage = $this->renderPaymentTemplate('card_payment', [
-                        'order_number' => $cart->getOrderNumber(),
-                        'currency' => 'USD',
-                        'total' => number_format((float) $cart->total, 2),
-                        'payment_url' => $cardPaymentUrl,
-                    ]);
-                }
-            }
-
-            if ($cardPaymentUrl === '') {
-                Log::warning('[procesarPagoTarjeta] Se seleccionó tarjeta pero no hay card_payment_url configurada', [
-                    'cart_id' => $cart->id,
+            $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
+            $customCardTemplate = trim((string) ($chatbotConfig?->metadata['payment_templates']['card_payment'] ?? ''));
+            if ($customCardTemplate !== '' || $cardPaymentMessage === '') {
+                $cardPaymentMessage = $this->renderPaymentTemplate('card_payment', [
+                    'order_number' => $cart->getOrderNumber(),
+                    'currency' => 'USD',
+                    'total' => number_format((float) $cart->total, 2),
+                    'payment_url' => $cardPaymentUrl,
                 ]);
-
-                return [
-                    'type' => 'text',
-                    'text' => ['body' => $this->renderPaymentTemplate('card_payment_unavailable', [
-                        'order_number' => $cart->getOrderNumber(),
-                    ])],
-                ];
             }
 
             // Una vez enviado el link, el resto de la compra ocurre en la

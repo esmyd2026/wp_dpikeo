@@ -95,8 +95,41 @@ class BulkOrderAsksPaymentMethodBeforeMicrositeTest extends TestCase
         $this->assertSame('cta_url', $response['interactive']['type']);
         $this->assertSame('https://dpikeos.ec/', $response['interactive']['action']['parameters']['url'] ?? null);
         $this->assertStringNotContainsString('/pedido/', $response['interactive']['action']['parameters']['url'] ?? '');
-        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
-        $this->assertSame('tarjeta', $cart->fresh()->payment_method);
+        // No debe quedar como una "orden" cancelada visible en Pedidos --
+        // nunca tuvo productos ni el cliente pidió nada real.
+        $this->assertNull($cart->fresh());
+    }
+
+    /**
+     * Pedido explícito en vivo: el bot generaba un número de orden (visible
+     * incluso en el panel de admin) apenas el cliente elegía tarjeta desde
+     * "Armar lista", aunque nunca hubiera agregado un producto -- y si
+     * después tocaba un botón de pago viejo (referenciando ese carrito ya
+     * resuelto), el bot le mostraba un "confirma tu pedido" fantasma de
+     * $0.00. Un clic viejo sobre un carrito que ya no existe debe avisar que
+     * no se encontró, no inventar un resumen de pedido vacío.
+     */
+    public function test_a_stale_click_on_an_already_resolved_card_cart_does_not_fabricate_an_order(): void
+    {
+        [$profile, $contact] = $this->fixture();
+        WhatsappChatbotConfig::create([
+            'business_profile_id' => $profile->id,
+            'metadata' => ['card_payment_url' => 'https://dpikeos.ec/'],
+        ]);
+        $service = app(WhatsappService::class);
+        $service->setWebhookPhoneNumberId($profile->phone_number_id);
+
+        $this->invoke($service, 'sendBulkWebOrderLink', [$contact]);
+        $cart = WhatsappCart::where('contact_id', $contact->id)->where('status', 'active')->firstOrFail();
+        $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
+
+        // El cliente toca de nuevo un botón viejo (ej. "Transferencia") que
+        // seguía referenciando ese mismo carrito ya resuelto/borrado.
+        $response = $this->invoke($service, 'procesarPagoTransferencia', [$contact, $cart->id]);
+
+        $this->assertSame('text', $response['type']);
+        $this->assertStringContainsString('no se encontró', $response['text']['body']);
+        $this->assertDatabaseMissing('whatsapp_carts', ['id' => $cart->id]);
     }
 
     public function test_a_second_tap_after_payment_method_is_chosen_skips_straight_to_the_link(): void

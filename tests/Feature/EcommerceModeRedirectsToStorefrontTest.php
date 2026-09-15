@@ -193,8 +193,11 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
         $this->assertSame('cta_url', $response['interactive']['type']);
         $this->assertSame('https://dpikeos.ec/', $response['interactive']['action']['parameters']['url'] ?? null);
         $this->assertStringNotContainsString('/pedido/', $response['interactive']['action']['parameters']['url'] ?? '');
-        $this->assertSame('tarjeta', $cart->fresh()->payment_method);
-        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
+        // Pedido explícito en vivo: este carrito vacío no debe quedar como
+        // una "orden" cancelada visible en el panel de Pedidos -- nunca tuvo
+        // productos ni el cliente llegó a pedir nada real. Se borra en vez
+        // de cancelarse (cancelado sí queda "reportable"/visible).
+        $this->assertNull($cart->fresh());
     }
 
     /**
