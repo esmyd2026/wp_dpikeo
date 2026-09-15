@@ -58,7 +58,10 @@ class StorefrontCardPaymentRedirectTest extends TestCase
     private function orderPayload(BusinessBranch $branch, WhatsappPrice $product, string $paymentMethod, string $phoneSuffix): array
     {
         return [
-            'name' => 'Ana Torres', 'phone' => '099111'.$phoneSuffix, 'service_type' => 'pickup',
+            // Delivery, no pickup: "pide y retira" solo admite transferencia
+            // (ver StorefrontPickupOnlyTransferPaymentTest) y estos tests
+            // prueban específicamente tarjeta/efectivo, no el modo de entrega.
+            'name' => 'Ana Torres', 'phone' => '099111'.$phoneSuffix, 'service_type' => 'delivery', 'address' => 'Av. Siempre Viva 123',
             'branch_id' => $branch->id, 'payment_method' => $paymentMethod, 'requires_invoice' => false,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ];

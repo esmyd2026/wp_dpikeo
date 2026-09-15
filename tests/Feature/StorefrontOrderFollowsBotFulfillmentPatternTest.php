@@ -98,7 +98,10 @@ class StorefrontOrderFollowsBotFulfillmentPatternTest extends TestCase
         $submit = $this->postJson("/tienda/{$company->slug}/pedido", [
             'name' => 'Cliente Retiro', 'phone' => '0991110002',
             'service_type' => 'pickup',
-            'branch_id' => $branch->id, 'payment_method' => 'efectivo', 'requires_invoice' => false,
+            // "Pide y retira" solo acepta transferencia (ver
+            // StorefrontPickupOnlyTransferPaymentTest) -- este test prueba
+            // el etiquetado de sucursal/entrega, no la forma de pago.
+            'branch_id' => $branch->id, 'payment_method' => 'transferencia', 'requires_invoice' => false,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ]);
         $submit->assertOk()->assertJsonPath('ok', true);

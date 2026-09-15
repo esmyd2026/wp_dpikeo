@@ -16,16 +16,19 @@ class RoleController extends Controller
     public function index(Request $request, PermissionService $permissionService)
     {
         $permissionService->syncDefinitions();
-        $context = CompanyContext::current();
+        // currentCompany(), no current(): roles/permisos son un concepto de
+        // empresa, no de un número de WhatsApp puntual -- no debe romperse
+        // solo porque la empresa tenga 2+ números sin uno marcado principal.
+        $company = CompanyContext::currentCompany();
 
         $roles = Role::query()
-            ->where(fn ($q) => $q->whereNull('company_id')->orWhere('company_id', $context->companyId()))
+            ->where(fn ($q) => $q->whereNull('company_id')->orWhere('company_id', $company->id))
             ->when(! $request->user()->isSuperAdmin(), fn ($q) => $q->where('slug', '!=', 'super_admin'))
             ->orderBy('name')
             ->get();
-        $roles->each(function (Role $role) use ($context) {
+        $roles->each(function (Role $role) use ($company) {
             $role->setAttribute('users_count', \DB::table('company_user')
-                ->where('company_id', $context->companyId())
+                ->where('company_id', $company->id)
                 ->where('role_id', $role->id)
                 ->count());
         });
@@ -39,10 +42,10 @@ class RoleController extends Controller
 
         $users = User::with('roleModel')
             ->where('is_admin', true)
-            ->whereHas('companies', fn ($q) => $q->whereKey($context->companyId()))
+            ->whereHas('companies', fn ($q) => $q->whereKey($company->id))
             ->orderBy('name')
             ->get();
-        $users->each(fn (User $user) => $user->setAttribute('active_role_id', $user->roleForCompany($context->company)?->id));
+        $users->each(fn (User $user) => $user->setAttribute('active_role_id', $user->roleForCompany($company)?->id));
 
         return view('admin.roles.index', compact('roles', 'modules', 'selectedRole', 'users'));
     }
@@ -84,7 +87,7 @@ class RoleController extends Controller
         }
 
         $role = Role::create([
-            'company_id' => CompanyContext::current()->companyId(),
+            'company_id' => CompanyContext::currentCompany()->id,
             'slug' => $slug,
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
@@ -116,7 +119,7 @@ class RoleController extends Controller
     private function authorizeRole(Role $role, bool $forMutation = false): void
     {
         $user = auth()->user();
-        $companyId = CompanyContext::current()->companyId();
+        $companyId = CompanyContext::currentCompany()->id;
 
         abort_unless($role->company_id === null || (int) $role->company_id === (int) $companyId, 404);
 

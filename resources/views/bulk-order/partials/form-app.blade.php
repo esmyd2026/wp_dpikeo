@@ -366,7 +366,10 @@
         object-fit:contain;
     }
     .bulk-order-modal-hero .fallback { height:150px; display:grid; place-items:center; font-size:4rem; background:#f8fafc; }
-    .bulk-order-modal-description { margin:8px 0 0; color:#555; line-height:1.48; font-size:.9rem; }
+    /* white-space:pre-line respeta los saltos de línea que el admin escribió
+       en "Descripción" (ej. una lista con • por renglón) -- por defecto un
+       <p> los colapsa y todo queda pegado en un solo párrafo. */
+    .bulk-order-modal-description { margin:8px 0 0; color:#555; line-height:1.48; font-size:.9rem; white-space:pre-line; }
     .bulk-order-close { flex:0 0 42px;border:0;background:#f3f4f6;color:#334155;border-radius:50%;width:42px;height:42px;font-size:1.35rem;line-height:1;cursor:pointer; }
     .bulk-order-close:hover, .bulk-order-close:focus-visible { background:#e2e8f0;outline:3px solid rgba(232,93,4,.2); }
     .bulk-order-choice { display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 0;border-bottom:1px solid #f1f5f9;font-size:.9rem; }
@@ -954,11 +957,10 @@
         letter-spacing:.02em;
         text-transform:uppercase;
     }
-    .bulk-order-app[data-mode="public"] .bulk-order-product-media img { object-fit:contain; }
-    .bulk-order-app[data-mode="public"] .bulk-order-product-media {
-        padding:12px;
-        background:#fff;
-    }
+    /* La foto llena toda la tarjeta (recortada si hace falta) en vez de
+       quedar chica con margen blanco alrededor -- mismo look que el resto
+       del catálogo (ver regla base .bulk-order-product-media img). */
+    .bulk-order-app[data-mode="public"] .bulk-order-product-media { background:#fff; }
     .bulk-order-app[data-mode="public"] .bulk-order-product-row:active { transform:scale(.985); }
     .bulk-order-app[data-mode="public"] .bulk-order-btn-primary { min-height:42px; }
 

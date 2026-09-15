@@ -138,7 +138,13 @@ class StorefrontController extends Controller
             'reference' => ['nullable', 'string', 'max:500'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'payment_method' => ['required', Rule::in(['efectivo', 'transferencia', 'tarjeta'])],
+            // "Pide y retira" sin pago adelantado deja pedidos sin retirar
+            // -- para ese caso solo se acepta transferencia (mismo criterio
+            // aplicado en el checkout, ver selectMode() en storefront/show.
+            // blade.php). Delivery conserva las 3 formas de pago de siempre.
+            'payment_method' => ['required', Rule::in(
+                $request->input('service_type') === 'pickup' ? ['transferencia'] : ['efectivo', 'transferencia', 'tarjeta']
+            )],
             'requires_invoice' => ['required', 'boolean'],
             'billing_type' => ['nullable', 'required_if:requires_invoice,true', Rule::in(['cedula', 'ruc', 'pasaporte'])],
             'billing_id' => ['nullable', 'required_if:requires_invoice,true', 'string', 'max:20'],
@@ -153,6 +159,8 @@ class StorefrontController extends Controller
             'items.*.extras.*' => ['string', 'max:120'],
             'items.*.note' => ['nullable', 'string', 'max:500'],
             'order_note' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'payment_method.in' => 'Para "Pide y retira" solo aceptamos pago por transferencia.',
         ]);
 
         $phone = WhatsappContact::normalizePhone($validated['phone']);

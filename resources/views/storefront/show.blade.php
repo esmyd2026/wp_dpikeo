@@ -705,6 +705,21 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      window.storefrontOrder.service_type=mode;
      delivery.style.display=mode==='delivery'?'block':'none';
      document.getElementById('pickupFields').style.display=mode==='pickup'?'block':'none';
+     // "Pide y retira" sin pago adelantado deja pedidos sin retirar -- para
+     // ese caso solo se permite transferencia (pago confirmado antes de ir
+     // por el pedido). Delivery conserva las 3 opciones de siempre.
+     const paymentSelect=document.getElementById('storefrontPaymentMethod');
+     if(paymentSelect){
+         const isPickup=mode==='pickup';
+         ['efectivo','tarjeta'].forEach(value=>{
+             const option=paymentSelect.querySelector(`option[value="${value}"]`);
+             if(option){option.disabled=isPickup;option.hidden=isPickup;}
+         });
+         if(isPickup&&paymentSelect.value!=='transferencia'){
+             paymentSelect.value='transferencia';
+             paymentSelect.dispatchEvent(new Event('change',{bubbles:true}));
+         }
+     }
      if(save){window.storefrontOrder.confirmed=false;persistOrder();}
      if(mode==='delivery'){
          window.loadStorefrontMapsScript?.();
