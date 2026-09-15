@@ -23,8 +23,8 @@
 
 <div class="driver-modal-overlay" id="driverDispatchModal">
     <div class="driver-modal">
-        <h4><i class="fab fa-whatsapp"></i>Enviar a repartidor</h4>
-        <p class="step-hint">Paso 1: elige o agrega el repartidor. Paso 2: se abre WhatsApp para que le mandes los datos del pedido -- el repartidor confirma la entrega él mismo desde el enlace que recibe.</p>
+        <h4 id="driverDispatchTitle"><i class="fab fa-whatsapp"></i>Enviar a repartidor</h4>
+        <p class="step-hint" id="driverDispatchHint">Paso 1: elige o agrega el repartidor. Paso 2: se abre WhatsApp para que le mandes los datos del pedido -- el repartidor confirma la entrega él mismo desde el enlace que recibe.</p>
 
         <form id="driverDispatchForm">
             <label for="driverDispatchBranchSelect">Sucursal de retirada</label>
@@ -55,7 +55,7 @@
 
             <div class="driver-modal-actions">
                 <button type="button" class="driver-modal-btn" id="driverDispatchCancel">Cancelar</button>
-                <button type="submit" class="driver-modal-btn primary" id="driverDispatchSubmit"><i class="fas fa-paper-plane me-1"></i>Enviar a repartidor</button>
+                <button type="submit" class="driver-modal-btn primary" id="driverDispatchSubmit"><i class="fas fa-paper-plane me-1" id="driverDispatchSubmitIcon"></i><span id="driverDispatchSubmitLabel">Enviar a repartidor</span></button>
             </div>
         </form>
     </div>
@@ -72,6 +72,7 @@
     let currentOrderId = null;
     let currentDispatchTextBuilder = null;
     let currentOnDone = null;
+    let currentMode = 'dispatch';
 
     const overlay = document.getElementById('driverDispatchModal');
     const select = document.getElementById('driverDispatchSelect');
@@ -80,6 +81,26 @@
     const errorBox = document.getElementById('driverDispatchError');
     const form = document.getElementById('driverDispatchForm');
     const submitBtn = document.getElementById('driverDispatchSubmit');
+    const titleEl = document.getElementById('driverDispatchTitle');
+    const hintEl = document.getElementById('driverDispatchHint');
+    const submitLabelEl = document.getElementById('driverDispatchSubmitLabel');
+    const submitIconEl = document.getElementById('driverDispatchSubmitIcon');
+
+    /** Textos según el modo: despachar (manda WhatsApp) vs. solo corregir la asignación ya hecha. */
+    const MODE_COPY = {
+        dispatch: {
+            title: 'Enviar a repartidor',
+            hint: 'Paso 1: elige o agrega el repartidor. Paso 2: se abre WhatsApp para que le mandes los datos del pedido -- el repartidor confirma la entrega él mismo desde el enlace que recibe.',
+            submitLabel: 'Enviar a repartidor',
+            busyLabel: 'Enviando…',
+        },
+        edit: {
+            title: 'Editar repartidor asignado',
+            hint: 'Corrige el repartidor o la sucursal si te equivocaste al asignarlo. Esto NO vuelve a abrir WhatsApp ni le reenvía los datos del pedido.',
+            submitLabel: 'Guardar cambios',
+            busyLabel: 'Guardando…',
+        },
+    };
 
     /** Por seguridad, el operador confirma desde qué sucursal se retira el pedido antes de despacharlo -- de ahí sale el origen de la ruta que se le manda al repartidor. */
     async function loadBranches(orderId) {
@@ -169,11 +190,22 @@
      * el operador acaba de confirmar, por si la pantalla quiere usarlos en
      * vez de datos previos al despacho). Debe devolver el texto a mandarle
      * por WhatsApp. onDone(response) se llama después de un envío exitoso.
+     * options.mode: 'dispatch' (default, manda WhatsApp) o 'edit' (solo
+     * corrige la asignación ya hecha, sin reabrir WhatsApp ni reenviar nada
+     * -- pensado para cuando el operador se equivocó de repartidor).
      */
-    window.openDriverDispatchModal = async function (orderId, dispatchTextBuilder, onDone) {
+    window.openDriverDispatchModal = async function (orderId, dispatchTextBuilder, onDone, options = {}) {
         currentOrderId = orderId;
         currentDispatchTextBuilder = dispatchTextBuilder;
         currentOnDone = onDone;
+        currentMode = options.mode === 'edit' ? 'edit' : 'dispatch';
+        const copy = MODE_COPY[currentMode];
+        titleEl.innerHTML = currentMode === 'edit'
+            ? '<i class="fas fa-pen me-1"></i>' + copy.title
+            : '<i class="fab fa-whatsapp"></i>' + copy.title;
+        hintEl.textContent = copy.hint;
+        submitLabelEl.textContent = copy.submitLabel;
+        submitIconEl.className = currentMode === 'edit' ? 'fas fa-check me-1' : 'fas fa-paper-plane me-1';
         errorBox.style.display = 'none';
         document.getElementById('driverDispatchFirstName').value = '';
         document.getElementById('driverDispatchLastName').value = '';
@@ -183,6 +215,13 @@
         loadBranches(orderId);
         const drivers = await loadDrivers();
         renderOptions(drivers);
+        // En modo edición, dejar preseleccionado el repartidor que ya tiene
+        // el pedido -- así el operador ve de una vez a quién le está
+        // corrigiendo, en vez de un selector vacío.
+        if (options.preselectDriverId && drivers.some(d => String(d.id) === String(options.preselectDriverId))) {
+            select.value = String(options.preselectDriverId);
+            toggleNewFields();
+        }
     };
 
     function closeModal() {
@@ -230,8 +269,10 @@
             body.driver_id = select.value;
         }
 
+        const copy = MODE_COPY[currentMode];
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Enviando…';
+        submitLabelEl.textContent = copy.busyLabel;
+        submitIconEl.className = 'fas fa-spinner fa-spin me-1';
 
         try {
             const res = await fetch(dispatchUrlTemplate.replace('__ORDER__', currentOrderId), {
@@ -245,8 +286,12 @@
             cachedDrivers = null; // se agregó/actualizó un repartidor, refrescar la próxima vez
             closeModal();
 
-            const text = currentDispatchTextBuilder ? currentDispatchTextBuilder(data.driver, data) : '';
-            window.reopenDriverWhatsapp(data.driver.phone_number, text);
+            // En modo "editar" solo se corrige la asignación -- no se vuelve
+            // a abrir WhatsApp ni se le reenvía nada al repartidor.
+            if (currentMode !== 'edit') {
+                const text = currentDispatchTextBuilder ? currentDispatchTextBuilder(data.driver, data) : '';
+                window.reopenDriverWhatsapp(data.driver.phone_number, text);
+            }
 
             if (currentOnDone) currentOnDone(data);
         } catch (error) {
@@ -254,7 +299,8 @@
             errorBox.style.display = 'block';
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Enviar a repartidor';
+            submitLabelEl.textContent = copy.submitLabel;
+            submitIconEl.className = currentMode === 'edit' ? 'fas fa-check me-1' : 'fas fa-paper-plane me-1';
         }
     });
 })();

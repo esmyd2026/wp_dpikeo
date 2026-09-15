@@ -126,6 +126,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/reports/delivery', [DeliveryDriverReportController::class, 'index'])
         ->middleware(['permission:orders.view,orders.menu,delivery_reports.menu', 'platform.feature:orders'])
         ->name('reports.delivery');
+    Route::get('/reports/delivery/export', [DeliveryDriverReportController::class, 'export'])
+        ->middleware(['permission:orders.view,orders.menu,delivery_reports.menu', 'platform.feature:orders'])
+        ->name('reports.delivery.export');
     Route::get('/reports/facturacion', [InvoicingReportController::class, 'index'])
         ->middleware(['permission:orders.billing', 'platform.feature:orders'])
         ->name('reports.invoicing');

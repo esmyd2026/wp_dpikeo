@@ -12,6 +12,7 @@ use App\Models\WhatsappContact;
 use App\Services\PermissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 /**
@@ -124,6 +125,40 @@ class DeliveryDriverReportTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('admin.orders', ['open_order' => $order->id]), false);
         $response->assertSee('ORD-555');
+    }
+
+    public function test_the_excel_export_matches_the_on_screen_stats(): void
+    {
+        [$company, $profile, $admin, $contact] = $this->fixture();
+        $driver = DeliveryDriver::create(['business_profile_id' => $profile->id, 'first_name' => 'Pedro', 'last_name' => 'Ruiz', 'phone_number' => '593991111111', 'is_active' => true]);
+        WhatsappCart::create([
+            'contact_id' => $contact->id, 'status' => WhatsappCart::STATUS_COMPLETED, 'total' => 15,
+            'metadata' => ['pickup_mode' => 'delivery', 'last_dispatch_driver_id' => $driver->id, 'delivery_fee_applied' => 2.5, 'order_details' => ['order_number' => 'ORD-800']],
+            'created_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.reports.delivery.export'));
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $tmpPath = tempnam(sys_get_temp_dir(), 'delivery_xlsx_test');
+        file_put_contents($tmpPath, $response->streamedContent());
+
+        $spreadsheet = IOFactory::load($tmpPath);
+        $sheetNames = array_map(fn ($s) => $s->getTitle(), $spreadsheet->getAllSheets());
+        $this->assertSame(['Repartidores', 'Pedidos'], $sheetNames);
+
+        $driversSheet = $spreadsheet->getSheetByName('Repartidores');
+        $this->assertSame('Pedro Ruiz', $driversSheet->getCell('A2')->getValue());
+        $this->assertEqualsWithDelta(2.5, (float) $driversSheet->getCell('D2')->getValue(), 0.001);
+
+        $ordersSheet = $spreadsheet->getSheetByName('Pedidos');
+        $this->assertSame('ORD-800', $ordersSheet->getCell('A2')->getValue());
+
+        unlink($tmpPath);
     }
 
     public function test_a_role_without_the_permission_is_denied(): void

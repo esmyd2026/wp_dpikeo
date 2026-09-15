@@ -128,6 +128,45 @@ class DeliveryDispatchRouteTest extends TestCase
         $this->assertSame($f['branchB']->id, $f['cart']->fresh()->branch_id);
     }
 
+    /**
+     * Pedido explícito: "poder editar yo como administrador el repartidor
+     * por si me equivoqué en la asignación" -- despachar de nuevo (con otro
+     * repartidor) sobre un pedido ya despachado antes debe reemplazar la
+     * asignación, no acumularla. El panel usa este mismo endpoint para el
+     * botón "Editar repartidor", solo que sin reabrir WhatsApp después.
+     */
+    public function test_dispatching_again_to_a_different_driver_replaces_the_previous_assignment(): void
+    {
+        Http::fake(['graph.facebook.com/*' => Http::response(['messages' => [['id' => 'wamid.test']]], 200)]);
+        $f = $this->deliveryFixture();
+
+        $first = $this->actingAs($f['user'])
+            ->withSession(['active_company_id' => $f['company']->id])
+            ->postJson(route('admin.delivery.dispatch', ['id' => $f['cart']->id]), [
+                'first_name' => 'Pedro', 'phone_number' => '593991234567',
+                'branch_id' => $f['branchA']->id,
+            ]);
+        $first->assertOk();
+        $wrongDriverId = $first->json('driver.id');
+
+        // El operador se dio cuenta de que asignó al repartidor equivocado
+        // y corrige, esta vez a otro repartidor y otra sucursal.
+        $second = $this->actingAs($f['user'])
+            ->withSession(['active_company_id' => $f['company']->id])
+            ->postJson(route('admin.delivery.dispatch', ['id' => $f['cart']->id]), [
+                'first_name' => 'Ana', 'last_name' => 'Solis', 'phone_number' => '593997654321',
+                'branch_id' => $f['branchB']->id,
+            ]);
+
+        $second->assertOk();
+        $correctDriverId = $second->json('driver.id');
+        $this->assertNotSame($wrongDriverId, $correctDriverId);
+
+        $fresh = $f['cart']->fresh();
+        $this->assertSame($correctDriverId, $fresh->metadata['last_dispatch_driver_id']);
+        $this->assertSame($f['branchB']->id, $fresh->branch_id);
+    }
+
     public function test_orders_list_exposes_a_directions_link_when_both_ends_have_coordinates(): void
     {
         $f = $this->deliveryFixture();

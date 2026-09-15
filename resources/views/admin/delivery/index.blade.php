@@ -172,6 +172,21 @@ function reopenDeliveryDispatch(orderId) {
     window.reopenDriverWhatsapp(order.last_dispatch_driver.phone_number, deliveryShareText(order));
 }
 
+/**
+ * Pedido explícito: "poder editar yo como administrador el repartidor por
+ * si me equivoqué en la asignación" -- corrige el repartidor o la sucursal
+ * de un pedido ya despachado sin volver a abrir WhatsApp ni reenviarle
+ * nada al repartidor (a diferencia de "Enviar a repartidor").
+ */
+function editDeliveryDriver(orderId) {
+    const order = deliveryOrders.find(o => o.id === orderId);
+    if (!order) return;
+    openDriverDispatchModal(orderId, null, () => {
+        deliveryToast('Repartidor actualizado.');
+        fetchDeliveryOrders();
+    }, { mode: 'edit', preselectDriverId: order.last_dispatch_driver?.id });
+}
+
 function deliveryCard(order) {
     const badgeClass = order.status || 'pending';
     let grid = `<div class="delivery-grid">`;
@@ -202,6 +217,9 @@ function deliveryCard(order) {
     const resendBtn = order.last_dispatch_driver
         ? `<button type="button" class="delivery-btn" onclick="reopenDeliveryDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${deliveryEsc(order.last_dispatch_driver.name)} para reenviarle los datos"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${deliveryEsc(order.last_dispatch_driver.name)}</button>`
         : '';
+    const editBtn = order.last_dispatch_driver
+        ? `<button type="button" class="delivery-btn" onclick="editDeliveryDriver(${order.id})" title="Corrige el repartidor o la sucursal si te equivocaste -- no reenvía nada por WhatsApp"><i class="fas fa-pen me-1"></i>Editar repartidor</button>`
+        : '';
     // Pedido explícito: avisar "va en camino" ya NO se dispara desde el
     // panel -- solo el propio repartidor lo hace desde su enlace público.
     // Acá solo se muestra informativamente si ya avisó o no.
@@ -219,7 +237,7 @@ function deliveryCard(order) {
         actions += `<button type="button" class="delivery-btn" disabled title="El pedido debe estar 'Listo para despachar' para confirmar la entrega"><i class="fas fa-camera me-1"></i>Confirmar entrega</button>`;
     }
     if (order.status !== 'cancelled') {
-        actions += shareBtn + resendBtn + notifyBtn;
+        actions += shareBtn + editBtn + resendBtn + notifyBtn;
     }
     actions += '</div>';
 

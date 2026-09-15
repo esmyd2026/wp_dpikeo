@@ -29,6 +29,7 @@
     .order-link:hover { text-decoration: underline; }
     .report-footer-link { font-size: .82rem; color: #128c7e; text-decoration: none; font-weight: 600; }
     h3.section-title { font-size: 1.05rem; font-weight: 800; color: #0f172a; margin: 1.4rem 0 .6rem; }
+    .o-btn { display: inline-flex; align-items: center; gap: .3rem; padding: .5rem .75rem; border-radius: 8px; font-size: .8rem; font-weight: 700; border: 1px solid #0f766e; background: #0f766e; color: #fff !important; cursor: pointer; text-decoration: none; white-space: nowrap; }
 </style>
 
 <div class="orders-page">
@@ -37,7 +38,10 @@
             <h2><i class="fas fa-motorcycle me-1 text-success"></i> Reporte de repartidores</h2>
             <p class="lead">Entregas y envíos cobrados por repartidor · {{ $from->format('d/m/Y') }} — {{ $to->format('d/m/Y') }}</p>
         </div>
-        @include('admin.partials.report-period-filter', ['action' => route('admin.reports.delivery')])
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+            @include('admin.partials.report-period-filter', ['action' => route('admin.reports.delivery')])
+            <a class="o-btn" href="{{ route('admin.reports.delivery.export', ['from' => $from->format('Y-m-d'), 'to' => $to->format('Y-m-d')]) }}"><i class="fas fa-file-excel"></i> Exportar Excel</a>
+        </div>
     </div>
 
     <div class="acct-delivery-cards">
