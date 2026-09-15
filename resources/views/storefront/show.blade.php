@@ -665,7 +665,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
  const deliveryQuoteBox=document.getElementById('storefrontDeliveryQuote');
  let deliveryQuoteRequest=0;
  const selectNearestBranch=branchId=>{const value=String(branchId||'');document.getElementById('storefrontBranch').value=value;document.getElementById('bulkBranch').value=value;window.storefrontOrder.branch_id=Number(value)||null;document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item.dataset.branchOption===value));};
- const clearDeliveryQuote=(clearStored=true)=>{deliveryQuoteRequest++;deliveryQuoteBox.hidden=true;if(clearStored){window.storefrontOrder.delivery_distance_km=null;window.storefrontOrder.delivery_fee=null;window.storefrontOrder.delivery_fee_pending_review=false;window.storefrontOrder.nearest_branch_name='';persistOrder();}};
+ const clearDeliveryQuote=(clearStored=true)=>{deliveryQuoteRequest++;deliveryQuoteBox.hidden=true;if(clearStored){window.storefrontOrder.delivery_distance_km=null;window.storefrontOrder.delivery_fee=null;window.storefrontOrder.delivery_fee_pending_review=false;window.storefrontOrder.nearest_branch_name='';persistOrder();window.renderStorefrontCartFab?.();}};
  window.clearStorefrontDeliveryQuote=clearDeliveryQuote;
  const renderDeliveryQuote=quote=>{
      if(!quote||quote.distance_km===null)return;
@@ -693,7 +693,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
          window.storefrontOrder.delivery_fee=quote.fee;
          window.storefrontOrder.delivery_fee_pending_review=quote.pending_review;
          window.storefrontOrder.nearest_branch_name=quote.branch_name;
-         persistOrder();renderDeliveryQuote(quote);
+         persistOrder();renderDeliveryQuote(quote);window.renderStorefrontCartFab?.();
          return true;
      }catch(exception){
          if(requestId!==deliveryQuoteRequest)return false;
@@ -878,6 +878,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
              });
          }
      }
+     window.renderStorefrontCartFab?.();
  };
  document.querySelectorAll('[data-storefront-mode]').forEach(btn=>btn.addEventListener('click',()=>selectMode(btn.dataset.storefrontMode)));
  document.querySelectorAll('[data-branch-option]').forEach(button=>button.addEventListener('click',()=>{const branchId=button.dataset.branchOption;document.getElementById('storefrontBranch').value=branchId;document.getElementById('bulkBranch').value=branchId;window.storefrontOrder.confirmed=false;window.storefrontOrder.branch_id=Number(branchId)||null;persistOrder();document.querySelectorAll('[data-branch-option]').forEach(item=>item.classList.toggle('is-active',item===button));}));document.getElementById('storefrontBranchSearch').addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-branch-option]').forEach(item=>item.style.display=item.dataset.branchSearch.includes(query)?'grid':'none');});
@@ -907,7 +908,7 @@ if(/^Ubicación (?:detectada:\s*-?\d|compartida:\s*https?:\/\/maps\.google)/i.te
      const address=typedAddress;
      if(!window.storefrontOrder.service_type||!branch||(window.storefrontOrder.service_type==='delivery'&&!address)){error.classList.remove('is-success');error.textContent='Completa la modalidad, sucursal y dirección de entrega.';error.style.display='block';return;}
      error.style.display='none';
-     window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();if(window.storefrontOrder.service_type==='delivery')window.saveStorefrontCustomerAddress?.({address,reference:window.storefrontOrder.reference||null,latitude:window.storefrontOrder.latitude,longitude:window.storefrontOrder.longitude});document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();locationBox.classList.remove('is-open');});
+     window.storefrontOrder.confirmed=true;window.storefrontOrder.branch_id=Number(branch)||null;window.storefrontOrder.address=address;window.storefrontOrder.reference=document.getElementById('storefrontReference').value.trim();persistOrder();if(window.storefrontOrder.service_type==='delivery')window.saveStorefrontCustomerAddress?.({address,reference:window.storefrontOrder.reference||null,latitude:window.storefrontOrder.latitude,longitude:window.storefrontOrder.longitude});document.getElementById('bulkBranch').value=branch;const branchLabel=document.getElementById('storefrontBranch').selectedOptions[0]?.textContent||'',title=window.storefrontOrder.service_type==='delivery'?'Enviar a':'Retirar en',detail=window.storefrontOrder.service_type==='delivery'?address:branchLabel;document.getElementById('storefrontFulfillmentTitle').textContent=title;document.getElementById('storefrontFulfillmentAddress').textContent=detail;document.getElementById('storefrontCartDeliveryTitle').textContent=title;document.getElementById('storefrontCartDeliveryAddress').textContent=detail;document.getElementById('bulkOrderApp').classList.add('is-order-started');window.syncStorefrontCustomizerActions?.();window.renderStorefrontCartFab?.();locationBox.classList.remove('is-open');});
  document.getElementById('storefrontBack').addEventListener('click',()=>{document.getElementById('storefrontApp').style.display='none';gateway.classList.remove('is-browsing');gateway.style.display='block';window.renderStorefrontCartFab?.();});
  geolocateButton.addEventListener('click',()=>requestStorefrontLocation(true));
  const restoredBranch=String(window.storefrontOrder.branch_id||'');
