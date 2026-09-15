@@ -130,6 +130,69 @@ class PendingReplyRecoveryService
         }
     }
 
+    /**
+     * Pedido explícito desde el panel: en vez de esperar el reintento
+     * automático (que además espera al menos 2 minutos y limita a 3
+     * intentos), un asesor puede forzarlo de una vez para UN contacto
+     * puntual desde la conversación. No aplica el límite de intentos ni la
+     * espera mínima -- es una acción manual, deliberada, sobre un caso a la
+     * vista, no el barrido automático de cada minuto.
+     *
+     * @return array{ok: bool, message: string}
+     */
+    public function retryContact(WhatsappContact $contact, WhatsappService $whatsapp): array
+    {
+        if (! app(PlatformBillingService::class)->botMayRespondToContact($contact)) {
+            return [
+                'ok' => false,
+                'message' => 'El bot está apagado para este cliente (o la cuenta está suspendida) -- actívalo primero.',
+            ];
+        }
+
+        $stuck = WhatsappMessage::where('contact_id', $contact->id)->latest('id')->first();
+        if (! $stuck || $stuck->sender_type !== 'client') {
+            return [
+                'ok' => false,
+                'message' => 'No hay ningún mensaje del cliente esperando respuesta ahora mismo.',
+            ];
+        }
+
+        if (! in_array($stuck->type, self::RECOVERABLE_TYPES, true)) {
+            return [
+                'ok' => false,
+                'message' => 'Ese último mensaje no se puede reenviar automáticamente (tipo: '.$stuck->type.').',
+            ];
+        }
+
+        $messageData = $this->buildSyntheticMessage($contact, $stuck);
+        if (! $messageData) {
+            return [
+                'ok' => false,
+                'message' => 'No se pudo reconstruir el mensaje original del cliente.',
+            ];
+        }
+
+        Log::warning('[PendingReplyRecoveryService] Reintento manual disparado desde el panel', [
+            'contact_id' => $contact->id,
+            'business_profile_id' => $contact->business_profile_id,
+            'original_message_id' => $stuck->message_id,
+        ]);
+
+        try {
+            $whatsapp->useBusinessProfile($contact->businessProfile);
+            $whatsapp->processIncomingMessage($messageData);
+
+            return ['ok' => true, 'message' => 'Se reenvió su último mensaje al bot; debería responder en unos segundos.'];
+        } catch (\Throwable $e) {
+            Log::error('[PendingReplyRecoveryService] Error en el reintento manual', [
+                'contact_id' => $contact->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['ok' => false, 'message' => 'Ocurrió un error al reintentar: '.$e->getMessage()];
+        }
+    }
+
     /** @return array<string, mixed>|null */
     private function buildSyntheticMessage(WhatsappContact $contact, WhatsappMessage $stuck): ?array
     {

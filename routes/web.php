@@ -302,6 +302,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/contacts/{contact}/reset-conversation', [AdminController::class, 'resetConversation'])
         ->middleware(['permission:chats.toggle_bot', 'platform.feature:chat'])
         ->name('contact.reset-conversation');
+    Route::post('/contacts/{contact}/retry-bot-reply', [AdminController::class, 'retryBotReply'])
+        ->middleware(['permission:chats.toggle_bot', 'platform.feature:chat'])
+        ->name('contact.retry-bot-reply');
 
     Route::get('/menus', [ChatbotController::class, 'menus'])
         ->middleware('permission:menus.view,menus.menu')

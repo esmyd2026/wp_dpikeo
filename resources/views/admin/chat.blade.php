@@ -2301,6 +2301,9 @@
                         <div class="wa-chat-header-status"><i class="fab fa-whatsapp"></i><span>{{ $contact->phone_number }}</span></div>
                     </div>
                     <div class="wa-header-actions">
+                        <button type="button" id="retry-bot-reply-btn" class="wa-header-action-btn" title="Reenviar el último mensaje del cliente al bot, como si acabara de llegar">
+                            <i class="fas fa-reply"></i><span class="wa-header-action-label">El bot no respondió</span>
+                        </button>
                         <button type="button" id="reset-conversation-btn" class="wa-header-action-btn" title="Reiniciar conversación y cancelar el pedido incompleto">
                             <i class="fas fa-rotate-left"></i><span class="wa-header-action-label">Reiniciar</span>
                         </button>
@@ -4848,6 +4851,32 @@
             if (contactId) {
                 dismissAgentRequest(contactId);
             }
+        });
+
+        document.getElementById('retry-bot-reply-btn')?.addEventListener('click', function() {
+            const contactIdInput = document.getElementById('current-contact-id');
+            const contactId = contactIdInput ? contactIdInput.value : currentContactId;
+            if (!contactId) return;
+
+            const btn = this;
+            btn.disabled = true;
+
+            const csrfToken = document.querySelector('input[name="_token"]')?.value
+                || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            fetch(`/admin/contacts/${contactId}/retry-bot-reply`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            })
+            .then(response => response.json())
+            .then(data => alert(data.message || (data.success ? 'Reenviado.' : 'No se pudo reenviar.')))
+            .catch(() => alert('No se pudo reenviar el mensaje al bot.'))
+            .finally(() => { btn.disabled = false; });
         });
 
         document.getElementById('reset-conversation-btn')?.addEventListener('click', function() {

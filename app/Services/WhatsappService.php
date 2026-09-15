@@ -10211,13 +10211,27 @@ class WhatsappService
         );
     }
 
+    /**
+     * El mismo texto configurado en el flujo visual ("Derivar a asesor") que
+     * se le manda al cliente cuando pide hablar con un humano -- reusado
+     * también cuando un asesor apaga el bot a mano desde el panel (antes eso
+     * dejaba al cliente sin ningún aviso, mandando su mensaje sin que nadie
+     * le contestara nunca).
+     */
+    public function sendAgentHandoffMessage(WhatsappContact $contact): array
+    {
+        $agentMessage = $this->buildMarketingStepPayload(MarketingStepKey::AGENT_HANDOFF, $contact)
+            ?? ['type' => 'text', 'text' => ['body' => 'Te conectamos con un asesor. Espera un momento, por favor.']];
+
+        $this->sendMessage($contact->phone_number, $agentMessage);
+
+        return $agentMessage;
+    }
+
     private function triggerAgentHandoff(WhatsappContact $contact, string $phone, string $source = 'unknown'): void
     {
         $contact->requestAgentHandoff($source);
         $contact->update(['bot_enabled' => false]);
-
-        $agentMessage = $this->buildMarketingStepPayload(MarketingStepKey::AGENT_HANDOFF, $contact)
-            ?? ['type' => 'text', 'text' => ['body' => 'Te conectamos con un asesor. Espera un momento, por favor.']];
 
         Log::info('[triggerAgentHandoff] Solicitud de asesor registrada', [
             'contact_id' => $contact->id,
@@ -10250,7 +10264,7 @@ class WhatsappService
             $contact->name
         );
 
-        $this->sendMessage($phone, $agentMessage);
+        $this->sendAgentHandoffMessage($contact);
     }
 
     private function isAgentRequestButton(string $buttonId, ?string $buttonTitle = null): bool

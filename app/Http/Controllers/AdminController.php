@@ -16,6 +16,7 @@ use App\Services\OrderConfirmationService;
 use App\Services\OrderExportService;
 use App\Services\OrderLifecycleService;
 use App\Services\PaymentProofArchiveService;
+use App\Services\PendingReplyRecoveryService;
 use App\Services\WhatsappMediaService;
 use App\Services\WhatsappService;
 use App\Support\CompanyContext;
@@ -1314,6 +1315,7 @@ class AdminController extends Controller
             if (! $contact) {
                 return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
             }
+            $wasEnabled = $contact->bot_enabled;
             $contact->bot_enabled = $request->enabled;
             $contact->save();
 
@@ -1321,6 +1323,26 @@ class AdminController extends Controller
                 'contact_id' => $contactId,
                 'bot_enabled' => $request->enabled,
             ]);
+
+            // Pedido explícito: si el asesor apaga el bot a mano, el cliente
+            // debe enterarse -- antes se quedaba en silencio total, mandando
+            // mensajes que nadie iba a contestar nunca. Mismo texto
+            // configurado en el flujo visual ("Derivar a asesor") que ya se
+            // usa cuando el cliente pide un humano por su cuenta. Si falla el
+            // envío no se revierte el apagado -- el asesor ya decidió tomar
+            // la conversación, eso no depende de si el aviso llegó o no.
+            if (! $request->enabled && $wasEnabled && $contact->businessProfile) {
+                try {
+                    $whatsappService = new WhatsappService;
+                    $whatsappService->useBusinessProfile($contact->businessProfile);
+                    $whatsappService->sendAgentHandoffMessage($contact);
+                } catch (\Throwable $e) {
+                    Log::error('[toggleBot] No se pudo avisarle al cliente que un asesor tomó la conversación', [
+                        'contact_id' => $contact->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -1423,6 +1445,27 @@ class AdminController extends Controller
                 'message' => 'No se pudo reiniciar la conversación.',
             ], 500);
         }
+    }
+
+    /**
+     * "El bot no respondió" desde el panel: reenvía el último mensaje del
+     * cliente al mismo pipeline de siempre, como si acabara de llegar. Es la
+     * versión manual, para un contacto puntual, del comando automático
+     * whatsapp:retry-pending-replies (ver PendingReplyRecoveryService).
+     */
+    public function retryBotReply($contactId, PendingReplyRecoveryService $recovery, WhatsappService $whatsapp)
+    {
+        $contact = $this->findContactForActiveCompany($contactId);
+        if (! $contact) {
+            return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
+        }
+
+        $result = $recovery->retryContact($contact, $whatsapp);
+
+        return response()->json([
+            'success' => $result['ok'],
+            'message' => $result['message'],
+        ], $result['ok'] ? 200 : 422);
     }
 
     public function getContactsList(Request $request)
