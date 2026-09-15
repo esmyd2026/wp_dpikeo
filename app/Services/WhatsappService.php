@@ -9115,22 +9115,20 @@ class WhatsappService
                 ];
             }
 
-            // Si esto vino del gate de "Armar lista" (método de pago
-            // preguntado ANTES de entrar al micrositio, con el carrito
-            // todavía vacío), no hay nada que cobrar todavía -- mandar un
-            // link de pago para un pedido de $0.00 no tiene sentido. Se
-            // guarda el método elegido (submitForContact lo hereda al
-            // carrito nuevo que arma el micrositio) y se manda el link del
-            // micrositio; el link de pago real se manda recién cuando
-            // vuelva con productos y un total de verdad.
-            if (($cart->metadata['pending_first_action']['action'] ?? null) === 'bulk_order_web') {
-                $cart->payment_method = 'tarjeta';
+            // Pedido explícito en vivo: tarjeta SIEMPRE va directo a la
+            // página externa de cobro (dpikeos.ec, un ecommerce aparte con
+            // su propio catálogo y carrito -- el cliente arma y paga TODO
+            // allá) -- nunca al micrositio propio (ese es solo para
+            // efectivo/transferencia). Antes, si esto venía del gate de
+            // "Armar lista" con el carrito todavía vacío, se mandaba al
+            // micrositio en su lugar (razonando que no había un total real
+            // que cobrar); eso ya no aplica porque dpikeos.ec no depende de
+            // nuestro carrito ni de un total nuestro.
+            $isEmptyGateCart = ($cart->metadata['pending_first_action']['action'] ?? null) === 'bulk_order_web';
+            if ($isEmptyGateCart) {
                 $metadata = $cart->metadata ?? [];
                 unset($metadata['pending_payment_method'], $metadata['pending_first_action']);
                 $cart->metadata = $metadata;
-                $cart->save();
-
-                return $this->sendBulkWebOrderLink($contact);
             }
 
             // El pago con tarjeta se resuelve fuera del chat, en la página web
@@ -9148,22 +9146,24 @@ class WhatsappService
 
             $chatbotConfig = $this->scopedChatbotConfig();
             $cardPaymentUrl = trim((string) ($chatbotConfig?->metadata['card_payment_url'] ?? ''));
-            $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
-            $customCardTemplate = trim((string) ($chatbotConfig?->metadata['payment_templates']['card_payment'] ?? ''));
-            if ($customCardTemplate !== '') {
-                $cardPaymentMessage = $this->renderPaymentTemplate('card_payment', [
-                    'order_number' => $cart->getOrderNumber(),
-                    'currency' => 'USD',
-                    'total' => number_format((float) $cart->total, 2),
-                    'payment_url' => $cardPaymentUrl,
-                ]);
-            } elseif ($cardPaymentMessage === '') {
-                $cardPaymentMessage = $this->renderPaymentTemplate('card_payment', [
-                    'order_number' => $cart->getOrderNumber(),
-                    'currency' => 'USD',
-                    'total' => number_format((float) $cart->total, 2),
-                    'payment_url' => $cardPaymentUrl,
-                ]);
+            // Carrito todavía vacío (gate de "Armar lista"): no hay ni
+            // número de pedido ni total real que mostrar todavía -- el
+            // mensaje de {{order_number}}/{{total}} quedaría mostrando
+            // "$0.00", así que acá se usa un texto genérico en vez del
+            // template configurado para el cobro de un pedido real.
+            if ($isEmptyGateCart) {
+                $cardPaymentMessage = "💳 Por este medio no procesamos pagos con tarjeta.\n\nContinúa tu compra y paga de forma segura en nuestra página web:";
+            } else {
+                $cardPaymentMessage = trim((string) ($chatbotConfig?->metadata['card_payment_message'] ?? ''));
+                $customCardTemplate = trim((string) ($chatbotConfig?->metadata['payment_templates']['card_payment'] ?? ''));
+                if ($customCardTemplate !== '' || $cardPaymentMessage === '') {
+                    $cardPaymentMessage = $this->renderPaymentTemplate('card_payment', [
+                        'order_number' => $cart->getOrderNumber(),
+                        'currency' => 'USD',
+                        'total' => number_format((float) $cart->total, 2),
+                        'payment_url' => $cardPaymentUrl,
+                    ]);
+                }
             }
 
             if ($cardPaymentUrl === '') {

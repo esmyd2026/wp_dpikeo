@@ -166,9 +166,22 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
         $this->assertDatabaseCount('bulk_order_tokens', 1);
     }
 
-    public function test_choosing_card_for_armar_lista_carries_the_payment_method_into_the_storefront(): void
+    /**
+     * Pedido explícito en vivo: "cuando es pago con tarjeta es para la
+     * página dpikeos.ec y cuando es efectivo y transferencia es para el de
+     * dpikeos.com" -- dpikeos.ec es un ecommerce aparte, con su propio
+     * catálogo y carrito (el cliente arma y paga TODO allá), así que tarjeta
+     * nunca debe pasar por el micrositio propio, ni siquiera con el carrito
+     * de "Armar lista" todavía vacío. Antes SÍ lo mandaba al micrositio acá
+     * (razonando que no había un total real que cobrar) -- eso quedó mal
+     * una vez que dpikeos.ec no depende de nuestro carrito ni de un total
+     * nuestro.
+     */
+    public function test_choosing_card_for_armar_lista_sends_the_external_card_link_directly(): void
     {
-        [$company, $profile, $contact] = $this->fixture('100010', ecommerceMode: true);
+        [, $profile, $contact] = $this->fixture('100010', ecommerceMode: true);
+        WhatsappChatbotConfig::where('business_profile_id', $profile->id)
+            ->update(['metadata' => ['ecommerce_mode_enabled' => true, 'card_payment_url' => 'https://dpikeos.ec/']]);
         $service = app(WhatsappService::class);
         $service->setWebhookPhoneNumberId($profile->phone_number_id);
 
@@ -177,14 +190,11 @@ class EcommerceModeRedirectsToStorefrontTest extends TestCase
 
         $response = $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
 
-        // Con carrito vacío no hay nada que cobrar todavía -- se manda al
-        // micrositio con el método ya guardado (submitForContact lo hereda
-        // al confirmar), no un link de pago para $0.00.
         $this->assertSame('cta_url', $response['interactive']['type']);
+        $this->assertSame('https://dpikeos.ec/', $response['interactive']['action']['parameters']['url'] ?? null);
+        $this->assertStringNotContainsString('/pedido/', $response['interactive']['action']['parameters']['url'] ?? '');
         $this->assertSame('tarjeta', $cart->fresh()->payment_method);
-        $this->assertArrayNotHasKey('card_payment_link_sent', $cart->fresh()->metadata ?? []);
-        $url = $response['interactive']['action']['parameters']['url'] ?? '';
-        $this->assertStringContainsString('payment_method=tarjeta', $url);
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
     }
 
     /**

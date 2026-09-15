@@ -30,12 +30,12 @@ class AdminController extends Controller
 {
     public function dashboard()
     {
-        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $profileIds = $this->activeCompanyProfileIds();
 
         $orders = WhatsappCart::forActiveCompany()->with(['items', 'contact'])->latest()->get();
-        $messages = WhatsappMessage::when($businessProfileId, fn ($q) => $q->whereHas(
+        $messages = WhatsappMessage::when($profileIds->isNotEmpty(), fn ($q) => $q->whereHas(
             'contact',
-            fn ($c) => $c->where('business_profile_id', $businessProfileId)
+            fn ($c) => $c->whereIn('business_profile_id', $profileIds)
         ))->with(['contact', 'conversation'])->latest()->get();
 
         return view('admin.dashboard', compact('orders', 'messages'));
@@ -97,7 +97,7 @@ class AdminController extends Controller
         }
 
         $orders = $ordersQuery
-            ->with(['items', 'contact', 'branch:id,name,code'])
+            ->with(['items', 'contact.businessProfile:id,business_name,display_name,phone_number', 'branch:id,name,code'])
             ->withCount([
                 'notes as internal_notes_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_INTERNAL),
                 'notes as feedback_count' => fn ($q) => $q->where('type', WhatsappCartNote::TYPE_FEEDBACK),
@@ -105,6 +105,11 @@ class AdminController extends Controller
             ->latest()
             ->paginate(10)
             ->withQueryString();
+
+        // Pedido explícito: con 2+ números conectados, cada pedido debe
+        // dejar claro por cuál número llegó -- con uno solo, esa etiqueta
+        // sería ruido sin ninguna información nueva.
+        $companyHasMultipleNumbers = $this->activeCompanyProfileIds()->count() > 1;
 
         $stats = [
             'total' => (int) ($summary->total_count ?? 0),
@@ -125,7 +130,8 @@ class AdminController extends Controller
             'latestOrderId',
             'orderSegments',
             'segmentCounts',
-            'activeSegment'
+            'activeSegment',
+            'companyHasMultipleNumbers'
         ));
     }
 
@@ -157,16 +163,19 @@ class AdminController extends Controller
         // cursor de arriba (since_id) nunca vuelve a traer un pedido YA
         // conocido aunque le cambie el estado/metadata. Se sondea aparte,
         // con su propio cursor, ver migración create_order_alert_events_table.
-        $businessProfileId = CompanyContext::current()->businessProfileId();
+        // Pedido explícito: una empresa con 2+ números conectados debe
+        // escuchar el timbre de pedidos nuevos de TODOS, no solo del
+        // "principal" -- antes solo miraba un business_profile_id.
+        $profileIds = CompanyContext::currentCompany()->whatsappAccounts()->pluck('id');
         $events = collect();
         $latestEventId = $sinceEventId;
-        if ($businessProfileId) {
-            $events = OrderAlertEvent::where('business_profile_id', $businessProfileId)
+        if ($profileIds->isNotEmpty()) {
+            $events = OrderAlertEvent::whereIn('business_profile_id', $profileIds)
                 ->where('id', '>', $sinceEventId)
                 ->orderBy('id')
                 ->limit(20)
                 ->get();
-            $latestEventId = max($sinceEventId, (int) (OrderAlertEvent::where('business_profile_id', $businessProfileId)->max('id') ?? 0));
+            $latestEventId = max($sinceEventId, (int) (OrderAlertEvent::whereIn('business_profile_id', $profileIds)->max('id') ?? 0));
         }
 
         return response()->json([
@@ -197,7 +206,9 @@ class AdminController extends Controller
 
     public function messages()
     {
-        $messages = WhatsappMessage::where('business_profile_id', CompanyContext::current()->businessProfileId())
+        $profileIds = $this->activeCompanyProfileIds();
+        $messages = WhatsappMessage::query()
+            ->when($profileIds->isNotEmpty(), fn ($q) => $q->whereIn('business_profile_id', $profileIds))
             ->with(['contact', 'conversation'])
             ->latest()
             ->paginate(20);
@@ -493,14 +504,17 @@ class AdminController extends Controller
     public function chat($contactId)
     {
         $contacts = $this->getSidebarContacts((int) $contactId);
-        $contact = WhatsappContact::findOrFail($contactId);
+        $contact = WhatsappContact::with('businessProfile:id,business_name,display_name,phone_number')->findOrFail($contactId);
 
         // El id del contacto llega en la URL: sin este chequeo, un admin
         // podría abrir la conversación de otra empresa con solo cambiar el
-        // número, aunque el sidebar no se la muestre.
-        $activeBusinessProfileId = CompanyContext::current()->businessProfileId();
+        // número, aunque el sidebar no se la muestre. Se compara contra
+        // TODOS los números de la empresa activa, no solo el "principal" --
+        // si no, la conversación de un cliente que escribió al segundo
+        // número de la empresa daba 404 acá aunque sí fuera suya.
+        $activeProfileIds = $this->activeCompanyProfileIds();
         abort_unless(
-            ! $activeBusinessProfileId || (int) $contact->business_profile_id === (int) $activeBusinessProfileId,
+            $activeProfileIds->isEmpty() || $activeProfileIds->contains((int) $contact->business_profile_id),
             404
         );
         $messages = WhatsappMessage::where('contact_id', $contactId)
@@ -788,7 +802,9 @@ class AdminController extends Controller
             ? WhatsappChatbotConfig::where('business_profile_id', $contact->business_profile_id)->first()
             : CompanyContext::current()->chatbotConfig();
 
-        return view('admin.chat', compact('contacts', 'contact', 'messages', 'stats', 'globalStats', 'lastInboundWamid', 'typingAvailable', 'chatbotConfig'));
+        $companyHasMultipleNumbers = $activeProfileIds->count() > 1;
+
+        return view('admin.chat', compact('contacts', 'contact', 'messages', 'stats', 'globalStats', 'lastInboundWamid', 'typingAvailable', 'chatbotConfig', 'companyHasMultipleNumbers'));
     }
 
     /**
@@ -802,9 +818,9 @@ class AdminController extends Controller
         // dashboard aparte), así que las mismas consultas por-mensaje que
         // se arreglaron en chat() acá se multiplicaban por todos los
         // contactos de la empresa.
-        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $profileIds = $this->activeCompanyProfileIds();
         $allMessages = WhatsappMessage::query()
-            ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+            ->when($profileIds->isNotEmpty(), fn ($query) => $query->whereIn('business_profile_id', $profileIds))
             ->orderBy('created_at')
             ->get();
 
@@ -1555,7 +1571,7 @@ class AdminController extends Controller
     public function pollAgentRequests()
     {
         $requests = WhatsappContact::query()
-            ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+            ->whereIn('business_profile_id', $this->activeCompanyProfileIds())
             ->whereRaw("JSON_EXTRACT(metadata, '$.needs_agent') = true")
             ->orderByDesc('updated_at')
             ->get(['id', 'name', 'phone_number', 'metadata']);
@@ -1582,7 +1598,7 @@ class AdminController extends Controller
      */
     private function getSidebarContacts(?int $currentContactId = null)
     {
-        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $profileIds = $this->activeCompanyProfileIds();
 
         // whereIn('id', SELECT DISTINCT contact_id FROM whatsapp_messages)
         // escaneaba TODA la tabla de mensajes de la plataforma (de cualquier
@@ -1591,9 +1607,9 @@ class AdminController extends Controller
         // primero y solo verifica existencia (EXISTS) por contacto candidato,
         // en vez de deduplicar contact_id sobre toda la tabla.
         $contacts = WhatsappContact::query()
-            ->when($businessProfileId, fn ($q) => $q->where('business_profile_id', $businessProfileId))
+            ->when($profileIds->isNotEmpty(), fn ($q) => $q->whereIn('business_profile_id', $profileIds))
             ->whereHas('messages')
-            ->with(['latestMessage'])
+            ->with(['latestMessage', 'businessProfile:id,business_name,display_name,phone_number'])
             ->withMax('messages as last_message_at', 'created_at')
             ->orderByDesc('last_message_at')
             ->get();
@@ -1603,11 +1619,29 @@ class AdminController extends Controller
 
     private function findContactForActiveCompany($contactId): ?WhatsappContact
     {
-        $businessProfileId = CompanyContext::current()->businessProfileId();
+        $profileIds = $this->activeCompanyProfileIds();
 
         return WhatsappContact::query()
-            ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+            ->when($profileIds->isNotEmpty(), fn ($query) => $query->whereIn('business_profile_id', $profileIds))
             ->find($contactId);
+    }
+
+    /**
+     * Ids de TODOS los números de WhatsApp de la empresa activa -- una
+     * empresa con 2+ números conectados debe ver/actuar sobre las
+     * conversaciones de todos juntos, no solo del "principal" que resolvía
+     * CompanyContext::current()->businessProfileId() (mismo criterio que
+     * WhatsappCart::scopeForActiveCompany()). Colección vacía cuando no hay
+     * empresa activa resuelta (instalación legacy mono-empresa) -- los
+     * llamadores deciden si eso significa "no filtrar" o "no mostrar nada".
+     */
+    private function activeCompanyProfileIds()
+    {
+        try {
+            return CompanyContext::currentCompany()->whatsappAccounts()->pluck('id');
+        } catch (\Throwable $e) {
+            return collect();
+        }
     }
 
     /**
@@ -1656,7 +1690,7 @@ class AdminController extends Controller
     {
         try {
             $contact = WhatsappContact::query()
-                ->where('business_profile_id', CompanyContext::current()->businessProfileId())
+                ->whereIn('business_profile_id', $this->activeCompanyProfileIds())
                 ->find($contactId);
             if (! $contact) {
                 return response()->json(['success' => false, 'message' => 'Conversación no encontrada'], 404);
@@ -1706,9 +1740,9 @@ class AdminController extends Controller
     public function getImage($messageId)
     {
         try {
-            $businessProfileId = CompanyContext::current()->businessProfileId();
+            $profileIds = $this->activeCompanyProfileIds();
             $message = WhatsappMessage::query()
-                ->when($businessProfileId, fn ($query) => $query->where('business_profile_id', $businessProfileId))
+                ->when($profileIds->isNotEmpty(), fn ($query) => $query->whereIn('business_profile_id', $profileIds))
                 ->findOrFail($messageId);
 
             if ($message->type !== 'image') {

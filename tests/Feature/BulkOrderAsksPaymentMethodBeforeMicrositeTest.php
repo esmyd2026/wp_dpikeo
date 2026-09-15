@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\WhatsappBusinessProfile;
 use App\Models\WhatsappCart;
+use App\Models\WhatsappChatbotConfig;
 use App\Models\WhatsappContact;
 use App\Services\WhatsappService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -69,9 +70,20 @@ class BulkOrderAsksPaymentMethodBeforeMicrositeTest extends TestCase
         $this->assertArrayNotHasKey('pending_first_action', $cart->fresh()->metadata ?? []);
     }
 
-    public function test_choosing_tarjeta_also_resumes_to_the_microsite_link_instead_of_an_empty_payment_link(): void
+    /**
+     * Pedido explícito en vivo: "cuando es pago con tarjeta es para la
+     * página dpikeos.ec... y cuando es efectivo y transferencia es para el
+     * de dpikeos.com" -- tarjeta nunca debe pasar por el micrositio propio
+     * (dpikeos.ec es un ecommerce aparte, con su propio catálogo y carrito),
+     * ni siquiera con el carrito de "Armar lista" todavía vacío.
+     */
+    public function test_choosing_tarjeta_sends_the_external_card_link_directly_instead_of_the_microsite(): void
     {
         [$profile, $contact] = $this->fixture();
+        WhatsappChatbotConfig::create([
+            'business_profile_id' => $profile->id,
+            'metadata' => ['card_payment_url' => 'https://dpikeos.ec/'],
+        ]);
         $service = app(WhatsappService::class);
         $service->setWebhookPhoneNumberId($profile->phone_number_id);
 
@@ -80,12 +92,10 @@ class BulkOrderAsksPaymentMethodBeforeMicrositeTest extends TestCase
 
         $response = $this->invoke($service, 'procesarPagoTarjeta', [$contact, $cart->id]);
 
-        // Debe ser el link del micrositio (cta_url con "Ver menú"), no un
-        // link de pago de tarjeta para un pedido de $0.00, y el carrito no
-        // debe cerrarse -- todavía no hay nada que pagar.
         $this->assertSame('cta_url', $response['interactive']['type']);
-        $this->assertStringContainsString('/pedido/', $response['interactive']['action']['parameters']['url']);
-        $this->assertSame('active', $cart->fresh()->status);
+        $this->assertSame('https://dpikeos.ec/', $response['interactive']['action']['parameters']['url'] ?? null);
+        $this->assertStringNotContainsString('/pedido/', $response['interactive']['action']['parameters']['url'] ?? '');
+        $this->assertSame(WhatsappCart::STATUS_CANCELLED, $cart->fresh()->status);
         $this->assertSame('tarjeta', $cart->fresh()->payment_method);
     }
 

@@ -87,6 +87,77 @@ class MultiTenantBranchAccessTest extends TestCase
         $this->assertSame([$orderA->id], WhatsappCart::reportable()->forActiveCompany()->pluck('id')->all());
     }
 
+    /**
+     * Pedido explícito en vivo: "como puedo tener los pedidos de dos o más
+     * números en mi interfaz... cada número manda a su propio módulo de
+     * pedido." scopeForActiveCompany() filtraba por UN business_profile_id
+     * (el "principal" resuelto por CompanyContext::current()) -- una empresa
+     * con 2+ números conectados nunca veía junto lo de ambos.
+     */
+    public function test_a_company_with_two_whatsapp_numbers_sees_orders_from_both(): void
+    {
+        $company = Company::create(['uuid' => (string) Str::uuid(), 'name' => 'Empresa Dos Numeros', 'slug' => 'empresa-dos-numeros', 'status' => 'active']);
+        $profileA = WhatsappBusinessProfile::create([
+            'company_id' => $company->id, 'business_name' => 'Numero A', 'display_name' => 'Numero A',
+            'phone_number' => '593991000001', 'phone_number_id' => 'DOS-NUM-A', 'access_token' => 'token-a',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED, 'is_primary' => true,
+        ]);
+        $profileB = WhatsappBusinessProfile::create([
+            'company_id' => $company->id, 'business_name' => 'Numero B', 'display_name' => 'Numero B',
+            'phone_number' => '593991000002', 'phone_number_id' => 'DOS-NUM-B', 'access_token' => 'token-b',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
+        ]);
+        $branchA = BusinessBranch::create(['business_profile_id' => $profileA->id, 'name' => 'Matriz A', 'code' => 'MA', 'is_active' => true, 'is_default' => true]);
+        $branchB = BusinessBranch::create(['business_profile_id' => $profileB->id, 'name' => 'Matriz B', 'code' => 'MB', 'is_active' => true, 'is_default' => true]);
+        $orderA = $this->order($profileA, $branchA, 'ORD-NUM-A');
+        $orderB = $this->order($profileB, $branchB, 'ORD-NUM-B');
+
+        $role = Role::where('slug', 'admin')->firstOrFail();
+        $user = User::factory()->create(['is_admin' => true, 'role_id' => $role->id]);
+        $company->users()->attach($user->id, ['role_id' => $role->id]);
+        $this->actingAs($user)->withSession(['active_company_id' => $company->id]);
+
+        $ids = WhatsappCart::reportable()->forActiveCompany()->pluck('id');
+        $this->assertTrue($ids->contains($orderA->id), 'Debe ver los pedidos del número A.');
+        $this->assertTrue($ids->contains($orderB->id), 'Debe ver también los pedidos del número B.');
+    }
+
+    /**
+     * La restricción de sucursales es por número (User::accessibleBranchIds).
+     * Con dos números, un usuario con acceso total en A pero restringido a
+     * una sola sucursal en B debe ver: todo A + solo esa sucursal de B.
+     */
+    public function test_branch_restriction_combines_correctly_across_two_numbers(): void
+    {
+        $company = Company::create(['uuid' => (string) Str::uuid(), 'name' => 'Empresa Restriccion Dos Numeros', 'slug' => 'empresa-restriccion-dos-numeros', 'status' => 'active']);
+        $profileA = WhatsappBusinessProfile::create([
+            'company_id' => $company->id, 'business_name' => 'Numero A', 'display_name' => 'Numero A',
+            'phone_number' => '593992000001', 'phone_number_id' => 'RESTR-NUM-A', 'access_token' => 'token-a',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED, 'is_primary' => true,
+        ]);
+        $profileB = WhatsappBusinessProfile::create([
+            'company_id' => $company->id, 'business_name' => 'Numero B', 'display_name' => 'Numero B',
+            'phone_number' => '593992000002', 'phone_number_id' => 'RESTR-NUM-B', 'access_token' => 'token-b',
+            'status' => WhatsappBusinessProfile::STATUS_CONNECTED,
+        ]);
+        $branchA = BusinessBranch::create(['business_profile_id' => $profileA->id, 'name' => 'A', 'code' => 'A', 'is_active' => true]);
+        $branchB1 = BusinessBranch::create(['business_profile_id' => $profileB->id, 'name' => 'B1', 'code' => 'B1', 'is_active' => true]);
+        $branchB2 = BusinessBranch::create(['business_profile_id' => $profileB->id, 'name' => 'B2', 'code' => 'B2', 'is_active' => true]);
+        $orderA = $this->order($profileA, $branchA, 'ORD-RESTR-A');
+        $orderB1 = $this->order($profileB, $branchB1, 'ORD-RESTR-B1');
+        $this->order($profileB, $branchB2, 'ORD-RESTR-B2');
+
+        $role = Role::where('slug', 'admin')->firstOrFail();
+        $user = User::factory()->create(['is_admin' => true, 'role_id' => $role->id]);
+        $company->users()->attach($user->id, ['role_id' => $role->id]);
+        // Sin filas para A -> acceso total en A. Con una fila para B1 -> solo esa sucursal de B.
+        $user->branches()->attach($branchB1->id);
+        $this->actingAs($user)->withSession(['active_company_id' => $company->id]);
+
+        $ids = WhatsappCart::reportable()->forActiveCompany()->pluck('id');
+        $this->assertEqualsCanonicalizing([$orderA->id, $orderB1->id], $ids->all());
+    }
+
     public function test_delivery_endpoint_does_not_expose_another_company_or_unassigned_branch(): void
     {
         $a = $this->tenant('delivery-a');

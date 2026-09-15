@@ -130,10 +130,14 @@ class WhatsappCart extends Model
     }
 
     /**
-     * Acota a los pedidos del contacto de la empresa activa del admin
-     * autenticado. Sin usuario/sesión (comandos, jobs) no filtra -- esos
-     * contextos no tienen "empresa activa" y deben resolver su propio tenant
-     * explícitamente si lo necesitan.
+     * Acota a los pedidos de TODOS los números de WhatsApp de la empresa
+     * activa del admin autenticado -- una empresa con 2+ números conectados
+     * debe ver los pedidos de todos juntos acá, no solo los del número
+     * "principal" (antes filtraba por businessProfileId() de
+     * CompanyContext::current(), un solo perfil). Sin usuario/sesión
+     * (comandos, jobs) no filtra -- esos contextos no tienen "empresa
+     * activa" y deben resolver su propio tenant explícitamente si lo
+     * necesitan.
      */
     public function scopeForActiveCompany($query)
     {
@@ -143,22 +147,39 @@ class WhatsappCart extends Model
         }
 
         try {
-            $businessProfileId = CompanyContext::current()->businessProfileId();
+            $company = CompanyContext::currentCompany();
         } catch (\Throwable $e) {
             // En aislamiento multiempresa es preferible no devolver nada a
             // exponer pedidos de otro tenant cuando el contexto esté incompleto.
             return $query->whereRaw('1 = 0');
         }
 
-        if (! $businessProfileId) {
+        $profileIds = $company->whatsappAccounts()->pluck('id');
+        if ($profileIds->isEmpty()) {
             return $query->whereRaw('1 = 0');
         }
 
-        $query->whereHas('contact', fn ($q) => $q->where('business_profile_id', $businessProfileId));
+        $query->whereHas('contact', fn ($q) => $q->whereIn('business_profile_id', $profileIds));
 
-        $branchIds = $user->accessibleBranchIds($businessProfileId);
-        if ($branchIds !== null) {
-            $query->whereIn('branch_id', $branchIds);
+        // La restricción de sucursales es por número (ver
+        // User::accessibleBranchIds()) -- con varios números hay que unir lo
+        // permitido de cada uno: si en ALGUNO hay restricción real, se limita
+        // a la unión de (sucursales permitidas de los restringidos + todas
+        // las de los que tienen acceso total); si ninguno está restringido,
+        // no hace falta filtrar nada.
+        $hasRestriction = false;
+        $branchIds = [];
+        foreach ($profileIds as $profileId) {
+            $allowed = $user->accessibleBranchIds($profileId);
+            if ($allowed === null) {
+                $branchIds = array_merge($branchIds, BusinessBranch::where('business_profile_id', $profileId)->pluck('id')->all());
+            } else {
+                $hasRestriction = true;
+                $branchIds = array_merge($branchIds, $allowed);
+            }
+        }
+        if ($hasRestriction) {
+            $query->whereIn('branch_id', array_unique($branchIds));
         }
 
         return $query;

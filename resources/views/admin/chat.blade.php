@@ -512,6 +512,22 @@
         text-overflow: ellipsis;
     }
 
+    .wa-sidebar-number-source {
+        margin-top: 2px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #128c7e;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .wa-chat-header-number-source {
+        font-size: 11px;
+        font-weight: 700;
+        color: #128c7e;
+    }
+
     .wa-sidebar-last-message {
         font-size: 14px;
         color: #8696a0;
@@ -2279,6 +2295,11 @@
                             @else
                                 <div class="wa-sidebar-phone">{{ $c->phone_number }}</div>
                             @endif
+                            @if($companyHasMultipleNumbers ?? false)
+                                <div class="wa-sidebar-number-source" title="Número de WhatsApp de esta conversación">
+                                    <i class="fab fa-whatsapp"></i> {{ $c->businessProfile?->display_name ?: ($c->businessProfile?->business_name ?: $c->businessProfile?->phone_number ?: 'Número desconocido') }}
+                                </div>
+                            @endif
                         </div>
                 </a>
             @endforeach
@@ -2299,6 +2320,11 @@
                     <div class="wa-chat-header-info">
                         <div class="wa-chat-header-name">{{ $contact->name ?? 'Cliente' }}</div>
                         <div class="wa-chat-header-status"><i class="fab fa-whatsapp"></i><span>{{ $contact->phone_number }}</span></div>
+                        @if($companyHasMultipleNumbers ?? false)
+                            <div class="wa-chat-header-number-source" title="Número de WhatsApp de esta conversación">
+                                Recibido por: {{ $contact->businessProfile?->display_name ?: ($contact->businessProfile?->business_name ?: $contact->businessProfile?->phone_number ?: 'número desconocido') }}
+                            </div>
+                        @endif
                     </div>
                     <div class="wa-header-actions">
                         <button type="button" id="retry-bot-reply-btn" class="wa-header-action-btn" title="Reenviar el último mensaje del cliente al bot, como si acabara de llegar">

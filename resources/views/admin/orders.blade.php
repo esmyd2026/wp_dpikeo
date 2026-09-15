@@ -229,6 +229,7 @@
     .o-tag.fulfil-pending { background: #fef3c7; color: #92400e; }
     .o-tag.order-branch { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
     .o-tag.order-branch.missing { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+    .o-tag.order-number-source { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
 
     .orders-refresh-banner {
         position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(30px);
@@ -1123,6 +1124,12 @@
                             <div class="order-card-main">
                                 <div class="order-card-top">
                                     <span class="order-number">{{ $order->getOrderNumber() }}</span>
+                                    @if($companyHasMultipleNumbers)
+                                        @php $orderProfile = $contact?->businessProfile; @endphp
+                                        <span class="o-tag order-number-source" title="Número de WhatsApp por el que llegó este pedido">
+                                            <i class="fab fa-whatsapp"></i> {{ $orderProfile?->display_name ?: ($orderProfile?->business_name ?: $orderProfile?->phone_number ?: 'Número desconocido') }}
+                                        </span>
+                                    @endif
                                     <span class="o-tag order-branch {{ $branch ? '' : 'missing' }}" title="Sucursal donde se realizó el pedido">
                                         <i class="fas fa-store"></i> {{ $branchIdentifier }}
                                     </span>
