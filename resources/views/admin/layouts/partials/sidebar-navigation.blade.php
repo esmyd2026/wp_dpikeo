@@ -3,7 +3,9 @@
     $showOperations = $canPerm('orders.menu')
         || $canPerm('kitchen.menu')
         || $canPerm('delivery.menu')
-        || $canPerm('orders_reports.menu');
+        || $canPerm('orders_reports.menu')
+        || $canPerm('delivery_reports.menu')
+        || $canPerm('orders.billing');
     $showCatalog = $canPerm('products.menu')
         || $canPerm('menus.menu')
         || $canPerm('inventory.menu')
@@ -45,6 +47,8 @@
     @php
         $ordersMenuOpen = request()->routeIs('admin.orders*')
             || request()->routeIs('admin.reports.orders')
+            || request()->routeIs('admin.reports.delivery')
+            || request()->routeIs('admin.reports.invoicing')
             || request()->routeIs('admin.kitchen.*')
             || request()->routeIs('admin.delivery.*');
     @endphp

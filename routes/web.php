@@ -10,9 +10,11 @@ use App\Http\Controllers\Admin\CompanyStorefrontController;
 use App\Http\Controllers\Admin\CompanyWhatsappController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\DeliveryController;
+use App\Http\Controllers\Admin\DeliveryDriverReportController;
 use App\Http\Controllers\Admin\FaqController;
 use App\Http\Controllers\Admin\FranchiseController;
 use App\Http\Controllers\Admin\InventoryReportController;
+use App\Http\Controllers\Admin\InvoicingReportController;
 use App\Http\Controllers\Admin\KitchenBoardController;
 use App\Http\Controllers\Admin\MarketingCampaignController;
 use App\Http\Controllers\Admin\MarketingFlowController;
@@ -121,6 +123,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/reports/orders/contable', [OrdersReportsController::class, 'exportAccounting'])
         ->middleware(['permission:orders.view,orders.menu,orders_reports.menu', 'platform.feature:orders'])
         ->name('reports.orders.accounting-export');
+    Route::get('/reports/delivery', [DeliveryDriverReportController::class, 'index'])
+        ->middleware(['permission:orders.view,orders.menu,delivery_reports.menu', 'platform.feature:orders'])
+        ->name('reports.delivery');
+    Route::get('/reports/facturacion', [InvoicingReportController::class, 'index'])
+        ->middleware(['permission:orders.billing', 'platform.feature:orders'])
+        ->name('reports.invoicing');
     Route::get('/reports/inventory', [InventoryReportController::class, 'index'])
         ->middleware('permission:products.view,products.menu,inventory.menu')
         ->name('reports.inventory');
