@@ -5709,13 +5709,11 @@ class WhatsappService
      * @return array{sent: bool, reason: ?string}
      */
     /**
-     * Pedido explícito en vivo: "que se le pueda avisar al cliente que va
-     * en camino, accionado por el repartidor o por el operador, pero solo
-     * una vez". metadata['on_the_way_notified_at'] es el guardián de
-     * una-sola-vez compartido entre ambos disparadores (ver
-     * DeliveryConfirmationController::notifyOnTheWay y
-     * DeliveryController::notifyCustomerOnTheWay) -- quien lo toque primero
-     * gana, el otro botón queda deshabilitado.
+     * Pedido explícito: avisar "va en camino" solo lo dispara el propio
+     * repartidor desde su enlace público de entrega -- no el operador al
+     * asignarlo (eso generaba el aviso antes de que el pedido realmente
+     * saliera). metadata['on_the_way_notified_at'] sigue siendo el guardián
+     * de una-sola-vez (ver DeliveryConfirmationController::notifyOnTheWay).
      */
     public function notifyCustomerOrderOnTheWay(WhatsappCart $order, DeliveryDriver $driver, int|string|null $notifiedBy = null): array
     {

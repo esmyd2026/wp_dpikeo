@@ -77,6 +77,12 @@
                 @perm('orders_reports.menu')
                     <a href="{{ route('admin.reports.orders') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.orders') ? 'active' : '' }}"><i class="fas fa-chart-bar"></i><span class="sidebar-text">Reporte de pedidos</span></a>
                 @endperm
+                @perm('delivery_reports.menu')
+                    <a href="{{ route('admin.reports.delivery') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.delivery') ? 'active' : '' }}"><i class="fas fa-motorcycle"></i><span class="sidebar-text">Reporte de repartidores</span></a>
+                @endperm
+                @perm('orders.billing')
+                    <a href="{{ route('admin.reports.invoicing') }}" class="nav-link nav-link-sub {{ request()->routeIs('admin.reports.invoicing') ? 'active' : '' }}"><i class="fas fa-file-invoice"></i><span class="sidebar-text">Solicitudes de facturación</span></a>
+                @endperm
             </div>
         </div>
     </nav>

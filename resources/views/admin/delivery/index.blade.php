@@ -95,7 +95,6 @@
 <script>
 const deliveryDataUrl = @json(route('admin.delivery.data'));
 const deliveryConfirmTemplate = @json(route('admin.delivery.confirm', ['id' => '__ORDER__']));
-const deliveryNotifyOnTheWayTemplate = @json(route('admin.delivery.notify-on-the-way', ['id' => '__ORDER__']));
 const deliveryCsrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const deliveryEsc = value => { const node = document.createElement('div'); node.textContent = value ?? ''; return node.innerHTML; };
 
@@ -173,31 +172,6 @@ function reopenDeliveryDispatch(orderId) {
     window.reopenDriverWhatsapp(order.last_dispatch_driver.phone_number, deliveryShareText(order));
 }
 
-/**
- * Pedido explícito en vivo: avisarle al cliente que su pedido va en camino
- * (con el contacto del repartidor) se puede accionar desde acá o desde el
- * enlace público del repartidor -- el backend solo lo manda una vez.
- */
-async function notifyCustomerOnTheWay(orderId) {
-    const btn = document.getElementById(`notify-on-the-way-${orderId}`);
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Avisando…'; }
-
-    try {
-        const res = await fetch(deliveryNotifyOnTheWayTemplate.replace('__ORDER__', orderId), {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': deliveryCsrf },
-        });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo avisar al cliente.');
-
-        deliveryToast(data.message);
-        fetchDeliveryOrders();
-    } catch (error) {
-        deliveryToast(error.message, true);
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-truck me-1"></i>Avisar que va en camino'; }
-    }
-}
-
 function deliveryCard(order) {
     const badgeClass = order.status || 'pending';
     let grid = `<div class="delivery-grid">`;
@@ -228,14 +202,14 @@ function deliveryCard(order) {
     const resendBtn = order.last_dispatch_driver
         ? `<button type="button" class="delivery-btn" onclick="reopenDeliveryDispatch(${order.id})" title="Vuelve a abrir WhatsApp con ${deliveryEsc(order.last_dispatch_driver.name)} para reenviarle los datos"><i class="fas fa-rotate-right me-1"></i>Reenviar a ${deliveryEsc(order.last_dispatch_driver.name)}</button>`
         : '';
-    // Pedido explícito: avisarle al cliente que va en camino se puede
-    // accionar desde acá o desde el enlace del repartidor -- solo una vez
-    // entre los dos (on_the_way_notified_at es el guardián compartido).
+    // Pedido explícito: avisar "va en camino" ya NO se dispara desde el
+    // panel -- solo el propio repartidor lo hace desde su enlace público.
+    // Acá solo se muestra informativamente si ya avisó o no.
     let notifyBtn = '';
     if (order.last_dispatch_driver) {
         notifyBtn = order.on_the_way_notified_at
             ? `<button type="button" class="delivery-btn" disabled title="Ya se le avisó el ${deliveryFormatDate(order.on_the_way_notified_at)}"><i class="fas fa-check me-1"></i>Ya se le aviso al cliente</button>`
-            : `<button type="button" class="delivery-btn" id="notify-on-the-way-${order.id}" onclick="notifyCustomerOnTheWay(${order.id})"><i class="fas fa-truck me-1"></i>Avisar que va en camino</button>`;
+            : `<button type="button" class="delivery-btn" disabled title="Lo avisa el propio repartidor desde su enlace de entrega"><i class="fas fa-truck me-1"></i>Repartidor aún no avisa</button>`;
     }
 
     let actions = '<div class="delivery-actions">';
