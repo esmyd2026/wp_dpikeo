@@ -16,12 +16,14 @@ class ClientInsightsService
 {
     public const SEGMENTS = [
         '' => 'Todos',
+        'bot_on' => 'Gestionado por el bot',
+        'bot_off' => 'Bot pausado',
+        'order_in_progress' => 'Pedido en curso',
         'frequent_buyer' => 'Comprador frecuente',
         'vip' => 'Cliente VIP',
         'new' => 'Cliente nuevo',
         'inactive' => 'Inactivo (+30 días)',
         'needs_agent' => 'Requiere agente',
-        'bot_off' => 'Bot desactivado',
         'has_orders' => 'Con pedidos',
         'no_orders' => 'Sin pedidos',
         'pending_reply' => 'Esperando respuesta',
@@ -30,12 +32,14 @@ class ClientInsightsService
     /** Texto de ayuda por segmento (tooltips en listado de clientes). */
     public const SEGMENT_HINTS = [
         '' => 'Todos los clientes con conversación o al menos un pedido cerrado.',
+        'bot_on' => 'El bot automático está activo y le sigue respondiendo a ese contacto.',
+        'bot_off' => 'El bot automático está pausado para ese contacto.',
+        'order_in_progress' => 'Tiene un pedido que todavía no llega a entregado ni cancelado (en preparación, pago pendiente, etc.).',
         'frequent_buyer' => '3 o más pedidos cerrados. No cuenta carritos activos ni abandonados.',
         'vip' => '5 o más pedidos cerrados, o más de $500 gastados en total.',
         'new' => 'Contacto registrado en los últimos 7 días.',
         'inactive' => 'Sin mensajes de actividad en más de 30 días.',
         'needs_agent' => 'Pidió hablar con un asesor humano; el bot lo marcó en el chat.',
-        'bot_off' => 'El bot automático está pausado para ese contacto.',
         'has_orders' => 'Al menos un pedido cerrado (confirmado, pagado, completado, etc.).',
         'no_orders' => 'Sin pedidos cerrados; solo conversó o tiene carrito abierto.',
         'pending_reply' => 'El último mensaje del cliente aún no tiene respuesta del bot ni de un agente.',
@@ -80,6 +84,12 @@ class ClientInsightsService
                 ->count(),
             'pending_reply' => (clone $base)
                 ->whereRaw($this->pendingReplySql())
+                ->count(),
+            'bot_on' => (clone $base)->where('bot_enabled', true)->count(),
+            'bot_off' => (clone $base)->where('bot_enabled', false)->count(),
+            'order_in_progress' => (clone $base)
+                ->has('carts', '>=', 1, 'and', fn (Builder $q) => $q->reportable()
+                    ->whereNotIn('status', [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED]))
                 ->count(),
         ];
     }
@@ -542,7 +552,10 @@ class ClientInsightsService
                         });
                 }),
                 'needs_agent' => $query->whereRaw("JSON_EXTRACT(metadata, '$.needs_agent') = true"),
+                'bot_on' => $query->where('bot_enabled', true),
                 'bot_off' => $query->where('bot_enabled', false),
+                'order_in_progress' => $query->has('carts', '>=', 1, 'and', fn (Builder $q) => $q->reportable()
+                    ->whereNotIn('status', [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED])),
                 'has_orders' => $query->has('carts', '>=', 1, 'and', fn (Builder $q) => $q->reportable()),
                 'no_orders' => $query->doesntHave('carts', 'and', fn (Builder $q) => $q->reportable()),
                 'pending_reply' => $query->whereRaw($this->pendingReplySql()),

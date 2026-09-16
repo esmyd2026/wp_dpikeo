@@ -52,6 +52,21 @@
     .prio-card.accent { border-color: #99f6e4; background: linear-gradient(180deg, #f0fdfa, #fff); }
     .prio-card.accent .val { color: #047857; }
 
+    .clients-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .85rem; }
+    .clients-tab {
+        display: inline-flex; align-items: center; gap: .4rem;
+        padding: .45rem .8rem; border-radius: 999px; border: 1px solid #e2e8f0;
+        background: #fff; color: #475569; font-size: .8rem; font-weight: 700;
+        text-decoration: none;
+    }
+    .clients-tab:hover { background: #f8fafc; color: #0f172a; }
+    .clients-tab.is-active { background: #128c7e; border-color: #128c7e; color: #fff !important; }
+    .clients-tab .count {
+        font-size: .68rem; font-weight: 800; padding: .05rem .35rem; border-radius: 999px;
+        background: #f1f5f9; color: #475569;
+    }
+    .clients-tab.is-active .count { background: rgba(255,255,255,.25); color: #fff; }
+
     .clients-toolbar {
         background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
         padding: .85rem 1rem; margin-bottom: .85rem;
@@ -238,7 +253,33 @@
         </div>
     </div>
 
-    {{-- 3. Búsqueda rápida --}}
+    {{-- 3. Pestañas rápidas: gestionados por el bot / bot pausado / pedido en curso --}}
+    @php
+        $quickTabs = [
+            '' => ['label' => 'Todos', 'icon' => 'fa-users', 'count' => $summary['total'] ?? 0],
+            'bot_on' => ['label' => 'Bot activo', 'icon' => 'fa-robot', 'count' => $summary['bot_on'] ?? 0],
+            'bot_off' => ['label' => 'Bot pausado', 'icon' => 'fa-circle-pause', 'count' => $summary['bot_off'] ?? 0],
+            'order_in_progress' => ['label' => 'Pedido en curso', 'icon' => 'fa-truck-fast', 'count' => $summary['order_in_progress'] ?? 0],
+        ];
+    @endphp
+    <nav class="clients-tabs" aria-label="Filtro rápido de clientes">
+        @foreach($quickTabs as $tabValue => $tab)
+            @php
+                $tabParams = array_filter(
+                    array_merge($filters, ['segment' => $tabValue]),
+                    fn ($v) => $v !== null && $v !== ''
+                );
+            @endphp
+            <a href="{{ route('admin.clients.index', $tabParams) }}"
+                class="clients-tab {{ $currentSegment === $tabValue ? 'is-active' : '' }}"
+                title="{{ $segmentHints[$tabValue] ?? '' }}">
+                <i class="fas {{ $tab['icon'] }}"></i>{{ $tab['label'] }}
+                <span class="count">{{ number_format($tab['count']) }}</span>
+            </a>
+        @endforeach
+    </nav>
+
+    {{-- 4. Búsqueda rápida --}}
     <form class="clients-toolbar" method="get" action="{{ route('admin.clients.index') }}">
         <div class="clients-toolbar-main">
             <div class="field search">
@@ -286,7 +327,7 @@
         @endif
     </form>
 
-    {{-- 4. Filtros avanzados (colapsado) --}}
+    {{-- 5. Filtros avanzados (colapsado) --}}
     <details class="clients-collapse" @if(($filters['sort'] ?? 'recent') !== 'recent' || ($filters['activity_from'] ?? '') || ($filters['activity_to'] ?? '') || ($filters['min_orders'] ?? '')) open @endif>
         <summary><i class="fas fa-sliders-h text-muted"></i> Orden y filtros avanzados</summary>
         <div class="inner">
@@ -322,7 +363,7 @@
         </div>
     </details>
 
-    {{-- 5. Lista de clientes (tabla) --}}
+    {{-- 6. Lista de clientes (tabla) --}}
     @perm('clients.update')
         <div class="clients-bulk-bar" id="clients-bulk-bar" hidden>
             <span id="clients-bulk-count">0 seleccionados</span>
