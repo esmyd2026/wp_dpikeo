@@ -212,6 +212,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/delivery/{id}/despachar', [DeliveryController::class, 'dispatchToDriver'])
         ->middleware(['permission:orders.update', 'platform.feature:orders'])
         ->name('delivery.dispatch');
+    Route::post('/delivery/{id}/avisar-en-camino', [DeliveryController::class, 'notifyCustomerOnTheWay'])
+        ->middleware(['permission:orders.update', 'platform.feature:orders'])
+        ->name('delivery.notify-on-the-way');
     Route::get('/orders/export', [AdminController::class, 'exportOrders'])
         ->middleware(['permission:orders.view,orders.menu', 'platform.feature:orders'])
         ->name('orders.export');

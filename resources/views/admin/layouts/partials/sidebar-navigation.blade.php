@@ -88,24 +88,6 @@
     </nav>
 @endif
 
-@if($showCatalog)
-    <nav class="sidebar-nav sidebar-nav-main">
-        <div class="sidebar-section sidebar-text">Catálogo</div>
-        @perm('products.menu')
-            <a href="{{ route('admin.products.index') }}" class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}"><i class="fas fa-box-open"></i><span class="sidebar-text">Productos</span></a>
-        @endperm
-        @perm('menus.menu')
-            <a href="{{ route('admin.menus.index') }}" class="nav-link {{ request()->routeIs('admin.menus.*') ? 'active' : '' }}"><i class="fas fa-layer-group"></i><span class="sidebar-text">Categorías</span></a>
-        @endperm
-        @perm('inventory.menu')
-            <a href="{{ route('admin.reports.inventory') }}" class="nav-link {{ request()->routeIs('admin.reports.inventory') ? 'active' : '' }}"><i class="fas fa-warehouse"></i><span class="sidebar-text">Inventario</span></a>
-        @endperm
-        @perm('franchises.menu')
-            <a href="{{ route('admin.franchises.index') }}" class="nav-link {{ request()->routeIs('admin.franchises.*') ? 'active' : '' }}"><i class="fas fa-tags"></i><span class="sidebar-text">Franquicias</span></a>
-        @endperm
-    </nav>
-@endif
-
 @if($showWhatsapp)
     @php
         $whatsappMenuOpen = request()->routeIs('admin.chat*')
@@ -155,6 +137,24 @@
                 @endperm
             </div>
         </div>
+    </nav>
+@endif
+
+@if($showCatalog)
+    <nav class="sidebar-nav sidebar-nav-main">
+        <div class="sidebar-section sidebar-text">Catálogo</div>
+        @perm('products.menu')
+            <a href="{{ route('admin.products.index') }}" class="nav-link {{ request()->routeIs('admin.products.*') ? 'active' : '' }}"><i class="fas fa-box-open"></i><span class="sidebar-text">Productos</span></a>
+        @endperm
+        @perm('menus.menu')
+            <a href="{{ route('admin.menus.index') }}" class="nav-link {{ request()->routeIs('admin.menus.*') ? 'active' : '' }}"><i class="fas fa-layer-group"></i><span class="sidebar-text">Categorías</span></a>
+        @endperm
+        @perm('inventory.menu')
+            <a href="{{ route('admin.reports.inventory') }}" class="nav-link {{ request()->routeIs('admin.reports.inventory') ? 'active' : '' }}"><i class="fas fa-warehouse"></i><span class="sidebar-text">Inventario</span></a>
+        @endperm
+        @perm('franchises.menu')
+            <a href="{{ route('admin.franchises.index') }}" class="nav-link {{ request()->routeIs('admin.franchises.*') ? 'active' : '' }}"><i class="fas fa-tags"></i><span class="sidebar-text">Franquicias</span></a>
+        @endperm
     </nav>
 @endif
 

@@ -2409,12 +2409,6 @@
                                    data-contact-id="{{ $contact->id }}" aria-label="Atención automática">
                             <span class="bot-toggle-slider"></span>
                         </label>
-                        <button type="button" id="bot-blacklist-toggle" class="wa-header-action-btn {{ ($contact->bot_blacklisted ?? false) ? 'is-active' : '' }}"
-                                data-contact-id="{{ $contact->id }}" data-blacklisted="{{ ($contact->bot_blacklisted ?? false) ? '1' : '0' }}"
-                                title="{{ ($contact->bot_blacklisted ?? false) ? 'Quitar de la lista negra' : 'Agregar a la lista negra: el bot nunca se reactivará solo para este cliente' }}">
-                            <i class="fas fa-ban"></i>
-                            <span id="bot-blacklist-label" class="wa-header-action-label">{{ ($contact->bot_blacklisted ?? false) ? 'En lista negra' : 'Lista negra' }}</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -4967,46 +4961,6 @@
             .then(data => alert(data.message || (data.success ? 'Reenviado.' : 'No se pudo reenviar.')))
             .catch(() => alert('No se pudo reenviar el mensaje al bot.'))
             .finally(() => { btn.disabled = false; });
-        });
-
-        document.getElementById('bot-blacklist-toggle')?.addEventListener('click', function() {
-            const btn = this;
-            const contactId = btn.getAttribute('data-contact-id');
-            const nextBlacklisted = btn.getAttribute('data-blacklisted') !== '1';
-            if (!contactId) return;
-
-            if (nextBlacklisted && !confirm('¿Agregar a la lista negra? El bot se apaga ya mismo y nunca se reactivará solo para este cliente (ni siquiera por el proceso diario) hasta que lo quites de la lista.')) {
-                return;
-            }
-
-            const csrfToken = document.querySelector('input[name="_token"]')?.value
-                || document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-            fetch(`/admin/contacts/${contactId}/toggle-blacklist`, {
-                method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ blacklisted: nextBlacklisted }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) { alert(data.message || 'No se pudo actualizar la lista negra.'); return; }
-                btn.setAttribute('data-blacklisted', data.bot_blacklisted ? '1' : '0');
-                btn.classList.toggle('is-active', data.bot_blacklisted);
-                btn.title = data.bot_blacklisted ? 'Quitar de la lista negra' : 'Agregar a la lista negra: el bot nunca se reactivará solo para este cliente';
-                const label = document.getElementById('bot-blacklist-label');
-                if (label) label.textContent = data.bot_blacklisted ? 'En lista negra' : 'Lista negra';
-
-                const botToggle = document.getElementById('bot-enabled-toggle');
-                const botStatusText = document.getElementById('bot-status-text');
-                if (botToggle && data.bot_enabled !== undefined) botToggle.checked = data.bot_enabled;
-                if (botStatusText && data.bot_enabled !== undefined) botStatusText.textContent = data.bot_enabled ? 'Activada' : 'Pausada';
-            })
-            .catch(() => alert('No se pudo actualizar la lista negra.'));
         });
 
         document.getElementById('reset-conversation-btn')?.addEventListener('click', function() {

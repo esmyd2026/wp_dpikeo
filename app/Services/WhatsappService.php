@@ -5709,11 +5709,15 @@ class WhatsappService
      * @return array{sent: bool, reason: ?string}
      */
     /**
-     * Pedido explícito: avisar "va en camino" solo lo dispara el propio
-     * repartidor desde su enlace público de entrega -- no el operador al
-     * asignarlo (eso generaba el aviso antes de que el pedido realmente
+     * Pedido explícito: avisar "va en camino" lo dispara el propio
+     * repartidor desde su enlace público de entrega, o la operadora como
+     * respaldo manual desde el panel de Pedidos si el repartidor no lo
+     * hizo -- pero NUNCA desde el panel de delivery al asignar/editar el
+     * repartidor (eso generaba el aviso antes de que el pedido realmente
      * saliera). metadata['on_the_way_notified_at'] sigue siendo el guardián
-     * de una-sola-vez (ver DeliveryConfirmationController::notifyOnTheWay).
+     * de una-sola-vez entre ambos disparadores (ver
+     * DeliveryConfirmationController::notifyOnTheWay y
+     * DeliveryController::notifyCustomerOnTheWay).
      */
     public function notifyCustomerOrderOnTheWay(WhatsappCart $order, DeliveryDriver $driver, int|string|null $notifiedBy = null): array
     {

@@ -148,6 +148,24 @@
         background: #dfe7ee; color: #526174; font-size: .68rem;
     }
     .orders-segment.is-active .orders-segment-count { background: #ccfbf1; color: #0f766e; }
+    .orders-subsegments {
+        display: flex; gap: .3rem; margin: -.15rem 0 .85rem; padding: .2rem;
+        background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 11px;
+    }
+    .orders-subsegment {
+        flex: 1 0 auto; min-height: 34px; padding: .3rem .55rem;
+        display: flex; align-items: center; justify-content: center; gap: .4rem;
+        border-radius: 8px; color: #64748b; font-size: .74rem; font-weight: 700;
+        text-decoration: none; white-space: nowrap;
+    }
+    .orders-subsegment:hover { background: #eef2f7; color: #0f766e; }
+    .orders-subsegment.is-active { background: #fff; color: #0f766e; box-shadow: 0 1px 3px rgba(15,23,42,.08); }
+    .orders-subsegment-count {
+        min-width: 18px; height: 18px; padding: 0 .3rem; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #eef2f7; color: #64748b; font-size: .65rem;
+    }
+    .orders-subsegment.is-active .orders-subsegment-count { background: #ccfbf1; color: #0f766e; }
     .orders-export-form {
         display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; margin-left: auto;
     }
@@ -1016,6 +1034,19 @@
         @endforeach
     </nav>
 
+    @if($activeSegment === 'closed')
+        <nav class="orders-subsegments" aria-label="Filtrar finalizados por resultado">
+            @foreach($closedSubTabs as $subKey => $subTab)
+                <a href="{{ route('admin.orders', ['segment' => 'closed', 'closed_filter' => $subKey]) }}"
+                    class="orders-subsegment {{ $activeClosedSubTab === $subKey ? 'is-active' : '' }}"
+                    aria-current="{{ $activeClosedSubTab === $subKey ? 'page' : 'false' }}">
+                    <span>{{ $subTab['label'] }}</span>
+                    <span class="orders-subsegment-count">{{ $closedSubTabCounts[$subKey] ?? 0 }}</span>
+                </a>
+            @endforeach
+        </nav>
+    @endif
+
     <details class="orders-tools-disclosure">
         <summary class="orders-tools-summary">
             <span class="orders-tools-summary-main"><i class="fas fa-sliders"></i> Buscar y acciones</span>
@@ -1118,6 +1149,11 @@
                                 $stageLabel = 'Revisar pago';
                                 $stageIcon = 'fa-magnifying-glass-dollar';
                             }
+                            // Pedido explícito: respaldo manual para avisar
+                            // "va en camino" si el repartidor no lo hizo desde
+                            // su enlace -- ver notifyOrderOnTheWayFromStatusModal().
+                            $lastDispatchDriverId = $order->metadata['last_dispatch_driver_id'] ?? null;
+                            $onTheWayNotifiedAt = $order->metadata['on_the_way_notified_at'] ?? null;
                         @endphp
                         <article class="order-card status-{{ $order->status }}" id="order-row-{{ $order->id }}"
                             data-search="{{ strtolower(trim(($contact->name ?? '') . ' ' . ($contact->phone_number ?? '') . ' ' . ($clientNationalId ?? '') . ' ' . ($branch?->name ?? '') . ' ' . ($branch?->code ?? ''))) }}">
@@ -1200,6 +1236,8 @@
                                         data-order-number="{{ $order->getOrderNumber() }}"
                                         data-payment-method="{{ $order->payment_method }}"
                                         data-fulfillment-pickup-mode="{{ $fulfillmentPickupMode }}"
+                                        data-last-dispatch-driver-id="{{ $lastDispatchDriverId }}"
+                                        data-on-the-way-notified-at="{{ $onTheWayNotifiedAt }}"
                                         onclick="openStatusModal({{ $order->id }}, this)"
                                         aria-haspopup="dialog" aria-label="Cambiar etapa de {{ $order->getOrderNumber() }}">
                                         <span class="order-stage-icon"><i class="fas {{ $stageIcon }}"></i></span>
@@ -1300,6 +1338,9 @@
             <a href="#" id="statusDeliveryShortcut" class="o-btn" target="_blank" rel="noopener" hidden>
                 <i class="fas fa-motorcycle"></i> Enviar al repartidor
             </a>
+            <button type="button" class="o-btn" id="statusNotifyOnTheWayBtn" onclick="notifyOrderOnTheWayFromStatusModal(this)" hidden>
+                <i class="fas fa-truck"></i> Avisar que va en camino
+            </button>
             <button type="button" class="o-btn" onclick="closeStatusModal()">Volver sin cambiar</button>
             <button type="button" class="o-btn primary status-confirm-button" id="confirmStatusButton" onclick="confirmOrderStatusChange()" disabled>
                 <i class="fas fa-check"></i> Confirmar cambio
@@ -2011,6 +2052,22 @@ function openStatusModal(orderId, triggerEl) {
     deliveryShortcut.hidden = !(isDeliveryOrder && currentStatus === 'ready');
     deliveryShortcut.href = `${DELIVERY_INDEX_URL}?order=${orderId}`;
 
+    // Pedido explícito: respaldo manual para avisar "va en camino" por si
+    // el repartidor no lo hizo desde su enlace -- solo tiene sentido si ya
+    // hay un repartidor asignado y el pedido sigue "Listo para entregar".
+    const notifyBtn = document.getElementById('statusNotifyOnTheWayBtn');
+    const hasDispatchedDriver = !!triggerEl.dataset.lastDispatchDriverId;
+    const alreadyNotifiedAt = triggerEl.dataset.onTheWayNotifiedAt;
+    notifyBtn.hidden = !(isDeliveryOrder && currentStatus === 'ready' && hasDispatchedDriver);
+    notifyBtn.dataset.orderId = orderId;
+    if (alreadyNotifiedAt) {
+        notifyBtn.disabled = true;
+        notifyBtn.innerHTML = '<i class="fas fa-check"></i> Ya se le avisó que va en camino';
+    } else {
+        notifyBtn.disabled = false;
+        notifyBtn.innerHTML = '<i class="fas fa-truck"></i> Avisar que va en camino';
+    }
+
     document.getElementById('statusModalOrder').textContent = triggerEl.dataset.orderNumber || ('Pedido #' + orderId);
     document.getElementById('statusModalCurrent').textContent = STATUS_LABELS[currentStatus] || currentStatus;
     document.getElementById('statusConfirmation').hidden = true;
@@ -2083,6 +2140,42 @@ function updateStatusProgress(status, paymentMethod) {
         step.classList.toggle('is-complete', currentIndex >= 0 && stepIndex >= 0 && stepIndex < currentIndex);
         step.classList.toggle('is-current', currentIndex >= 0 && stepIndex === currentIndex);
     });
+}
+
+/**
+ * Pedido explícito: respaldo manual para avisarle al cliente que su pedido
+ * va en camino, por si el repartidor no lo hizo desde su propio enlace.
+ * Reutiliza el mismo endpoint que ese enlace público -- el backend solo lo
+ * manda una vez sin importar quién lo dispare primero.
+ */
+async function notifyOrderOnTheWayFromStatusModal(btn) {
+    const orderId = btn.dataset.orderId;
+    if (!orderId) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Avisando…';
+
+    try {
+        const res = await fetch(`/admin/delivery/${orderId}/avisar-en-camino`, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF },
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo avisar al cliente.');
+
+        showToast(data.message);
+        btn.innerHTML = '<i class="fas fa-check"></i> Ya se le avisó que va en camino';
+
+        // Reflejarlo en la tarjeta para que, si el modal se reabre sin
+        // recargar la página, ya muestre "ya avisado" en vez de dejarlo
+        // desincronizado.
+        const stageButton = document.getElementById(`status-button-${orderId}`);
+        if (stageButton) stageButton.dataset.onTheWayNotifiedAt = new Date().toISOString();
+    } catch (error) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-truck"></i> Avisar que va en camino';
+        showToast(error.message, 'error');
+    }
 }
 
 function closeStatusModal(force = false) {

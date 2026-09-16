@@ -105,4 +105,51 @@ class OrderTabsFilterTest extends TestCase
         preg_match('/<span>Todos<\/span>\s*<span class="orders-segment-count">(\d+)</', $response->getContent(), $matches);
         $this->assertSame('1', $matches[1] ?? null);
     }
+
+    /**
+     * Pedido explícito: "en finalizados colocame dos pestañas uno con los
+     * entregados y la otra con los cancelados para que no estén mezclados."
+     */
+    public function test_finalizados_has_sub_tabs_to_separate_delivered_from_cancelled(): void
+    {
+        [$company, $admin, $contact] = $this->fixture();
+        $this->orderWithNumber($contact, WhatsappCart::STATUS_COMPLETED, 'ORD-900301');
+        $this->orderWithNumber($contact, WhatsappCart::STATUS_CANCELLED, 'ORD-900302');
+
+        $delivered = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders', ['segment' => 'closed', 'closed_filter' => 'completed']));
+        $delivered->assertOk();
+        $delivered->assertSee('ORD-900301');
+        $delivered->assertDontSee('ORD-900302');
+
+        $cancelled = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders', ['segment' => 'closed', 'closed_filter' => 'cancelled']));
+        $cancelled->assertOk();
+        $cancelled->assertSee('ORD-900302');
+        $cancelled->assertDontSee('ORD-900301');
+
+        $both = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders', ['segment' => 'closed']));
+        $both->assertOk();
+        $both->assertSee('ORD-900301');
+        $both->assertSee('ORD-900302');
+        $both->assertSee('Entregados');
+        $both->assertSee('Cancelados');
+    }
+
+    public function test_the_sub_tabs_are_hidden_outside_the_finalizados_segment(): void
+    {
+        [$company, $admin, $contact] = $this->fixture();
+        $this->orderWithNumber($contact, WhatsappCart::STATUS_PENDING, 'ORD-900401');
+
+        $response = $this->actingAs($admin)
+            ->withSession(['active_company_id' => $company->id])
+            ->get(route('admin.orders'));
+
+        $response->assertOk();
+        $response->assertDontSee('<nav class="orders-subsegments"', false);
+    }
 }

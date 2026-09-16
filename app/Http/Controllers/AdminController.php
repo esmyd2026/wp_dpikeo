@@ -69,6 +69,17 @@ class AdminController extends Controller
             ? (string) $request->query('segment')
             : 'all';
 
+        // Pedido explícito: dentro de "Finalizados", separar entregados y
+        // cancelados en sub-pestañas para que no queden mezclados.
+        $closedSubTabs = [
+            'all' => ['label' => 'Todos', 'statuses' => [WhatsappCart::STATUS_COMPLETED, WhatsappCart::STATUS_CANCELLED]],
+            'completed' => ['label' => 'Entregados', 'statuses' => [WhatsappCart::STATUS_COMPLETED]],
+            'cancelled' => ['label' => 'Cancelados', 'statuses' => [WhatsappCart::STATUS_CANCELLED]],
+        ];
+        $activeClosedSubTab = array_key_exists((string) $request->query('closed_filter'), $closedSubTabs)
+            ? (string) $request->query('closed_filter')
+            : 'all';
+
         $baseOrders = WhatsappCart::reportable()->forActiveCompany();
         $summaryQuery = (clone $baseOrders)
             ->selectRaw('COUNT(*) AS total_count, MAX(id) AS latest_order_id');
@@ -102,8 +113,14 @@ class AdminController extends Controller
             return [$key => $count];
         })->all();
 
+        $closedSubTabCounts = collect($closedSubTabs)->mapWithKeys(
+            fn (array $tab, string $key) => [$key => collect($tab['statuses'])->sum(fn (string $status) => $statusCounts->get($status, 0))]
+        )->all();
+
         $ordersQuery = clone $baseOrders;
-        if ($orderSegments[$activeSegment]['statuses'] !== []) {
+        if ($activeSegment === 'closed') {
+            $ordersQuery->whereIn('status', $closedSubTabs[$activeClosedSubTab]['statuses']);
+        } elseif ($orderSegments[$activeSegment]['statuses'] !== []) {
             $ordersQuery->whereIn('status', $orderSegments[$activeSegment]['statuses']);
         }
 
@@ -142,6 +159,9 @@ class AdminController extends Controller
             'orderSegments',
             'segmentCounts',
             'activeSegment',
+            'closedSubTabs',
+            'activeClosedSubTab',
+            'closedSubTabCounts',
             'companyHasMultipleNumbers'
         ));
     }

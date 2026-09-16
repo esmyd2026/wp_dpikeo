@@ -65,16 +65,15 @@ class DeliveryConfirmationService
 
     /**
      * Avisa al cliente que su pedido va en camino, con el contacto del
-     * repartidor. Pedido explícito: solo el propio repartidor lo acciona,
-     * desde su enlace público de entrega -- el panel del operador ya no
-     * tiene un botón para esto (ver DeliveryController), para evitar que se
-     * dispare por error justo al asignar el repartidor.
+     * repartidor. Pedido explícito: se acciona desde el enlace público del
+     * repartidor, o como respaldo manual de la operadora desde el panel de
+     * Pedidos (detalle del pedido y modal de cambio de etapa) -- pero
+     * nunca desde el panel de delivery al asignar/editar el repartidor,
+     * para no repetir la confusión de que se disparara justo al despachar.
      *
-     * @param int|string $notifiedBy 'driver' cuando lo acciona el
-     *                                repartidor desde el link público (hoy
-     *                                el único llamador; se deja como
-     *                                int|string por si el panel vuelve a
-     *                                necesitarlo).
+     * @param int|string $notifiedBy id del usuario del panel, o 'driver'
+     *                                cuando lo acciona el repartidor desde
+     *                                el link público.
      * @return array{sent: bool, reason: ?string}
      */
     public function notifyOnTheWay(WhatsappCart $order, int|string $notifiedBy, WhatsappService $whatsapp): array
