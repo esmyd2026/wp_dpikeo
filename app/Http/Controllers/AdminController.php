@@ -44,7 +44,18 @@ class AdminController extends Controller
     public function orders(Request $request)
     {
         $orderSegments = [
-            'all' => ['label' => 'Todos', 'statuses' => []],
+            // Pedido explícito: "Todos" debe mostrar solo lo que sigue en
+            // curso -- cancelados y entregados ya tienen su lugar en
+            // "Finalizados" (statuses vacío ya no significa "sin filtro";
+            // significa exactamente estos estados no terminales).
+            'all' => ['label' => 'Todos', 'statuses' => [
+                WhatsappCart::STATUS_PENDING,
+                WhatsappCart::STATUS_PAYMENT_PENDING,
+                WhatsappCart::STATUS_CONFIRMED,
+                WhatsappCart::STATUS_PAID,
+                WhatsappCart::STATUS_PREPARING,
+                WhatsappCart::STATUS_READY,
+            ]],
             'new' => ['label' => 'Nuevos', 'statuses' => [WhatsappCart::STATUS_PENDING]],
             'payment' => ['label' => 'Por pagar', 'statuses' => [WhatsappCart::STATUS_PAYMENT_PENDING]],
             // Es la cola operativa previa a cocina: incluye pedidos ya
@@ -1542,7 +1553,10 @@ class AdminController extends Controller
     {
         $currentContactId = $request->input('current_contact_id');
 
-        $contacts = $this->getSidebarContacts($currentContactId ? (int) $currentContactId : null);
+        $contacts = $this->getSidebarContacts(
+            $currentContactId ? (int) $currentContactId : null,
+            $request->boolean('only_bot')
+        );
 
         return response()->json([
             'success' => true,
@@ -1595,8 +1609,11 @@ class AdminController extends Controller
 
     /**
      * Contactos del sidebar ordenados por último mensaje (más reciente primero).
+     * Pedido explícito: los contactos en lista negra nunca deben aparecer
+     * aquí (sin importar el filtro "solo bot"); $onlyBot es el check que
+     * deja ver solo a quienes el bot tiene activo hoy.
      */
-    private function getSidebarContacts(?int $currentContactId = null)
+    private function getSidebarContacts(?int $currentContactId = null, bool $onlyBot = false)
     {
         $profileIds = $this->activeCompanyProfileIds();
 
@@ -1609,6 +1626,8 @@ class AdminController extends Controller
         $contacts = WhatsappContact::query()
             ->when($profileIds->isNotEmpty(), fn ($q) => $q->whereIn('business_profile_id', $profileIds))
             ->whereHas('messages')
+            ->where('bot_blacklisted', false)
+            ->when($onlyBot, fn ($q) => $q->where('bot_enabled', true))
             ->with(['latestMessage', 'businessProfile:id,business_name,display_name,phone_number'])
             ->withMax('messages as last_message_at', 'created_at')
             ->orderByDesc('last_message_at')

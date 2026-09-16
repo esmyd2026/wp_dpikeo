@@ -336,6 +336,53 @@
         box-shadow: 0 0 0 1px #25d366;
     }
 
+    .wa-sidebar-filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 12px 10px;
+        background: #111b21;
+        border-bottom: 1px solid #313d45;
+        font-size: 13px;
+        color: #e9edef;
+    }
+
+    .wa-sidebar-filter-check {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .wa-sidebar-filter-check input {
+        width: 15px;
+        height: 15px;
+        accent-color: #25d366;
+        cursor: pointer;
+    }
+
+    .wa-sidebar-filter-info {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: #8696a0;
+        cursor: help;
+        border-radius: 50%;
+        font-size: 13px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+
+    .wa-sidebar-filter-info:hover {
+        color: #25d366;
+    }
+
     /* Mobile sidebar overlay */
     .wa-sidebar-overlay {
         display: none;
@@ -2268,6 +2315,17 @@
             <div class="wa-sidebar-search">
                 <i class="fas fa-search"></i>
                 <input type="text" id="contact-search" placeholder="Buscar cliente o número" autocomplete="off" aria-label="Buscar conversación">
+            </div>
+            <div class="wa-sidebar-filter">
+                <label class="wa-sidebar-filter-check">
+                    <input type="checkbox" id="only-bot-filter">
+                    <span>Solo los que habla el bot</span>
+                </label>
+                <button type="button" class="wa-sidebar-filter-info" id="only-bot-filter-info"
+                    title="Si lo activas, solo ves los clientes con el bot activo hoy. Si lo desactivas, ves a todos: con el bot activo y con el bot pausado. Los contactos en lista negra nunca aparecen en esta lista."
+                    aria-label="Qué hace este filtro">
+                    <i class="fas fa-circle-question"></i>
+                </button>
             </div>
             <div class="wa-sidebar-contacts" id="wa-sidebar-contacts">
             @foreach($contacts as $c)
@@ -4992,7 +5050,10 @@
                 currentContactId = parseInt(currentContactIdInput.value) || currentContactId;
             }
 
-            fetch(`/admin/chats/list/update?current_contact_id=${currentContactId}`, {
+            const onlyBotFilter = document.getElementById('only-bot-filter');
+            const onlyBotParam = onlyBotFilter && onlyBotFilter.checked ? '&only_bot=1' : '';
+
+            fetch(`/admin/chats/list/update?current_contact_id=${currentContactId}${onlyBotParam}`, {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json',
@@ -5151,6 +5212,19 @@
             })
             .catch(error => {
                 console.error('Error actualizando lista de contactos:', error);
+            });
+        }
+
+        // Pedido explícito: "check para activar y desactivar" que filtra el
+        // sidebar a solo los clientes que el bot tiene activo hoy -- se
+        // recuerda entre sesiones (localStorage) y al cambiarlo se refresca
+        // la lista de una vez, sin esperar el poll de 5 segundos.
+        const onlyBotFilterCheckbox = document.getElementById('only-bot-filter');
+        if (onlyBotFilterCheckbox) {
+            onlyBotFilterCheckbox.checked = localStorage.getItem('chat_only_bot_filter') === '1';
+            onlyBotFilterCheckbox.addEventListener('change', function () {
+                localStorage.setItem('chat_only_bot_filter', this.checked ? '1' : '0');
+                updateContactsList();
             });
         }
 
